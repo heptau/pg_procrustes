@@ -152,10 +152,9 @@ type stmtClause struct {
 }
 
 type statement struct {
-	startTok  int
-	clauses   []stmtClause
-	semiIdx   int
-	prefixGap string
+	startTok int
+	clauses  []stmtClause
+	semiIdx  int
 }
 
 func parseStatements(tokens []rawTok) []statement {

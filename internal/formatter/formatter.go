@@ -275,10 +275,8 @@ func findAliasToken(tokens []rawToken, exprStart int, aliasName string) int {
 			lower := strings.ToLower(text)
 			if lower == "as" {
 				// The next token at depth 0 is the alias.
-				for j := i + 1; j < len(tokens); j++ {
-					if tokens[j].text == "(" {
-						break // function call after AS, not an alias
-					}
+				// If the very next token is '(' it's a function call, not an alias.
+				if j := i + 1; j < len(tokens) && tokens[j].text != "(" {
 					return j
 				}
 				return -1
@@ -2104,7 +2102,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		peekNext := func() string {
 			for j := i + 1; j < len(toks); j++ {
 				if toks[j].text == "(" || toks[j].text == "[" {
-					break
+					continue
 				}
 				return toks[j].text
 			}

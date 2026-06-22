@@ -3,6 +3,14 @@
 All notable changes to pg_procrustes are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] — 2026-06-22
+
+### Fixed
+
+- `peekNext` in PL/pgSQL scanner used `break` instead of `continue` when encountering `(` or `[`, causing it to stop rather than skip past the token and find the next real one
+- Loop in alias detection (after `AS`) rewritten as a plain `if` — it only ever checked the immediately following token, never iterated
+- Removed unused `prefixGap` field from the `statement` struct in the layout layer
+
 ## [0.1.0] — 2026-06-22
 
 Initial release.
