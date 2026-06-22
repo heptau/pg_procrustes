@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pg_procrustes — PostgreSQL SQL Formatter</title>
+  <meta name="description" content="A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL parser.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   #2a2d3a;
+      --accent:   #5b8dee;
+      --accent2:  #7c6af7;
+      --text:     #d4d8e8;
+      --muted:    #7a7f99;
+      --code-bg:  #131620;
+      --code-bdr: #252838;
+      --keyword:  #c792ea;
+      --string:   #c3e88d;
+      --comment:  #546e7a;
+      --nav-w:    260px;
+      --radius:   8px;
+      font-size: 16px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:       #f5f6fa;
+        --surface:  #ffffff;
+        --border:   #dde0ea;
+        --accent:   #2563eb;
+        --accent2:  #6d4ff6;
+        --text:     #1e2032;
+        --muted:    #6b7094;
+        --code-bg:  #f0f1f7;
+        --code-bdr: #d8dae8;
+        --keyword:  #7c3aed;
+        --string:   #16803c;
+        --comment:  #8a96a8;
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.7;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── sidebar ── */
+    nav {
+      width: var(--nav-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      overflow-y: auto;
+      padding: 2rem 0 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .nav-logo {
+      padding: 0 1.5rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .nav-logo .logo-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .nav-logo .logo-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    .nav-section {
+      padding: 0.3rem 1.5rem 0.1rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 0.8rem;
+    }
+
+    nav a {
+      display: block;
+      padding: 0.3rem 1.5rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.15s, background 0.15s;
+      border-left: 2px solid transparent;
+    }
+    nav a:hover { color: var(--text); background: rgba(91,141,238,.07); }
+    nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(91,141,238,.08); }
+
+    /* ── main content ── */
+    main {
+      margin-left: var(--nav-w);
+      flex: 1;
+      max-width: 860px;
+      padding: 3rem 3.5rem 6rem;
+    }
+
+    /* ── hero ── */
+    .hero {
+      padding: 3rem 0 2.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3rem;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--text);
+      line-height: 1.15;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      margin-top: 1rem;
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 600px;
+    }
+    .hero-badges { margin-top: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .badge-accent { border-color: var(--accent); color: var(--accent); }
+
+    /* ── sections ── */
+    section { margin-bottom: 3.5rem; }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.8rem 0 0.6rem;
+    }
+    h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 1.4rem 0 0.5rem;
+    }
+
+    p { margin-bottom: 0.9rem; }
+    p:last-child { margin-bottom: 0; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── myth box ── */
+    .myth-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent2);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin: 1rem 0 1.5rem;
+      font-style: italic;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.75;
+    }
+
+    /* ── code blocks ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-bdr);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.3rem;
+      overflow-x: auto;
+      font-size: 0.845rem;
+      line-height: 1.65;
+      margin: 0.8rem 0 1.2rem;
+      position: relative;
+    }
+    code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Menlo, monospace;
+      font-size: 0.845rem;
+    }
+    p code, li code {
+      background: var(--code-bg);
+      border: 1px solid var(--code-bdr);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      font-size: 0.83em;
+      color: var(--text);
+    }
+
+    /* syntax highlight helpers */
+    .kw  { color: var(--keyword); }
+    .str { color: var(--string); }
+    .cm  { color: var(--comment); }
+    .num { color: #f78c6c; }
+    .fn  { color: #82aaff; }
+
+    /* ── diff ── */
+    .diff-del { color: #f07178; }
+    .diff-add { color: var(--string); }
+    .diff-hdr { color: var(--muted); }
+
+    /* ── tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 0.8rem 0 1.4rem;
+    }
+    th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    td {
+      padding: 0.45rem 0.75rem;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    td code { font-size: 0.8rem; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+
+    /* ── option grid ── */
+    .opt-grid {
+      display: grid;
+      gap: 0.6rem;
+      margin: 0.5rem 0 1.5rem;
+    }
+    .opt {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 0.25rem;
+    }
+    .opt-name { font-family: monospace; font-size: 0.85rem; color: var(--text); }
+    .opt-desc { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; }
+    .opt-values { font-family: monospace; font-size: 0.75rem; color: var(--accent); white-space: nowrap; }
+
+    /* ── install tabs ── */
+    .tabs { display: flex; gap: 0; margin-bottom: -1px; }
+    .tab {
+      padding: 0.45rem 1rem;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: var(--radius) var(--radius) 0 0;
+      color: var(--muted);
+      background: var(--surface);
+      user-select: none;
+    }
+    .tab.active { color: var(--text); background: var(--code-bg); border-color: var(--code-bdr); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── before/after example ── */
+    .ba-grid, .ba-stack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      margin: 0.8rem 0 1.4rem;
+    }
+    .ba-grid > div, .ba-stack > div {
+      border: 1px solid var(--border);
+    }
+    .ba-grid > div:first-child, .ba-stack > div:first-child {
+      border-bottom: none;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .ba-grid > div:last-child, .ba-stack > div:last-child {
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+    .ba-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 0.45rem 1rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .ba-grid > div:first-child .ba-label,
+    .ba-stack > div:first-child .ba-label {
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .ba-grid pre, .ba-stack pre {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      overflow-x: auto;
+    }
+
+    /* ── footer ── */
+    footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    /* ── responsive ── */
+    @media (max-width: 900px) {
+      nav { display: none; }
+      main { margin-left: 0; padding: 2rem 1.5rem 4rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="sidebar">
+  <div class="nav-logo">
+    <div class="logo-title">pg_procrustes</div>
+    <div class="logo-sub">PostgreSQL SQL Formatter</div>
+  </div>
+
+  <span class="nav-section">Introduction</span>
+  <a href="#intro">Overview</a>
+  <a href="#name">The name</a>
+
+  <span class="nav-section">Getting Started</span>
+  <a href="#installation">Installation</a>
+  <a href="#usage">Usage</a>
+
+  <span class="nav-section">Configuration</span>
+  <a href="#casing">Keyword &amp; identifier casing</a>
+  <a href="#punctuation">Punctuation &amp; spacing</a>
+  <a href="#layout">Layout</a>
+  <a href="#clauses">Clause breaking</a>
+  <a href="#content">Content breaking</a>
+  <a href="#case-sql">CASE expressions</a>
+  <a href="#plpgsql">PL/pgSQL</a>
+  <a href="#plpgsql-if">IF blocks</a>
+  <a href="#plpgsql-loop">LOOP blocks</a>
+  <a href="#plpgsql-case">CASE statements</a>
+
+  <span class="nav-section">Project</span>
+  <a href="https://github.com/heptau/pg_procrustes" target="_blank">GitHub ↗</a>
+</nav>
+
+<main>
+
+  <!-- ── HERO ── -->
+  <div class="hero" id="intro">
+    <h1><span>pg_</span>procrustes</h1>
+    <p>A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL parser, it understands your code like the database itself.</p>
+    <div class="hero-badges">
+      <span class="badge">Go</span>
+      <span class="badge">PostgreSQL</span>
+      <span class="badge badge-accent">v0.1.0</span>
+      <span class="badge">MIT</span>
+    </div>
+  </div>
+
+  <!-- ── NAME ── -->
+  <section id="name">
+    <h2>The name</h2>
+    <div class="myth-box">
+      In Greek mythology, Procrustes was a bandit who operated an iron bed on the road to Athens.
+      He invited travellers to spend the night — then made sure they fit the bed perfectly.
+      If a guest was too tall, he cut off their legs. If too short, he stretched them until they matched.
+      He actually kept <em>two</em> beds: one small, one large — so no guest could ever escape adjustment.
+      Either way, everyone fit.
+    </div>
+    <p>
+      <strong>pg_procrustes</strong> works the same way. You define the bed — the formatting rules — via
+      <code>.procrustes.yaml</code>. Your SQL will fit. Whether it likes it or not.
+    </p>
+  </section>
+
+  <!-- ── INSTALLATION ── -->
+  <section id="installation">
+    <h2>Installation</h2>
+
+    <h3>go install</h3>
+    <pre><code>go install github.com/heptau/pg_procrustes@latest</code></pre>
+
+    <h3>Build from source</h3>
+    <pre><code><span class="cm"># current platform</span>
+make build
+
+<span class="cm"># all platforms at once</span>
+make release</code></pre>
+    <p>Binaries are placed in <code>build/</code>. The <code>make release</code> target produces:</p>
+    <table>
+      <thead><tr><th>File</th><th>Platform</th></tr></thead>
+      <tbody>
+        <tr><td><code>pg_procrustes-darwin-arm64</code></td><td>macOS Apple Silicon</td></tr>
+        <tr><td><code>pg_procrustes-darwin-amd64</code></td><td>macOS Intel</td></tr>
+        <tr><td><code>pg_procrustes-linux-amd64</code></td><td>Linux x86-64</td></tr>
+        <tr><td><code>pg_procrustes-linux-arm64</code></td><td>Linux ARM64</td></tr>
+        <tr><td><code>pg_procrustes-windows-amd64.exe</code></td><td>Windows x86-64</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── USAGE ── -->
+  <section id="usage">
+    <h2>Usage</h2>
+    <pre><code><span class="cm"># format a file in place</span>
+pg_procrustes -w query.sql
+pg_procrustes -w migrations/*.sql
+
+<span class="cm"># print formatted output to stdout</span>
+pg_procrustes query.sql
+
+<span class="cm"># read from stdin, write to stdout</span>
+cat query.sql | pg_procrustes
+
+<span class="cm"># CI mode — exit 1 if any file would change</span>
+pg_procrustes --check *.sql
+
+<span class="cm"># show a unified diff without writing</span>
+pg_procrustes --diff query.sql
+
+<span class="cm"># show version</span>
+pg_procrustes --version</code></pre>
+
+    <h4>Flags</h4>
+    <table>
+      <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>-v, --version</code></td><td>Print version and exit</td></tr>
+        <tr><td><code>-c &lt;path&gt;</code></td><td>Path to config file (default: auto-detect <code>.procrustes.yaml</code>)</td></tr>
+        <tr><td><code>-w</code></td><td>Write result back to source files (in-place)</td></tr>
+        <tr><td><code>--check</code></td><td>Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
+        <tr><td><code>--diff</code></td><td>Print a unified diff of changes without writing</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Config file lookup</h4>
+    <p>
+      pg_procrustes looks for <code>.procrustes.yaml</code> starting in the current directory and walking up to the filesystem root.
+      Use <code>-c</code> to specify a path explicitly. All settings default to <code>preserve</code> — if no config is found, nothing changes.
+    </p>
+  </section>
+
+  <!-- ── CASING ── -->
+  <section id="casing">
+    <h2>Keyword &amp; identifier casing</h2>
+    <p>Each token class can be set to <code>upper</code>, <code>lower</code>, or <code>preserve</code>.</p>
+    <pre><code>reserved_keywords:
+  case: upper     <span class="cm"># SELECT, FROM, WHERE, JOIN, …</span>
+
+keywords:
+  case: upper     <span class="cm"># ANALYZE, CASCADE, VERBOSE, …</span>
+
+data_types:
+  case: lower     <span class="cm"># integer, text, timestamp, …</span>
+  form: long      <span class="cm"># long | short | long_no_space | preserve</span>
+
+literals:
+  case: upper     <span class="cm"># TRUE, FALSE, NULL</span>
+
+operators:
+  case: upper     <span class="cm"># AND, OR, NOT, IN, IS, LIKE, BETWEEN, …</span>
+
+schemas:    { case: lower }
+tables:     { case: lower }
+columns:    { case: lower }
+functions:  { case: lower }
+conditional_functions:  { case: upper }  <span class="cm"># COALESCE, NULLIF, GREATEST, LEAST</span>
+system_functions:       { case: upper }  <span class="cm"># CURRENT_DATE, SESSION_USER, …</span>
+
+aliases:
+  case: lower
+  as: add         <span class="cm"># add | preserve | remove</span></code></pre>
+
+    <h4>Data type forms</h4>
+    <table>
+      <thead><tr><th>form</th><th>Example output</th></tr></thead>
+      <tbody>
+        <tr><td><code>long</code></td><td><code>character varying</code>, <code>double precision</code>, <code>timestamp with time zone</code></td></tr>
+        <tr><td><code>short</code></td><td><code>varchar</code>, <code>float8</code>, <code>timestamptz</code></td></tr>
+        <tr><td><code>long_no_space</code></td><td><code>integer</code>, <code>bigint</code>, <code>varchar</code></td></tr>
+        <tr><td><code>preserve</code></td><td>Left as written</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── PUNCTUATION ── -->
+  <section id="punctuation">
+    <h2>Punctuation &amp; spacing</h2>
+    <pre><code>trailing_whitespace: strip      <span class="cm"># strip | preserve</span>
+semicolons:          preserve   <span class="cm"># preserve | add | remove</span>
+inequality_op:       c          <span class="cm"># preserve | ansi (&lt;&gt;) | c (!=)</span>
+join_form:           preserve   <span class="cm"># preserve | short | long</span>
+operator_spacing:    normalize  <span class="cm"># preserve | normalize (one space around = != &lt;&gt; &lt; &gt; &lt;= &gt;= ||)</span>
+blank_lines:         preserve   <span class="cm"># preserve | max_3 | max_2 | max_1</span>
+paren_spacing:       remove     <span class="cm"># preserve | add | remove</span>
+quoted_identifiers:  remove_safe
+schema_qualification: preserve  <span class="cm"># preserve | remove_public</span>
+cast_style:          preserve   <span class="cm"># preserve | double_colon | cast_function</span>
+order_asc:           preserve   <span class="cm"># preserve | explicit | implicit</span>
+not_in:              preserve   <span class="cm"># preserve | not_in | not_equals_any</span></code></pre>
+  </section>
+
+  <!-- ── LAYOUT ── -->
+  <section id="layout">
+    <h2>Layout</h2>
+    <p>The <code>layout</code> section controls clause-level line breaking and indentation. All modes default to <code>preserve</code>.</p>
+
+    <pre><code>layout:
+  line_length: 128
+
+  indent:
+    size: 3           <span class="cm"># spaces per level (ignored when type: tab)</span>
+    type: spaces      <span class="cm"># spaces | tab</span>
+    normalize: preserve
+    remainder: keep   <span class="cm"># keep | add | remove | round</span></code></pre>
+  </section>
+
+  <!-- ── CLAUSE BREAKING ── -->
+  <section id="clauses">
+    <h2>Clause breaking</h2>
+    <p><code>clauses.break: auto</code> puts each SQL clause on its own line when the flat statement exceeds <code>line_length</code>. Breaking is all-or-none.</p>
+    <p>Individual clauses can override the default:</p>
+    <pre><code>layout:
+  clauses:
+    break: auto       <span class="cm"># preserve | never | always | auto</span>
+    align: same       <span class="cm"># same | indent</span>
+    join:  { break: always }
+    limit: { break: never  }</code></pre>
+
+    <div class="ba-stack">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code><span class="kw">SELECT</span> u.id, u.name <span class="kw">FROM</span> users u <span class="kw">INNER JOIN</span> orders o <span class="kw">ON</span> o.user_id = u.id <span class="kw">WHERE</span> u.active = <span class="kw">TRUE</span> <span class="kw">ORDER BY</span> u.name</code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — break: auto, line_length: 80</div>
+        <pre><code><span class="kw">SELECT</span> u.id, u.name
+<span class="kw">FROM</span> users u
+<span class="kw">INNER JOIN</span> orders o <span class="kw">ON</span> o.user_id = u.id
+<span class="kw">WHERE</span> u.active = <span class="kw">TRUE</span>
+<span class="kw">ORDER BY</span> u.name</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CONTENT BREAKING ── -->
+  <section id="content">
+    <h2>Content breaking</h2>
+    <p><code>content.break: auto</code> breaks items <em>inside</em> a clause when that clause's content exceeds <code>line_length</code>. SELECT splits at commas; WHERE/HAVING/JOIN split at AND/OR.</p>
+    <pre><code>layout:
+  content:
+    break: auto     <span class="cm"># preserve | never | always | auto</span>
+    align: indent   <span class="cm"># same | indent</span>
+    where_conds: { break: always }</code></pre>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code><span class="kw">SELECT</span> u.id, u.name, u.email
+<span class="kw">WHERE</span> u.active = <span class="kw">TRUE AND</span> u.type = <span class="str">'premium'</span></code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — break: always</div>
+        <pre><code><span class="kw">SELECT</span>
+  u.id,
+  u.name,
+  u.email
+<span class="kw">WHERE</span>
+  u.active = <span class="kw">TRUE</span>
+  <span class="kw">AND</span> u.type = <span class="str">'premium'</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CASE EXPRESSIONS ── -->
+  <section id="case-sql">
+    <h2>CASE expressions</h2>
+    <p>Controls SQL <code>CASE … END</code> expressions in SELECT, WHERE, and other clauses.</p>
+    <pre><code>layout:
+  case:
+    break: preserve   <span class="cm"># preserve | never | always | auto</span>
+    indent: indent    <span class="cm"># preserve | none | indent</span></code></pre>
+
+    <table>
+      <thead><tr><th>break</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>never</code></td><td>Collapse <code>CASE…END</code> to a single line</td></tr>
+        <tr><td><code>always</code></td><td>Each WHEN / ELSE / END on its own line</td></tr>
+        <tr><td><code>auto</code></td><td>Expand only when the flat CASE length exceeds <code>line_length</code></td></tr>
+        <tr><td><code>preserve</code></td><td>Leave as written</td></tr>
+      </tbody>
+    </table>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code><span class="kw">SELECT</span>
+  <span class="kw">CASE WHEN</span> status = <span class="str">'active'</span>
+       <span class="kw">THEN</span> <span class="num">1</span>
+       <span class="kw">WHEN</span> status = <span class="str">'pending'</span>
+       <span class="kw">THEN</span> <span class="num">0</span>
+       <span class="kw">ELSE</span> <span class="num">-1</span>
+  <span class="kw">END</span>
+<span class="kw">FROM</span> t</code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — break: never</div>
+        <pre><code><span class="kw">SELECT CASE WHEN</span> status = <span class="str">'active'</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">WHEN</span> status = <span class="str">'pending'</span> <span class="kw">THEN</span> <span class="num">0</span> <span class="kw">ELSE</span> <span class="num">-1</span> <span class="kw">END</span>
+<span class="kw">FROM</span> t</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PLPGSQL ── -->
+  <section id="plpgsql">
+    <h2>PL/pgSQL formatting</h2>
+    <p>Dollar-quoted function and procedure bodies are formatted recursively. The <code>layout.dollar_quote.plpgsql</code> section controls block structure.</p>
+    <pre><code>layout:
+  dollar_quote:
+    newline_after_open:   preserve  <span class="cm"># preserve | add | remove</span>
+    newline_before_close: preserve
+
+    plpgsql:
+      keyword_indent:     preserve  <span class="cm"># preserve | none | indent  (DECLARE/BEGIN/END)</span>
+      declare_when_empty: preserve  <span class="cm"># preserve | add | remove</span>
+      end_semicolon:      preserve  <span class="cm"># preserve | add | remove</span>
+
+      declare:
+        indent:            preserve
+        blank_line_before: preserve
+        blank_line_after:  preserve
+
+      begin_body:
+        indent:            preserve
+        blank_line_before: preserve
+        blank_line_after:  preserve</code></pre>
+  </section>
+
+  <!-- ── PLPGSQL IF ── -->
+  <section id="plpgsql-if">
+    <h2>PL/pgSQL — IF blocks</h2>
+    <pre><code>layout:
+  dollar_quote:
+    plpgsql:
+      control_flow:
+        if:
+          body_indent:       preserve  <span class="cm"># preserve | none | indent</span>
+          blank_line_before: preserve  <span class="cm"># preserve | add | remove</span>
+          blank_line_after:  preserve</code></pre>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code><span class="kw">BEGIN</span>
+<span class="kw">IF</span> x = <span class="num">1</span> <span class="kw">THEN</span>
+y := <span class="str">'a'</span>;
+<span class="kw">ELSIF</span> x = <span class="num">2</span> <span class="kw">THEN</span>
+y := <span class="str">'b'</span>;
+<span class="kw">ELSE</span>
+y := <span class="str">'c'</span>;
+<span class="kw">END IF</span>;
+<span class="kw">END</span></code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — body_indent: indent</div>
+        <pre><code><span class="kw">BEGIN</span>
+   <span class="kw">IF</span> x = <span class="num">1</span> <span class="kw">THEN</span>
+      y := <span class="str">'a'</span>;
+   <span class="kw">ELSIF</span> x = <span class="num">2</span> <span class="kw">THEN</span>
+      y := <span class="str">'b'</span>;
+   <span class="kw">ELSE</span>
+      y := <span class="str">'c'</span>;
+   <span class="kw">END IF</span>;
+<span class="kw">END</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PLPGSQL LOOP ── -->
+  <section id="plpgsql-loop">
+    <h2>PL/pgSQL — LOOP blocks</h2>
+    <p>Covers plain <code>LOOP</code>, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code>, and <code>WHILE cond LOOP</code>. The loop header is preserved verbatim.</p>
+    <pre><code>layout:
+  dollar_quote:
+    plpgsql:
+      control_flow:
+        loop:
+          body_indent:       preserve
+          blank_line_before: preserve
+          blank_line_after:  preserve</code></pre>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code><span class="kw">BEGIN</span>
+<span class="kw">FOR</span> i <span class="kw">IN</span> <span class="num">1</span>..<span class="num">10</span> <span class="kw">LOOP</span>
+total := total + i;
+<span class="kw">END LOOP</span>;
+<span class="kw">END</span></code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — body_indent: indent, blank_line_after: add</div>
+        <pre><code><span class="kw">BEGIN</span>
+   <span class="kw">FOR</span> i <span class="kw">IN</span> <span class="num">1</span>..<span class="num">10</span> <span class="kw">LOOP</span>
+
+      total := total + i;
+
+   <span class="kw">END LOOP</span>;
+<span class="kw">END</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PLPGSQL CASE ── -->
+  <section id="plpgsql-case">
+    <h2>PL/pgSQL — CASE statements</h2>
+    <p>Two independent configs: <code>simple</code> (value switch) and <code>searched</code> (condition switch).</p>
+
+    <pre><code>layout:
+  dollar_quote:
+    plpgsql:
+      control_flow:
+        case:
+          simple:                   <span class="cm"># CASE expr WHEN value THEN …</span>
+            when_indent:  preserve  <span class="cm"># preserve | none | indent</span>
+            then_break:   preserve  <span class="cm"># preserve | never | always | auto</span>
+            then_indent:  preserve  <span class="cm"># preserve | none | indent</span>
+            body_break:   preserve  <span class="cm"># preserve | never | always | auto</span>
+            body_indent:  preserve  <span class="cm"># preserve | none | indent</span>
+            blank_line_before: preserve
+            blank_line_after:  preserve
+          searched:               <span class="cm"># CASE WHEN condition THEN …</span>
+            <span class="cm"># same settings as simple</span></code></pre>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Values</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>when_indent</code></td><td><code>indent</code></td><td>WHEN/ELSE one level deeper than CASE</td></tr>
+        <tr><td><code>then_break</code></td><td><code>never</code></td><td>WHEN val THEN body stays on one line</td></tr>
+        <tr><td></td><td><code>always</code></td><td>THEN on its own line</td></tr>
+        <tr><td><code>body_break</code></td><td><code>never</code></td><td>Body starts on the THEN line</td></tr>
+        <tr><td></td><td><code>always</code></td><td>Body on new line after THEN</td></tr>
+        <tr><td></td><td><code>auto</code></td><td>Same line for single stmt, new line for multiple</td></tr>
+      </tbody>
+    </table>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Compact style</div>
+        <pre><code><span class="kw">BEGIN</span>
+   <span class="kw">CASE</span> status
+      <span class="kw">WHEN</span> <span class="str">'active'</span>  <span class="kw">THEN</span> result := <span class="num">1</span>;
+      <span class="kw">WHEN</span> <span class="str">'pending'</span> <span class="kw">THEN</span> result := <span class="num">0</span>;
+      <span class="kw">ELSE</span>               result := <span class="num">-1</span>;
+   <span class="kw">END CASE</span>;
+<span class="kw">END</span></code></pre>
+      </div>
+      <div>
+        <div class="ba-label">Expanded style</div>
+        <pre><code><span class="kw">BEGIN</span>
+   <span class="kw">CASE</span>
+   <span class="kw">WHEN</span> status = <span class="str">'active'</span>
+      <span class="kw">THEN</span>
+         result := <span class="num">1</span>;
+   <span class="kw">WHEN</span> status = <span class="str">'pending'</span>
+      <span class="kw">THEN</span>
+         result := <span class="num">0</span>;
+   <span class="kw">ELSE</span>
+      result := <span class="num">-1</span>;
+   <span class="kw">END CASE</span>;
+<span class="kw">END</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>pg_procrustes — MIT License</span>
+    <span><a href="https://github.com/heptau/pg_procrustes">github.com/heptau/pg_procrustes</a></span>
+  </footer>
+
+</main>
+
+<script>
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('section[id], div[id]');
+  const links = document.querySelectorAll('nav a[href^="#"]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id));
+      }
+    });
+  }, { rootMargin: '0px 0px -60% 0px', threshold: 0 });
+  sections.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

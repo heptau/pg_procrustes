@@ -1,0 +1,170 @@
+reserved_keywords:
+  case: upper     # upper | lower | preserve  (SELECT, FROM, WHERE, CREATE, TABLE, JOIN, ...)
+
+keywords:
+  case: upper     # upper | lower | preserve  (ANALYZE, VERBOSE, CASCADE, ...)
+
+data_types:
+  case: lower     # upper | lower | preserve
+  form: long      # preserve | long | short | long_no_space
+                  #   long:          character varying, double precision, timestamp with time zone
+                  #   short:         varchar, float8, timestamptz
+                  #   long_no_space: integer, bigint, varchar (no multi-word forms)
+
+literals:
+  case: upper     # upper | lower | preserve  (TRUE, FALSE, NULL)
+
+operators:
+  case: upper     # upper | lower | preserve  (AND, OR, NOT, IN, IS, LIKE, BETWEEN, ...)
+
+schemas:
+  case: lower     # upper | lower | preserve
+
+tables:
+  case: lower     # upper | lower | preserve
+
+functions:
+  case: lower     # upper | lower | preserve  (now(), count(), my_func(), ...)
+
+conditional_functions:
+  case: upper     # upper | lower | preserve  (COALESCE, NULLIF, GREATEST, LEAST)
+
+system_functions:
+  case: upper     # upper | lower | preserve  (CURRENT_DATE, CURRENT_TIMESTAMP, SESSION_USER, ...)
+
+aliases:
+  case: lower     # upper | lower | preserve
+  as: add         # add | preserve | remove
+
+columns:
+  case: lower     # upper | lower | preserve
+
+trailing_whitespace: strip   # strip | preserve
+
+semicolons: preserve         # preserve | add | remove
+                             #   add:     append ';' if missing
+                             #   remove:  strip all ';'
+
+inequality_op: c             # preserve | ansi | c
+                             #   ansi:    always use <>
+                             #   c:       always use !=
+
+join_form: preserve          # preserve | short | long
+                             #   short:   JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN
+                             #   long:    INNER JOIN, LEFT OUTER JOIN, RIGHT OUTER JOIN, FULL OUTER JOIN
+
+operator_spacing: normalize  # preserve | normalize
+                             #   normalize: exactly one space on each side of =, !=, <>, <, >, <=, >=, ||
+
+blank_lines: preserve        # preserve | max_3 | max_2 | max_1
+
+paren_spacing: remove        # preserve | add | remove
+                             #   add:     space after '(' and before ')'
+                             #   remove:  no space after '(' or before ')'
+
+quoted_identifiers: remove_safe  # preserve | remove_safe
+
+schema_qualification: preserve  # preserve | remove_public
+                                 #   remove_public: strip "public." prefix from all names
+
+layout:
+  line_length: 128              # target line length for auto-break decisions
+  indent:
+    size: 3                     # number of spaces per indent level (ignored when type: tab)
+    type: spaces                # spaces | tab
+    normalize: preserve         # preserve | change  (convert existing indentation to configured type)
+    remainder: keep             # keep | add | remove | round  (handle leftover spaces when converting to tabs)
+  clauses:
+    break: preserve             # preserve | never | always | auto
+                                #   auto: break all clauses when flat statement length > line_length
+    align: same                 # same | indent  (indent places clause keyword one level deeper than SELECT)
+    # per-clause overrides (inherit clauses.break / clauses.align when omitted):
+    # into:       { break: auto, align: same }
+    # from:       { break: auto, align: same }
+    # join:       { break: auto, align: same }
+    # where:      { break: auto, align: same }
+    # group_by:   { break: auto, align: same }
+    # having:     { break: auto, align: same }
+    # order_by:   { break: auto, align: same }
+    # limit:      { break: auto, align: same }
+    # offset:     { break: auto, align: same }
+    # values:     { break: auto, align: same }
+    # on_conflict: { break: auto, align: same }
+    # set:        { break: auto, align: same }
+    # using:      { break: auto, align: same }
+    # returning:  { break: auto, align: same }
+    # with:       { break: auto, align: same }
+    # exception:  { break: auto, align: same }
+  union:
+    blank_line: preserve        # preserve | none | before | after | both
+  content:
+    break: preserve             # preserve | never | always | auto
+                                #   auto: break content when its flat length > line_length
+    align: indent               # same | indent  (indent adds one level inside the clause keyword)
+    # per-section overrides (inherit content.break / content.align when omitted):
+    # select_list: { break: auto, align: indent }
+    # where_conds: { break: auto, align: indent }
+    # join_on:     { break: auto, align: indent }
+    # group_list:  { break: auto, align: indent }
+    # order_list:  { break: auto, align: indent }
+    # set_list:    { break: auto, align: indent }
+    # values_list: { break: auto, align: indent }
+  case:
+    break: preserve              # preserve | never | always | auto
+                                 #   never:    collapse CASE...END to single line
+                                 #   always:   WHEN/ELSE/END each on own line
+                                 #   auto:     expand when flat CASE length > line_length
+    indent: indent               # preserve | none | indent
+                                 #   indent:   WHEN/ELSE indented one level relative to CASE
+                                 #   none:     WHEN/ELSE at same level as CASE
+  dollar_quote:
+    newline_after_open: preserve   # preserve | add | remove  (\n after opening $$)
+    newline_before_close: preserve # preserve | add | remove  (\n before closing $$)
+    sql:
+      body_indent: preserve        # preserve | none | indent  (indentation of SQL body lines)
+      blank_line_before: preserve  # preserve | add | remove  (blank line after opening $$)
+      blank_line_after: preserve   # preserve | add | remove  (blank line before closing $$)
+    plpgsql:
+      keyword_indent: preserve     # preserve | none | indent  (indent of DECLARE/BEGIN/END keywords)
+      declare:
+        indent: preserve           # preserve | none | indent  (indentation of DECLARE section body)
+        blank_line_before: preserve
+        blank_line_after: preserve
+      declare_when_empty: preserve # preserve | add | remove  (keep DECLARE section when empty)
+      begin_body:
+        indent: preserve           # preserve | none | indent  (indentation of BEGIN section body)
+        blank_line_before: preserve
+        blank_line_after: preserve
+      end_semicolon: preserve      # preserve | add | remove  (semicolon after END)
+      control_flow:
+        if:
+          body_indent: preserve        # preserve | none | indent
+          blank_line_before: preserve  # preserve | add | remove
+          blank_line_after: preserve   # preserve | add | remove
+        loop:
+          body_indent: preserve
+          blank_line_before: preserve
+          blank_line_after: preserve
+        case:
+          simple:                        # CASE expr WHEN val THEN ...
+            when_indent: preserve        # preserve | none | indent  (WHEN/ELSE vs CASE level)
+            then_break: preserve         # preserve | never | always | auto
+                                         #   never:    WHEN val THEN body  (THEN on WHEN line)
+                                         #   always:   WHEN val / THEN body (THEN on new line)
+                                         #   auto:     same-line if fits, else break before THEN
+            then_indent: preserve        # preserve | none | indent  (THEN depth when broken)
+            body_break: preserve         # preserve | never | always | auto
+                                         #   never:    body starts on THEN line
+                                         #   always:   body on new line after THEN
+                                         #   auto:     same-line if single-stmt, else new line
+            body_indent: preserve        # preserve | none | indent  (body depth when on new line)
+            blank_line_before: preserve  # preserve | add | remove  (before WHEN/ELSE/END CASE)
+            blank_line_after: preserve   # preserve | add | remove  (blank after THEN/ELSE, body_break: always)
+          searched:                      # CASE WHEN cond THEN ...
+            when_indent: preserve
+            then_break: preserve
+            then_indent: preserve
+            body_break: preserve
+            body_indent: preserve
+            blank_line_before: preserve
+            blank_line_after: preserve
