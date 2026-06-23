@@ -341,6 +341,18 @@ func applyCase(s string, rule config.CaseRule) string {
 	}
 }
 
+// applyCaseEx is like applyCase but skips transformation when s (case-insensitively)
+// matches one of the exceptions, returning s unchanged in that case.
+func applyCaseEx(s string, rule config.CaseRule, exceptions []string) string {
+	lower := strings.ToLower(s)
+	for _, ex := range exceptions {
+		if strings.ToLower(ex) == lower {
+			return s
+		}
+	}
+	return applyCase(s, rule)
+}
+
 // normalizeType returns the formatted type string and the indices of subsequent
 // tokens that should be skipped (consumed as part of a multi-token type).
 func normalizeType(tokens []rawToken, i int, skip map[int]bool, form config.TypeForm, caseRule config.CaseRule) (string, []int) {
@@ -967,37 +979,39 @@ func Format(sql string, cfg *config.Config) (string, error) {
 		// ── Token output ──────────────────────────────────────────────────────
 		switch class {
 		case classReservedKeyword:
-			buf.WriteString(applyCase(tokenText, cfg.ReservedKeywords.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.ReservedKeywords.Case, cfg.ReservedKeywords.Exceptions))
 		case classKeyword:
-			buf.WriteString(applyCase(tokenText, cfg.Keywords.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Keywords.Case, cfg.Keywords.Exceptions))
 		case classDataType:
 			if cfg.DataTypes.Form == config.TypeFormPreserve {
-				buf.WriteString(applyCase(tokenText, cfg.DataTypes.Case))
+				buf.WriteString(applyCaseEx(tokenText, cfg.DataTypes.Case, cfg.DataTypes.Exceptions))
 			} else {
 				out, consumed := normalizeType(tokens, i, skip, cfg.DataTypes.Form, cfg.DataTypes.Case)
+				// Apply exceptions after normalization (normalizeType returns the canonical form).
+				out = applyCaseEx(out, cfg.DataTypes.Case, cfg.DataTypes.Exceptions)
 				buf.WriteString(out)
 				for _, idx := range consumed {
 					skip[idx] = true
 				}
 			}
 		case classLiteral:
-			buf.WriteString(applyCase(tokenText, cfg.Literals.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Literals.Case, cfg.Literals.Exceptions))
 		case classOperator:
-			buf.WriteString(applyCase(tokenText, cfg.Operators.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Operators.Case, cfg.Operators.Exceptions))
 		case classSchema:
-			buf.WriteString(applyCase(tokenText, cfg.Schemas.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Schemas.Case, cfg.Schemas.Exceptions))
 		case classTable:
-			buf.WriteString(applyCase(tokenText, cfg.Tables.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Tables.Case, cfg.Tables.Exceptions))
 		case classFunction:
-			buf.WriteString(applyCase(tokenText, cfg.Functions.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Functions.Case, cfg.Functions.Exceptions))
 		case classConditionalFunction:
-			buf.WriteString(applyCase(tokenText, cfg.ConditionalFunctions.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.ConditionalFunctions.Case, cfg.ConditionalFunctions.Exceptions))
 		case classSystemFunction:
-			buf.WriteString(applyCase(tokenText, cfg.SystemFunctions.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.SystemFunctions.Case, cfg.SystemFunctions.Exceptions))
 		case classAlias:
-			buf.WriteString(applyCase(tokenText, cfg.Aliases.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Aliases.Case, cfg.Aliases.Exceptions))
 		case classColumn:
-			buf.WriteString(applyCase(tokenText, cfg.Columns.Case))
+			buf.WriteString(applyCaseEx(tokenText, cfg.Columns.Case, cfg.Columns.Exceptions))
 		default:
 			// Inequality operator normalization.
 			switch {
@@ -1493,21 +1507,19 @@ func findMinIndent(lines []string) string {
 func applyDollarBoundary(body string, afterOpen, beforeClose config.BlankLineAction) string {
 	switch afterOpen {
 	case config.BlankLineAdd:
-		if !strings.HasPrefix(body, "\n") {
-			body = "\n" + body
-		}
+		stripped := strings.TrimLeft(body, "\n")
+		body = "\n\n" + stripped
 	case config.BlankLineRemove:
-		body = strings.TrimLeft(body, "\n\r")
-		// default: preserve
+		stripped := strings.TrimLeft(body, "\n")
+		body = "\n" + stripped
 	}
 	switch beforeClose {
 	case config.BlankLineAdd:
-		if !strings.HasSuffix(body, "\n") {
-			body = body + "\n"
-		}
+		stripped := strings.TrimRight(body, "\n")
+		body = stripped + "\n\n"
 	case config.BlankLineRemove:
-		body = strings.TrimRight(body, "\n\r")
-		// default: preserve
+		stripped := strings.TrimRight(body, "\n")
+		body = stripped + "\n"
 	}
 	return body
 }

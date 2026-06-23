@@ -444,17 +444,20 @@ func defaultLayout() LayoutConfig {
 }
 
 type Section struct {
-	Case CaseRule `yaml:"case"`
+	Case       CaseRule `yaml:"case"`
+	Exceptions []string `yaml:"exceptions"`
 }
 
 type DataTypesSection struct {
-	Case CaseRule `yaml:"case"`
-	Form TypeForm `yaml:"form"`
+	Case       CaseRule `yaml:"case"`
+	Form       TypeForm `yaml:"form"`
+	Exceptions []string `yaml:"exceptions"`
 }
 
 type AliasSection struct {
-	Case CaseRule `yaml:"case"`
-	As   AliasAs  `yaml:"as"`
+	Case       CaseRule `yaml:"case"`
+	As         AliasAs  `yaml:"as"`
+	Exceptions []string `yaml:"exceptions"`
 }
 
 type Config struct {

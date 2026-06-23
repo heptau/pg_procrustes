@@ -16,6 +16,45 @@ import (
 // Falls back to "dev" when built without the flag (e.g. go run).
 var version = "dev"
 
+// reorderArgs moves all flag arguments (and their values) before positional
+// arguments so that Go's flag package — which stops at the first non-flag arg —
+// still parses flags regardless of where the user placed them on the command line.
+func reorderArgs(args []string) []string {
+	var flags, positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			positional = append(positional, args[i+1:]...)
+			break
+		}
+		if !strings.HasPrefix(a, "-") {
+			positional = append(positional, a)
+			continue
+		}
+		// -flag=value or --flag=value: single token, no next arg consumed.
+		if strings.Contains(a, "=") {
+			flags = append(flags, a)
+			continue
+		}
+		// Boolean flags have no value; value flags consume the next token.
+		// We recognise our own boolean flags so we don't accidentally consume
+		// a positional argument as a flag value.
+		name := strings.TrimLeft(a, "-")
+		switch name {
+		case "w", "check", "diff", "v", "version":
+			flags = append(flags, a)
+		default:
+			// Assume it takes a value; grab the next token if present.
+			flags = append(flags, a)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				flags = append(flags, args[i])
+			}
+		}
+	}
+	return append(flags, positional...)
+}
+
 func main() {
 	var (
 		writeInPlace bool
@@ -23,6 +62,8 @@ func main() {
 		diffMode     bool
 		showVersion  bool
 		configPath   string
+		backupExt    string
+		outDir       string
 	)
 	flag.BoolVar(&writeInPlace, "w", false, "write result back to source files (in-place)")
 	flag.BoolVar(&checkMode, "check", false, "exit 1 if any file would be reformatted (CI mode)")
@@ -30,7 +71,10 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.BoolVar(&showVersion, "v", false, "print version and exit")
 	flag.StringVar(&configPath, "c", "", "path to config file (default: auto-detect .procrustes.yaml)")
+	flag.StringVar(&backupExt, "backup", "", "before overwriting, save original with this extension (e.g. .bak); requires -w")
+	flag.StringVar(&outDir, "out-dir", "", "write formatted files into this directory instead of stdout")
 	flag.Usage = usage
+	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
 	flag.Parse()
 
 	if showVersion {
@@ -43,6 +87,23 @@ func main() {
 	}
 	if writeInPlace && diffMode {
 		die("-w and --diff are mutually exclusive")
+	}
+	if outDir != "" && writeInPlace {
+		die("-w and --out-dir are mutually exclusive")
+	}
+	if outDir != "" && checkMode {
+		die("--check and --out-dir are mutually exclusive")
+	}
+	if backupExt != "" && !writeInPlace {
+		die("--backup requires -w")
+	}
+	if backupExt != "" && !strings.HasPrefix(backupExt, ".") {
+		backupExt = "." + backupExt
+	}
+	if outDir != "" {
+		if err := os.MkdirAll(outDir, 0o755); err != nil {
+			die("out-dir: %v", err)
+		}
 	}
 
 	cfg, err := config.Load(configPath)
@@ -105,6 +166,12 @@ func main() {
 			if out != src {
 				fmt.Print(unifiedDiff(path, src, out))
 			}
+		case outDir != "":
+			dest := filepath.Join(outDir, filepath.Base(path))
+			if err := os.WriteFile(dest, []byte(out), 0o644); err != nil {
+				fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", dest, err)
+				exitCode = 1
+			}
 		case writeInPlace:
 			if out == src {
 				continue
@@ -114,6 +181,13 @@ func main() {
 				fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", path, err)
 				exitCode = 1
 				continue
+			}
+			if backupExt != "" {
+				if err := os.WriteFile(path+backupExt, []byte(src), info.Mode()); err != nil {
+					fmt.Fprintf(os.Stderr, "pg_procrustes: %s: backup: %v\n", path, err)
+					exitCode = 1
+					continue
+				}
 			}
 			if err := os.WriteFile(path, []byte(out), info.Mode()); err != nil {
 				fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", path, err)
@@ -324,16 +398,19 @@ With no file arguments reads from stdin. Glob patterns are expanded
 (e.g. "migrations/*.sql").
 
 Flags:
-  -v, --version  print version and exit
-  -c <path>      path to config file (default: auto-detect .procrustes.yaml)
-  -w             write result back to source files (in-place)
-  --check        exit 1 if any file would be reformatted (CI / pre-commit use)
-  --diff         print unified diff of changes without writing
+  -v, --version      print version and exit
+  -c <path>          path to config file (default: auto-detect .procrustes.yaml)
+  -w                 write result back to source files (in-place)
+  --backup[=.ext]    save original before overwriting (requires -w); default extension is .bak
+  --out-dir <dir>    write formatted files into this directory (cannot be combined with -w)
+  --check            exit 1 if any file would be reformatted (CI / pre-commit use)
+  --diff             print unified diff of changes without writing
 
 Examples:
   pg_procrustes query.sql
   pg_procrustes -w *.sql
-  pg_procrustes -w migrations/**/*.sql
+  pg_procrustes -w --backup=.orig migrations/**/*.sql
+  pg_procrustes --out-dir formatted/ *.sql
   pg_procrustes --check *.sql
   pg_procrustes --diff query.sql
   cat query.sql | pg_procrustes`)

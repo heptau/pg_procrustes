@@ -83,6 +83,31 @@ columns:
   case: lower     # upper | lower | preserve
 ```
 
+Every casing section accepts an optional `exceptions` list. Words that match an
+exception (comparison is case-insensitive) are left exactly as written in the
+source — the `case` rule is not applied to them.
+
+```yaml
+# Example: NAME is a PostgreSQL built-in type that doubles as a keyword.
+# Keep it uppercase even though data_types.case is lower.
+data_types:
+  case: lower
+  exceptions:
+    - NAME
+
+# Example: preserve the exact capitalisation of two non-standard keywords.
+keywords:
+  case: upper
+  exceptions:
+    - someThing
+    - AnotherWord
+```
+
+`exceptions` is available on every casing section: `reserved_keywords`,
+`keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`,
+`functions`, `conditional_functions`, `system_functions`, `aliases`, and
+`columns`.
+
 ### Punctuation and spacing
 
 ```yaml
