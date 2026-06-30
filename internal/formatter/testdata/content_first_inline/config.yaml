@@ -1,0 +1,10 @@
+layout:
+  clauses:
+    break: always
+  content:
+    select_list:
+      break: always
+      first_item: inline
+    where_conds:
+      break: always
+      first_item: inline

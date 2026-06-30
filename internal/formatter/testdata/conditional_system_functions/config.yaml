@@ -1,0 +1,4 @@
+conditional_functions:
+  case: lower
+system_functions:
+  case: lower

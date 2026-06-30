@@ -1,3 +1,4 @@
+// Package formatter implements token-level SQL rewriting for pg_procrustes.
 package formatter
 
 import (
@@ -75,6 +76,78 @@ var dataTypeNames = map[string]bool{
 	"anyrange":    true,
 	"cstring":     true,
 	"trigger":     true,
+}
+
+// plpgsqlVariableNames covers PL/pgSQL special variables used in trigger and
+// procedure bodies. NEW and OLD are UNRESERVED_KEYWORD in the scanner (so they
+// would normally follow keywords.case); all others are plain identifiers
+// (NO_KEYWORD). All groups are intercepted here so that plpgsql_variables.case
+// applies to them uniformly.
+var plpgsqlVariableNames = map[string]bool{
+	// trigger record variables and ON CONFLICT pseudo-table
+	"new":      true,
+	"old":      true,
+	"excluded": true,
+	// common PL/pgSQL status variable
+	"found": true,
+	// row-level trigger special variables
+	"tg_name":         true,
+	"tg_when":         true,
+	"tg_level":        true,
+	"tg_op":           true,
+	"tg_relid":        true,
+	"tg_relname":      true, // deprecated alias for tg_table_name
+	"tg_table_name":   true,
+	"tg_table_schema": true,
+	"tg_nargs":        true,
+	"tg_argv":         true,
+	// event trigger special variables
+	"tg_event": true,
+	"tg_tag":   true,
+	// exception-handling variables (EXCEPTION WHEN / RAISE)
+	"sqlstate": true,
+	"sqlerrm":  true,
+	// GET DIAGNOSTICS items
+	"row_count":            true,
+	"pg_context":           true,
+	"pg_exception_detail":  true,
+	"pg_exception_hint":    true,
+	"pg_exception_context": true,
+	// GET STACKED DIAGNOSTICS items (available inside EXCEPTION handlers)
+	"returned_sqlstate": true,
+	"message_text":      true,
+	"pg_datatype_name":  true,
+	"pg_routine_oid":    true,
+}
+
+// plpgsqlKeywordNames covers PL/pgSQL-only statement keywords that the PostgreSQL
+// scanner classifies as NO_KEYWORD (plain identifiers), so they receive no case
+// transformation from the keywords/reserved_keywords rules. The plpgsql_keywords
+// section lets users control their case independently.
+var plpgsqlKeywordNames = map[string]bool{
+	// core statement keywords
+	"raise":   true,
+	"perform": true,
+	// conditional / loop control
+	"elsif":   true,
+	"elseif":  true,
+	"foreach": true,
+	"reverse": true, // FOR ... REVERSE
+	"slice":   true, // FOREACH ... SLICE
+	"exit":    true,
+	"loop":    true,
+	"while":   true,
+	// cursor management
+	"open": true,
+	// diagnostic statement
+	"assert": true,
+	// RAISE severity levels
+	"debug":   true,
+	"info":    true,
+	"notice":  true,
+	"warning": true,
+	// EXCEPTION as RAISE severity (RAISE EXCEPTION '...') and handler keyword
+	"exception": true,
 }
 
 // literalNames are boolean/null literals. They are RESERVED_KEYWORD in the
@@ -188,6 +261,8 @@ const (
 	classSystemFunction
 	classAlias
 	classColumn
+	classPlpgSQLVariable // NEW, OLD, FOUND, TG_* — governed by plpgsql_variables.case
+	classPlpgSQLKeyword  // RAISE, PERFORM, ELSIF, LOOP… — governed by plpgsql_keywords.case
 )
 
 // pendingAlias is a SELECT alias whose byte position must be resolved via
@@ -294,11 +369,59 @@ func findAliasToken(tokens []rawToken, exprStart int, aliasName string) int {
 	return -1
 }
 
+// resolveOnConflictCols registers the conflict-target column positions from
+// ON CONFLICT (col1, col2, …) clauses. InferClause.IndexElem has no Location
+// field, so we scan the token stream for the ON CONFLICT ( … ) pattern.
+func resolveOnConflictCols(tokens []rawToken, pos *astPositions) {
+	for i, tok := range tokens {
+		if strings.ToLower(tok.text) != "conflict" {
+			continue
+		}
+		// Must be immediately preceded by ON.
+		if i == 0 || strings.ToLower(tokens[i-1].text) != "on" {
+			continue
+		}
+		// Must be followed by '(' — ON CONFLICT ON CONSTRAINT has no paren.
+		if i+1 >= len(tokens) || tokens[i+1].text != "(" {
+			continue
+		}
+		// Register the first token of each comma-separated item as a column.
+		depth := 1
+		expectCol := true
+		for k := i + 2; k < len(tokens); k++ {
+			t := tokens[k].text
+			switch {
+			case t == "(":
+				depth++
+				expectCol = false
+			case t == ")":
+				depth--
+				if depth == 0 {
+					goto nextConflict
+				}
+				expectCol = false
+			case t == "," && depth == 1:
+				expectCol = true
+			default:
+				if depth == 1 && expectCol {
+					pos.columns[tokens[k].start] = true
+					expectCol = false
+				}
+			}
+		}
+	nextConflict:
+	}
+}
+
 // clauseKeywords are tokens that cannot be alias names and end a SELECT target.
 var clauseKeywords = map[string]bool{
 	"from": true, "where": true, "group": true, "having": true,
 	"order": true, "limit": true, "offset": true, "union": true,
 	"intersect": true, "except": true, "fetch": true, "for": true,
+	// JOIN clause separators — alias may precede these in FROM/JOIN clauses.
+	"join": true, "on": true, "using": true,
+	"inner": true, "left": true, "right": true, "full": true,
+	"cross": true, "natural": true, "lateral": true,
 }
 
 func isFollowedBySeparator(tokens []rawToken, i int) bool {
@@ -402,11 +525,20 @@ func normalizeType(tokens []rawToken, i int, skip map[int]bool, form config.Type
 		return applyCase(text, caseRule), nil
 
 	case config.TypeFormLong:
+		// Detect multi-token sequences already in long form (e.g. "timestamp with time zone")
+		// so follow-on tokens are consumed and casing is applied uniformly.
+		if seqs, ok := multiTokenTypes[lower]; ok {
+			for _, seq := range seqs {
+				if idxs, ok := matchSeq(seq); ok {
+					return applyCase(seq.longForm, caseRule), idxs
+				}
+			}
+		}
 		// Single-token short → long (possibly multi-word string).
 		if long, ok := singleShortToLong[lower]; ok {
 			return applyCase(long, caseRule), nil
 		}
-		// Already a long/multi-token form — just apply casing.
+		// Already a long single-token form — just apply casing.
 		return applyCase(text, caseRule), nil
 
 	case config.TypeFormLongNoSpace:
@@ -530,15 +662,21 @@ func processGap(gap, prevText, nextText string, cfg *config.Config) string {
 		}
 	}
 
-	// Operator spacing — single space on each side of symbolic binary ops.
+	// Operator spacing — single space or no space around symbolic binary ops.
 	if !hasNL && cfg.OperatorSpacing == config.OperatorSpacingNormalize {
 		if (isSymbolicOp(prevText) || isSymbolicOp(nextText)) &&
 			prevText != "(" && nextText != ")" {
 			return " "
 		}
 	}
+	if !hasNL && cfg.OperatorSpacing == config.OperatorSpacingCompact {
+		if (isSymbolicOp(prevText) || isSymbolicOp(nextText)) &&
+			prevText != "(" && nextText != ")" {
+			return ""
+		}
+	}
 
-	// Comma spacing normalization.
+	// Comma spacing normalization / compaction.
 	if !hasNL && cfg.CommaSpacing == config.CommaSpacingNormalize {
 		if prevText == "," {
 			return " "
@@ -547,12 +685,78 @@ func processGap(gap, prevText, nextText string, cfg *config.Config) string {
 			return ""
 		}
 	}
+	if !hasNL && cfg.CommaSpacing == config.CommaSpacingCompact {
+		if prevText == "," || nextText == "," {
+			return ""
+		}
+	}
+
+	// Inline spacing — collapse 2+ horizontal spaces to a single space.
+	// Only fires when no other rule returned early, and only on pure-whitespace gaps.
+	if !hasNL && cfg.InlineSpacing == config.InlineSpacingNormalize {
+		if isOnlyHorizontalWS(gap) && len(gap) > 1 {
+			gap = " "
+		}
+	}
 
 	// Trailing whitespace stripping.
 	if cfg.TrailingWhitespace == config.TrailingWSStrip {
 		gap = stripTrailingFromGap(gap)
 	}
 	return gap
+}
+
+// isOnlyHorizontalWS reports whether s contains only spaces and tabs.
+func isOnlyHorizontalWS(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] != ' ' && s[i] != '\t' {
+			return false
+		}
+	}
+	return true
+}
+
+// semicolonInsertPos returns the byte index in s after which ';' should be
+// inserted when adding a trailing semicolon. It skips blank lines and
+// comment-only lines (trimmed prefix "--") at the end, and for the first
+// real line it inserts before any inline "-- comment" suffix.
+func semicolonInsertPos(s string) int {
+	// Build line start/end offsets (end excludes the '\n').
+	type span struct{ start, end int }
+	var lines []span
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == '\n' {
+			lines = append(lines, span{start, i})
+			start = i + 1
+		}
+	}
+	for i := len(lines) - 1; i >= 0; i-- {
+		li := lines[i]
+		lineStr := s[li.start:li.end]
+		trimmedLine := strings.TrimSpace(lineStr)
+		if trimmedLine == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmedLine, "--") {
+			continue
+		}
+		// Real content line — find end of content, stopping before inline comment.
+		commentOff := strings.Index(lineStr, "--")
+		contentEnd := li.end
+		if commentOff >= 0 {
+			contentEnd = li.start + commentOff
+		}
+		for j := contentEnd - 1; j >= li.start; j-- {
+			if s[j] != ' ' && s[j] != '\t' {
+				if s[j] == ';' {
+					return -1 // already has a semicolon before the comment
+				}
+				return j
+			}
+		}
+	}
+	return -1
 }
 
 // stripTrailingFromGap removes whitespace immediately before each newline
@@ -606,6 +810,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 
 	pos := collectASTPositions(sql)
 	pos.resolveAliases(tokens)
+	resolveOnConflictCols(tokens, pos)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
 	//
@@ -733,14 +938,24 @@ func Format(sql string, cfg *config.Config) (string, error) {
 				} else if depth == 0 && t == "," {
 					terminatorIdx = j
 					break
+				} else if depth == 0 && t == ";" {
+					// statement boundary — insert ASC before the semicolon
+					terminatorIdx = j
+					break
 				} else if depth == 0 && termKeywords[tl] {
 					terminatorIdx = j
 					break
 				}
 			}
 			if terminatorIdx >= 0 {
-				insertBefore[terminatorIdx] = " ASC"
-				suppressGap[terminatorIdx] = true
+				tok := tokens[terminatorIdx].text
+				if tok == ";" {
+					// insert ASC before the semicolon without suppressing the gap
+					insertBefore[terminatorIdx] = " ASC"
+				} else {
+					insertBefore[terminatorIdx] = " ASC"
+					suppressGap[terminatorIdx] = true
+				}
 			} else {
 				appendASCAtEnd = true
 			}
@@ -794,9 +1009,23 @@ func Format(sql string, cfg *config.Config) (string, error) {
 					break
 				}
 			}
+			// Find first argument token inside CAST( ... ) to suppress its gap.
+			// When CAST is dropText, the gap before CAST is already written; without
+			// suppressing the first arg's gap, processGap sees prevText="<op>" and
+			// adds a second space (double space bug).
+			firstArgIdx := -1
+			for j := openIdx + 1; j < asIdx; j++ {
+				if !skip[j] && !dropText[j] {
+					firstArgIdx = j
+					break
+				}
+			}
 			dropText[castIdx] = true
 			dropText[openIdx] = true
 			suppressGap[openIdx] = true
+			if firstArgIdx >= 0 {
+				suppressGap[firstArgIdx] = true
+			}
 			suppressGap[asIdx] = true
 			replaceWith[asIdx] = "::"
 			if typeIdx >= 0 {
@@ -944,6 +1173,24 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			}
 		}
 
+		// PL/pgSQL / DML special pseudo-references (NEW, OLD, EXCLUDED, FOUND, TG_*)
+		// override the class determined above when plpgsql_variables.case is configured.
+		// Schema-, table-, and alias-level AST identifications still win, but column-level
+		// does not: NEW.col, OLD.col and EXCLUDED.col are all ColumnRef in the AST yet
+		// semantically they are pseudo-table references, not real columns.
+		if cfg.PLpgSQLVariables.Case != "" && plpgsqlVariableNames[lower] &&
+			class != classSchema && class != classTable && class != classAlias {
+			class = classPlpgSQLVariable
+		}
+
+		// PL/pgSQL-only statement keywords (RAISE, PERFORM, ELSIF, LOOP, …) that the
+		// scanner classifies as NO_KEYWORD. Functions are excluded from the override
+		// because some names (reverse, notice, …) coincide with real PostgreSQL functions.
+		if cfg.PLpgSQLKeywords.Case != "" && plpgsqlKeywordNames[lower] &&
+			class != classSchema && class != classTable && class != classAlias && class != classFunction {
+			class = classPlpgSQLKeyword
+		}
+
 		// replaceWith: if this token has a replacement, write it and skip normal output.
 		if s, ok := replaceWith[i]; ok {
 			buf.WriteString(s)
@@ -1012,6 +1259,10 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			buf.WriteString(applyCaseEx(tokenText, cfg.Aliases.Case, cfg.Aliases.Exceptions))
 		case classColumn:
 			buf.WriteString(applyCaseEx(tokenText, cfg.Columns.Case, cfg.Columns.Exceptions))
+		case classPlpgSQLVariable:
+			buf.WriteString(applyCaseEx(tokenText, cfg.PLpgSQLVariables.Case, cfg.PLpgSQLVariables.Exceptions))
+		case classPlpgSQLKeyword:
+			buf.WriteString(applyCaseEx(tokenText, cfg.PLpgSQLKeywords.Case, cfg.PLpgSQLKeywords.Exceptions))
 		default:
 			// Inequality operator normalization.
 			switch {
@@ -1020,11 +1271,20 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			case tokenText == "!=" && cfg.InequalityOp == config.InequalityANSI:
 				buf.WriteString("<>")
 			case isDollarQuoted(tokenText):
-				out, err := formatDollarQuoted(tokenText, cfg)
-				if err != nil {
-					buf.WriteString(tokenText)
+				// Only format dollar-quoted bodies that are function/procedure code
+				// (preceded by AS) or anonymous DO blocks. In all other contexts
+				// (COMMENT ON … IS $$…$$, string values in expressions, etc.) the
+				// content is arbitrary text and must not be re-cased or reformatted.
+				prevLower := strings.ToLower(prevTokenText)
+				if prevLower == "as" || prevLower == "do" {
+					out, err := formatDollarQuoted(tokenText, cfg)
+					if err != nil {
+						buf.WriteString(tokenText)
+					} else {
+						buf.WriteString(out)
+					}
 				} else {
-					buf.WriteString(out)
+					buf.WriteString(tokenText)
 				}
 			default:
 				buf.WriteString(tokenText)
@@ -1058,11 +1318,9 @@ func Format(sql string, cfg *config.Config) (string, error) {
 	if cfg.Semicolons == config.SemicolonAdd {
 		trimmed := strings.TrimRight(result, " \t\r\n")
 		if !strings.HasSuffix(trimmed, ";") {
-			// Insert ';' after the last non-whitespace character, preserving trailing newlines.
-			idx := strings.LastIndexFunc(result, func(r rune) bool {
-				return r != ' ' && r != '\t' && r != '\r' && r != '\n'
-			})
-			if idx >= 0 {
+			// Insert ';' before any trailing comment lines / inline comments,
+			// preserving trailing newlines.
+			if idx := semicolonInsertPos(result); idx >= 0 {
 				result = result[:idx+1] + ";" + result[idx+1:]
 			}
 		}
@@ -1202,7 +1460,7 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		walkNode(is.SelectStmt, pos)
 		many(is.ReturningList)
 		if is.OnConflictClause != nil {
-			many(is.OnConflictClause.TargetList)
+			walkSetTargetList(is.OnConflictClause.TargetList, pos)
 			walkNode(is.OnConflictClause.WhereClause, pos)
 		}
 
@@ -1216,7 +1474,7 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		if us.Relation != nil {
 			addTableRangeVar(us.Relation, pos)
 		}
-		many(us.TargetList)
+		walkSetTargetList(us.TargetList, pos)
 		walkNode(us.WhereClause, pos)
 		many(us.FromClause)
 		many(us.ReturningList)
@@ -1407,6 +1665,38 @@ func addTableRangeVar(rv *pg_query.RangeVar, pos *astPositions) {
 		pos.tables[loc+len(rv.Schemaname)+1] = true // +1 for the dot
 	} else {
 		pos.tables[loc] = true
+	}
+	// Track table alias (e.g. "FROM users u" or "FROM users AS u") so that
+	// aliases.as: add/remove applies to table aliases too.
+	// Use loc as exprStart so that findAliasToken's startIdx lands on the
+	// table (or schema) token; the i > startIdx guard then skips it before
+	// finding the alias — setting exprStart past the table name would make
+	// startIdx == alias, which i > startIdx would skip entirely.
+	if rv.Alias != nil && rv.Alias.Aliasname != "" {
+		pos.pendingAliases = append(pos.pendingAliases, pendingAlias{
+			exprStart: loc,
+			name:      rv.Alias.Aliasname,
+		})
+	}
+}
+
+// walkSetTargetList walks a SET assignment list (UPDATE … SET or ON CONFLICT DO
+// UPDATE SET). ResTarget.Name is the assignment target column — not a SELECT
+// alias — so it is added directly to pos.columns instead of pendingAliases.
+func walkSetTargetList(nodes []*pg_query.Node, pos *astPositions) {
+	for _, n := range nodes {
+		if n == nil {
+			continue
+		}
+		if rt, ok := n.Node.(*pg_query.Node_ResTarget); ok {
+			r := rt.ResTarget
+			if r.Name != "" && r.Location >= 0 {
+				pos.columns[int(r.Location)] = true
+			}
+			walkNode(r.Val, pos)
+		} else {
+			walkNode(n, pos)
+		}
 	}
 }
 
@@ -1792,6 +2082,21 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 
 	var sb strings.Builder
 
+	// trimHWS strips trailing horizontal whitespace (spaces/tabs) from the builder
+	// so that kwIndent fully controls keyword indentation on every pass.
+	trimHWS := func() {
+		s := sb.String()
+		i := len(s)
+		for i > 0 && (s[i-1] == ' ' || s[i-1] == '\t') {
+			i--
+		}
+		if i < len(s) {
+			sb.Reset()
+			sb.Grow(i + 64)
+			sb.WriteString(s[:i])
+		}
+	}
+
 	// Leading gap (whitespace before DECLARE or BEGIN).
 	sb.WriteString(body[:leadingEnd])
 
@@ -1809,6 +2114,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 			// always show (already true)
 		}
 		if showDeclare {
+			trimHWS()
 			sb.WriteString(kwIndent)
 			sb.WriteString(body[declareKwStart:declareKwEnd]) // preserve original casing
 			decl := applyBodyIndent(declBody, indentUnit, plCfg.Declare.Indent)
@@ -1818,6 +2124,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 	}
 
 	// BEGIN keyword.
+	trimHWS()
 	sb.WriteString(kwIndent)
 	sb.WriteString(body[beginKwStart:beginKwEnd])
 
@@ -1837,6 +2144,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 
 	// EXCEPTION section.
 	if hasException {
+		trimHWS()
 		sb.WriteString(kwIndent)
 		sb.WriteString(body[exceptionKwStart:exceptionKwEnd])
 		eb := body[exceptionBodyStart:endKwStart]
@@ -1847,6 +2155,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 	}
 
 	// END keyword.
+	trimHWS()
 	sb.WriteString(kwIndent)
 	sb.WriteString(body[endKwStart:endKwEnd])
 
@@ -1900,8 +2209,51 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 
 	var result strings.Builder
 	parenDepth := 0
-	lastEnd := 0   // position in body up to which we have already written output
-	sqlStart := -1 // byte position where the current SQL clause keyword starts
+	lastEnd := 0      // position in body up to which we have already written output
+	sqlStart := -1    // byte position where the current SQL clause keyword starts
+	forInSQL := false // true when tracking a FOR r IN SELECT...LOOP cursor query
+	prevLower := ""   // last non-paren token seen at paren depth 0 (lowercase)
+
+	// cfgNoLayout is used for a re-format pass on each extracted SQL statement.
+	// The outer Format(body, ...) call fails to parse the PL/pgSQL body (pg_query.Parse
+	// rejects it), so collectASTPositions returns empty maps and alias detection never runs.
+	// Individual SQL statements extracted here ARE parseable, so we re-run the formatter
+	// on each one (without layout, to avoid double-breaking) to pick up alias detection,
+	// casing, and other formatter rules that require a successful parse.
+	cfgNoLayout := *cfg
+	cfgNoLayout.Layout = config.LayoutConfig{}
+	cfgNoLayout.Semicolons = config.SemicolonPreserve
+
+	applyLayoutToSQL := func(prefix, sqlText string) (string, bool) {
+		baseIndent := lastLineIndent(prefix)
+
+		// Strip the body's base indent from continuation lines so that
+		// reindentLines adds it back exactly once (without this, Phase 2
+		// sees FROM users already at 4sp, preserves it, then reindentLines
+		// prepends another 4sp giving double indentation).
+		sqlText = stripLeadingIndent(sqlText, baseIndent)
+
+		// Phase 1: apply full formatter rules (alias detection, casing) now that we have
+		// a valid SQL statement that pg_query.Parse can handle.
+		preFormatted, preErr := Format(sqlText, &cfgNoLayout)
+		preChanged := preErr == nil && preFormatted != sqlText
+		if preChanged {
+			sqlText = preFormatted
+		}
+
+		// Phase 2: apply layout (clause breaking, indentation normalization).
+		formatted, fmtErr := layout.Apply(sqlText, &cfg.Layout)
+		layoutChanged := fmtErr == nil && formatted != sqlText
+
+		if !preChanged && !layoutChanged {
+			return "", false
+		}
+		if !layoutChanged {
+			// Only formatter rules changed (e.g. AS added), no clause restructuring.
+			return reindentLines(sqlText, baseIndent), true
+		}
+		return reindentLines(formatted, baseIndent), true
+	}
 
 	for _, tok := range scanResult.Tokens {
 		tokStart := int(tok.Start)
@@ -1927,28 +2279,52 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 
 		if sqlStart < 0 && sqlClauseStarters[lower] {
 			// Found the start of a SQL statement; remember position.
+			// If SELECT follows IN (FOR r IN SELECT...LOOP), mark it as a cursor query
+			// so we terminate at LOOP rather than the first unrelated ';'.
 			sqlStart = tokStart
+			forInSQL = lower == "select" && prevLower == "in"
+			prevLower = lower
+			continue
+		}
+		prevLower = lower
+
+		if lower == "loop" && forInSQL && sqlStart >= 0 {
+			// End of a FOR r IN SELECT...LOOP cursor query.
+			// Trim trailing whitespace/newlines (and any stray semicolons from the source)
+			// to get just the SQL, preserving the gap (the "\n\tindent" before LOOP)
+			// so LOOP stays on its own indented line.
+			prefix := body[lastEnd:sqlStart]
+			rawBlock := body[sqlStart:tokStart]
+			sqlText := strings.TrimRight(rawBlock, " \t\n;")
+			gapBeforeLoop := strings.TrimLeft(rawBlock[len(sqlText):], ";")
+			if reformatted, ok := applyLayoutToSQL(prefix, sqlText); ok {
+				result.WriteString(prefix)
+				result.WriteString(reformatted)
+				result.WriteString(gapBeforeLoop)
+			} else {
+				result.WriteString(body[lastEnd:tokStart])
+			}
+			lastEnd = tokStart
+			sqlStart = -1
+			forInSQL = false
 			continue
 		}
 
-		if text == ";" && sqlStart >= 0 {
+		if text == ";" && sqlStart >= 0 && !forInSQL {
 			// End of a SQL statement we were tracking.
 			// Everything from lastEnd to sqlStart is prefix (BEGIN, RETURN QUERY, etc.)
 			prefix := body[lastEnd:sqlStart]
 			sqlText := strings.TrimRight(body[sqlStart:tokStart], " \t")
-			baseIndent := lastLineIndent(prefix)
-
-			formatted, fmtErr := layout.Apply(sqlText, &cfg.Layout)
-			if fmtErr != nil || formatted == sqlText {
-				// No change or error: output verbatim.
-				result.WriteString(body[lastEnd:tokEnd])
-			} else {
+			if reformatted, ok := applyLayoutToSQL(prefix, sqlText); ok {
 				result.WriteString(prefix)
-				result.WriteString(reindentLines(formatted, baseIndent))
+				result.WriteString(reformatted)
 				result.WriteByte(';')
+			} else {
+				result.WriteString(body[lastEnd:tokEnd])
 			}
 			lastEnd = tokEnd
 			sqlStart = -1
+			forInSQL = false
 			continue
 		}
 
@@ -1979,6 +2355,20 @@ func lastLineIndent(s string) string {
 		j++
 	}
 	return line[:j]
+}
+
+// stripLeadingIndent removes indent from the start of every non-first line of sql.
+// This undoes the body's base indentation before layout/normalize so that
+// reindentLines can re-add it exactly once.
+func stripLeadingIndent(sql, indent string) string {
+	if indent == "" {
+		return sql
+	}
+	lines := strings.SplitAfter(sql, "\n")
+	for i := 1; i < len(lines); i++ {
+		lines[i] = strings.TrimPrefix(lines[i], indent)
+	}
+	return strings.Join(lines, "")
 }
 
 // reindentLines prepends baseIndent to every line in sql except the first and

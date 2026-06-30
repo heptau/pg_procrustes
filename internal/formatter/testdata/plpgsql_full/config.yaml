@@ -1,0 +1,32 @@
+layout:
+  dollar_quote:
+    plpgsql:
+      keyword_indent: indent
+      declare_when_empty: remove
+      end_semicolon: add
+      declare:
+        indent: indent
+        blank_line_after: add
+      begin_body:
+        indent: indent
+        blank_line_after: add
+      control_flow:
+        if:
+          body_indent: indent
+          blank_line_before: add
+          blank_line_after: add
+        loop:
+          body_indent: indent
+          blank_line_before: add
+          blank_line_after: add
+        case:
+          simple:
+            when_indent: indent
+            then_break: never
+            body_break: never
+            body_indent: indent
+          searched:
+            when_indent: indent
+            then_break: never
+            body_break: never
+            body_indent: indent

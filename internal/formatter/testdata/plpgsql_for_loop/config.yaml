@@ -1,0 +1,7 @@
+layout:
+  clauses:
+    break: auto
+    align: same
+  content:
+    break: auto
+    align: indent

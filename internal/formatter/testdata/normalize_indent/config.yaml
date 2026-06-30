@@ -1,0 +1,6 @@
+layout:
+  indent:
+    size: 3
+    type: tab
+    normalize: change
+    remainder: keep

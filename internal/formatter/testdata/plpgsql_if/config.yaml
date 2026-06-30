@@ -1,0 +1,8 @@
+layout:
+  dollar_quote:
+    plpgsql:
+      control_flow:
+        if:
+          body_indent: indent
+          blank_line_before: add
+          blank_line_after: add

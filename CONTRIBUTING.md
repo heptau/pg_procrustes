@@ -17,7 +17,7 @@ pg_procrustes/
 │   └── layout/
 │       ├── layout.go       # Apply() — clause breaking, content breaking, CASE
 │       └── *_test.go
-└── .procrustes.yaml        # Reference config (all options, all commented)
+└── .pg_procrustes.yaml        # Reference config (all options, all commented)
 ```
 
 ## Architecture: two-layer pipeline
@@ -55,7 +55,7 @@ go test ./internal/layout/... -run TestSQLCase -v
    - Formatter options: edit the appropriate file under `internal/formatter/`.
    - Layout options: edit `internal/layout/layout.go`.
 5. **Add tests** covering at least: preserve (no-op), each non-trivial value, and idempotence (applying the same config twice produces the same result).
-6. **Document** in `.procrustes.yaml` with inline comments and in `README.md` under the relevant section.
+6. **Document** in `.pg_procrustes.yaml` with inline comments and in `README.md` under the relevant section.
 
 ## Formatter layer internals
 

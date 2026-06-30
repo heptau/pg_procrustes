@@ -1,0 +1,6 @@
+keywords:
+  case: lower
+reserved_keywords:
+  case: upper
+plpgsql_variables:
+  case: upper

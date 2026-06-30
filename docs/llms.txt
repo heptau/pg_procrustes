@@ -1,0 +1,129 @@
+# pg_procrustes
+
+> A fast, flexible PostgreSQL SQL formatter written in Go.
+> Driven by the native PostgreSQL parser (libpg_query), it understands SQL exactly like the database itself.
+
+pg_procrustes reformats PostgreSQL SQL files according to a declarative YAML configuration.
+It is idempotent: running it twice produces the same result. It handles plain SQL, DML,
+DDL, CTEs, and PL/pgSQL function bodies (dollar-quoted blocks).
+
+## Key facts
+
+- Language: Go (CGO, uses libpg_query via pg_query_go)
+- License: MIT
+- Config file: `.pg_procrustes.yaml` (auto-detected from current dir upward)
+- Platforms: macOS (arm64, amd64), Linux (amd64, arm64), Windows (amd64, arm64)
+- Install: `brew install heptau/tap/pg-procrustes`
+
+## What it formats
+
+- Reserved keywords, SQL keywords, operators — uppercase / lowercase / preserve
+- Data types — long form (`character varying`), short form (`varchar`), normalized
+- Column, table, schema, function, alias names — casing
+- Conditional functions: COALESCE, NULLIF, GREATEST, LEAST
+- System functions: NOW(), CURRENT_DATE, CURRENT_TIMESTAMP, etc.
+- PL/pgSQL variables: NEW, OLD, TG_OP, TG_TABLE_NAME, FOUND, SQLSTATE, etc.
+- PL/pgSQL keywords: RAISE, PERFORM, ELSIF, FOREACH, EXIT, LOOP, ASSERT, etc.
+- Casing exceptions: specific identifiers can be pinned to exact casing
+- Trailing whitespace, semicolons, blank lines
+- Inequality operators: `<>` (ANSI) vs `!=` (C style)
+- NOT IN vs `<> ALL` equivalence
+- ASC keyword in ORDER BY: add explicit / remove redundant
+- CAST(x AS t) vs `x::t` (operator style)
+- JOIN qualifiers: INNER/OUTER (short vs long form)
+- Schema qualification: remove `public.` prefix
+- Quoted identifiers: remove safe double-quotes
+- Operator spacing, comma spacing, paren spacing
+- Clause breaking: each SQL clause on its own line (auto / always / never / preserve)
+- Content breaking: comma-lists and AND/OR conditions (auto / always / first_inline / never)
+- CASE expressions: expand or collapse WHEN/THEN/ELSE
+- INSERT column list formatting
+- WITH (CTE) formatting
+- UNION / INTERSECT / EXCEPT blank lines
+- Paren-indented blocks: close-paren position
+- Dollar-quoted bodies: PL/pgSQL block structure (DECLARE/BEGIN/EXCEPTION/END)
+- PL/pgSQL IF / ELSIF / ELSE blocks: indentation, blank lines
+- PL/pgSQL LOOP blocks (FOR, WHILE, plain LOOP): indentation, blank lines
+- PL/pgSQL CASE statements (simple and searched): indent, then-break, body-break
+
+## CLI usage
+
+```
+pg_procrustes [flags] [file ...]
+```
+
+Flags:
+- `-w`               write result back to source files
+- `--check`          exit 1 if any file would change (CI / pre-commit)
+- `--diff`           print unified diff without writing
+- `--backup[=.ext]`  save original before overwriting (requires -w)
+- `--out-dir <dir>`  write formatted files to a different directory
+- `-c <path>`        explicit config file path
+
+## Config structure (YAML)
+
+```yaml
+reserved_keywords: { case: upper }
+keywords:          { case: upper }
+data_types:        { case: lower, form: long }
+literals:          { case: upper }
+operators:         { case: upper }
+schemas:           { case: lower }
+tables:            { case: lower }
+columns:           { case: lower }
+functions:         { case: lower }
+conditional_functions: { case: upper }
+system_functions:      { case: upper }
+aliases:           { case: lower, as: add }
+plpgsql_variables: { case: upper }
+plpgsql_keywords:  { case: upper }
+
+trailing_whitespace: strip
+semicolons:          preserve
+inequality_op:       c          # preserve | ansi | c
+join_form:           preserve   # preserve | short | long
+operator_spacing:    normalize  # preserve | normalize | compact
+comma_spacing:       normalize  # preserve | normalize | compact
+blank_lines:         preserve   # preserve | max_3 | max_2 | max_1
+paren_spacing:       remove     # preserve | add | remove
+quoted_identifiers:  remove_safe
+schema_qualification: preserve  # preserve | remove_public
+cast_style:          preserve   # preserve | operator
+order_asc:           preserve   # preserve | add | remove
+not_in:              preserve   # preserve | not_in | not_equals_all
+
+layout:
+  line_length: 128
+  indent:
+    size: 3
+    type: spaces
+  clauses:
+    break: auto
+    align: same
+  content:
+    break: auto
+    align: indent
+    first_item: same_line
+  case:
+    break: preserve
+    indent: indent
+  union:
+    blank_line: preserve   # preserve | none | before | after | both
+  dollar_quote:
+    newline_after_open:   preserve
+    newline_before_close: preserve
+    sql:
+      blank_line_before: preserve
+      blank_line_after:  preserve
+    plpgsql:
+      keyword_indent:     preserve
+      declare_when_empty: preserve
+      end_semicolon:      preserve
+```
+
+## Docs
+
+- [Documentation](https://pg_procrustes.80.cz/)
+- [Config Builder](https://pg_procrustes.80.cz/config-builder.html)
+- [GitHub](https://github.com/heptau/pg_procrustes)
+- [Releases](https://github.com/heptau/pg_procrustes/releases)

@@ -1,5 +1,9 @@
 reserved_keywords:
   case: upper     # upper | lower | preserve  (SELECT, FROM, WHERE, CREATE, TABLE, JOIN, ...)
+  # exceptions:   # pin specific words to exact casing regardless of the case setting
+  #   - MyWord    # applied to: reserved_keywords, keywords, data_types, literals, operators,
+  #               #             schemas, tables, columns, functions, conditional_functions,
+  #               #             system_functions, aliases, plpgsql_variables, plpgsql_keywords
 
 keywords:
   case: upper     # upper | lower | preserve  (ANALYZE, VERBOSE, CASCADE, ...)
@@ -25,6 +29,7 @@ tables:
 
 functions:
   case: lower     # upper | lower | preserve  (now(), count(), my_func(), ...)
+  # exceptions: [ST_AsText, ST_GeomFromText]
 
 conditional_functions:
   case: upper     # upper | lower | preserve  (COALESCE, NULLIF, GREATEST, LEAST)
@@ -38,6 +43,25 @@ aliases:
 
 columns:
   case: lower     # upper | lower | preserve
+  # exceptions: [myID, anotherKey]
+
+plpgsql_variables:
+  case: upper     # upper | lower | preserve
+                  # NEW, OLD, EXCLUDED (ON CONFLICT), FOUND,
+                  # TG_OP, TG_TABLE_NAME, TG_TABLE_SCHEMA, TG_NAME, TG_WHEN,
+                  # TG_LEVEL, TG_NARGS, TG_ARGV, TG_RELID, TG_RELNAME,
+                  # TG_EVENT, TG_TAG,
+                  # SQLSTATE, SQLERRM, ROW_COUNT, PG_CONTEXT,
+                  # PG_EXCEPTION_DETAIL, PG_EXCEPTION_HINT, PG_EXCEPTION_CONTEXT,
+                  # RETURNED_SQLSTATE, MESSAGE_TEXT, PG_DATATYPE_NAME, PG_ROUTINE_OID
+                  # When omitted: NEW/OLD follow keywords.case; TG_*/FOUND are left as-is.
+
+plpgsql_keywords:
+  case: upper     # upper | lower | preserve
+                  # PL/pgSQL-only statement keywords not covered by keywords/reserved_keywords:
+                  # RAISE, PERFORM, ELSIF, ELSEIF, FOREACH, REVERSE, SLICE, EXIT, LOOP,
+                  # WHILE, OPEN, ASSERT, EXCEPTION (RAISE severity / handler), DEBUG, INFO, NOTICE, WARNING
+                  # When omitted: written exactly as they appear in source.
 
 trailing_whitespace: strip   # strip | preserve
 
@@ -53,8 +77,13 @@ join_form: preserve          # preserve | short | long
                              #   short:   JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN
                              #   long:    INNER JOIN, LEFT OUTER JOIN, RIGHT OUTER JOIN, FULL OUTER JOIN
 
-operator_spacing: normalize  # preserve | normalize
+operator_spacing: normalize  # preserve | normalize | compact
                              #   normalize: exactly one space on each side of =, !=, <>, <, >, <=, >=, ||
+                             #   compact:   no spaces around =, !=, <>, <, >, <=, >=, ||
+
+comma_spacing: normalize     # preserve | normalize | compact
+                             #   normalize: one space after comma, none before
+                             #   compact:   no spaces around commas
 
 blank_lines: preserve        # preserve | max_3 | max_2 | max_1
 
@@ -66,6 +95,13 @@ quoted_identifiers: remove_safe  # preserve | remove_safe
 
 schema_qualification: preserve  # preserve | remove_public
                                  #   remove_public: strip "public." prefix from all names
+
+inline_spacing: preserve         # preserve | normalize
+                                 #   normalize: collapse 2+ spaces between tokens on the same line
+                                 #              to a single space. Only pure-whitespace gaps are
+                                 #              affected; newlines, indentation, and inline comments
+                                 #              are never touched.
+                                 #   Useful for removing hand-aligned column formatting.
 
 layout:
   line_length: 128              # target line length for auto-break decisions
@@ -101,14 +137,26 @@ layout:
     break: preserve             # preserve | never | always | auto
                                 #   auto: break content when its flat length > line_length
     align: indent               # same | indent  (indent adds one level inside the clause keyword)
-    # per-section overrides (inherit content.break / content.align when omitted):
-    # select_list: { break: auto, align: indent }
-    # where_conds: { break: auto, align: indent }
-    # join_on:     { break: auto, align: indent }
-    # group_list:  { break: auto, align: indent }
-    # order_list:  { break: auto, align: indent }
-    # set_list:    { break: auto, align: indent }
-    # values_list: { break: auto, align: indent }
+    first_item: break           # break | inline
+                                #   break:  first item on a new indented line (default)
+                                #           SELECT                  WHERE
+                                #              col1,                   cond1
+                                #              col2                    AND cond2
+                                #   inline: first item on the keyword line, rest indented below
+                                #           SELECT col1,            WHERE cond1
+                                #              col2                    AND cond2
+    # per-section overrides (inherit content.break / content.align / content.first_item when omitted):
+    # select_list:    { break: auto, first_item: break }  — SELECT column list (comma-split)
+    # where_conds:    { break: auto, first_item: break }  — WHERE conditions (AND/OR split)
+    # having_conds:   { break: auto, first_item: break }  — HAVING conditions (AND/OR split)
+    # join_on:        { break: auto, first_item: break }  — JOIN ON conditions (AND/OR split)
+    # group_list:     { break: auto, first_item: break }  — GROUP BY items (comma-split)
+    # order_list:     { break: auto, first_item: break }  — ORDER BY items (comma-split)
+    # set_list:       { break: auto, first_item: break }  — UPDATE SET assignments (comma-split)
+    # insert_columns: { break: auto, first_item: break }  — INSERT INTO table(col1, col2, …) column list
+    # values_list:    { break: auto, first_item: break }  — VALUES row tuples (each tuple is one item)
+    # returning_list: { break: auto, first_item: break }  — RETURNING items (comma-split)
+    # with_list:      { break: auto, first_item: break }  — WITH CTE definitions (comma-split)
   case:
     break: preserve              # preserve | never | always | auto
                                  #   never:    collapse CASE...END to single line
@@ -168,3 +216,14 @@ layout:
             body_indent: preserve
             blank_line_before: preserve
             blank_line_after: preserve
+
+  paren_indent:
+    mode: preserve             # preserve | indent | none
+                               #   preserve: don't touch indentation (default)
+                               #   indent:   content inside multi-line paren blocks is indented
+                               #             by N * indent.size for depth-N blocks; multiple
+                               #             unclosed opens on one line → multiple levels
+                               #   none:     strip all leading whitespace from content lines
+    close_first_on_line: before  # before | after
+                               #   before: closing ) starts at the outer (N-1) indent level (default)
+                               #   after:  closing ) stays at the inner (N) indent level

@@ -1,3 +1,4 @@
+// Package config defines configuration structures, defaults, loading, and validation for pg_procrustes.
 package config
 
 import (
@@ -81,6 +82,7 @@ type OperatorSpacingMode string
 const (
 	OperatorSpacingPreserve  OperatorSpacingMode = "preserve"
 	OperatorSpacingNormalize OperatorSpacingMode = "normalize" // exactly one space on each side
+	OperatorSpacingCompact   OperatorSpacingMode = "compact"   // no spaces around operators
 )
 
 // BlankLinesMode limits consecutive blank lines between statements.
@@ -124,7 +126,8 @@ type CommaSpacingMode string
 
 const (
 	CommaSpacingPreserve  CommaSpacingMode = "preserve"
-	CommaSpacingNormalize CommaSpacingMode = "normalize"
+	CommaSpacingNormalize CommaSpacingMode = "normalize" // space after comma, none before
+	CommaSpacingCompact   CommaSpacingMode = "compact"   // no spaces around commas
 )
 
 // OrderAscMode controls explicit ASC in ORDER BY clauses.
@@ -153,6 +156,16 @@ const (
 	NotInNotEqualsAll NotInMode = "not_equals_all"
 )
 
+// InlineSpacingMode controls normalization of horizontal whitespace between
+// tokens on the same line. This only affects runs of spaces/tabs between
+// tokens; it does not touch newlines, indentation, or inline comments.
+type InlineSpacingMode string
+
+const (
+	InlineSpacingPreserve  InlineSpacingMode = "preserve"  // leave as-is (default)
+	InlineSpacingNormalize InlineSpacingMode = "normalize" // collapse 2+ spaces to one
+)
+
 // SchemaQualMode controls schema qualification of object names.
 type SchemaQualMode string
 
@@ -168,6 +181,16 @@ const (
 	BreakNever    BreakMode = "never"
 	BreakAlways   BreakMode = "always"
 	BreakAuto     BreakMode = "auto"
+)
+
+// FirstItemMode controls where the first content item is placed when breaking.
+type FirstItemMode string
+
+const (
+	// FirstItemBreak puts the first item on a new indented line (default).
+	FirstItemBreak FirstItemMode = "break"
+	// FirstItemInline keeps the first item on the same line as the clause keyword.
+	FirstItemInline FirstItemMode = "inline"
 )
 
 type AlignMode string
@@ -216,8 +239,9 @@ type ClauseRule struct {
 }
 
 type ContentRule struct {
-	Break BreakMode `yaml:"break"`
-	Align AlignMode `yaml:"align"`
+	Break     BreakMode     `yaml:"break"`
+	Align     AlignMode     `yaml:"align"`
+	FirstItem FirstItemMode `yaml:"first_item"`
 }
 
 type IndentCfg struct {
@@ -249,15 +273,20 @@ type ClausesCfg struct {
 }
 
 type ContentCfg struct {
-	Break      BreakMode   `yaml:"break"`
-	Align      AlignMode   `yaml:"align"`
-	SelectList ContentRule `yaml:"select_list"`
-	WhereConds ContentRule `yaml:"where_conds"`
-	JoinOn     ContentRule `yaml:"join_on"`
-	GroupList  ContentRule `yaml:"group_list"`
-	OrderList  ContentRule `yaml:"order_list"`
-	SetList    ContentRule `yaml:"set_list"`
-	ValuesList ContentRule `yaml:"values_list"`
+	Break         BreakMode     `yaml:"break"`
+	Align         AlignMode     `yaml:"align"`
+	FirstItem     FirstItemMode `yaml:"first_item"`
+	SelectList    ContentRule   `yaml:"select_list"`
+	WhereConds    ContentRule   `yaml:"where_conds"`
+	HavingConds   ContentRule   `yaml:"having_conds"`
+	JoinOn        ContentRule   `yaml:"join_on"`
+	GroupList     ContentRule   `yaml:"group_list"`
+	OrderList     ContentRule   `yaml:"order_list"`
+	SetList       ContentRule   `yaml:"set_list"`
+	InsertColumns ContentRule   `yaml:"insert_columns"`
+	ValuesList    ContentRule   `yaml:"values_list"`
+	ReturningList ContentRule   `yaml:"returning_list"`
+	WithList      ContentRule   `yaml:"with_list"`
 }
 
 type UnionCfg struct {
@@ -365,6 +394,35 @@ type SQLCaseCfg struct {
 	Indent BodyIndentMode `yaml:"indent"` // preserve | none | indent  (depth of WHEN/ELSE relative to CASE)
 }
 
+// ParenIndentMode controls indentation of content inside multi-line parenthesised blocks.
+type ParenIndentMode string
+
+const (
+	// ParenIndentPreserve leaves indentation unchanged (default, no-op).
+	ParenIndentPreserve ParenIndentMode = "preserve"
+	// ParenIndentIndent sets each content line to exactly N*indentUnit leading whitespace,
+	// where N is the number of unclosed parentheses at the start of that line.
+	ParenIndentIndent ParenIndentMode = "indent"
+	// ParenIndentNone strips all leading whitespace from content lines inside paren blocks.
+	ParenIndentNone ParenIndentMode = "none"
+)
+
+// ParenCloseMode controls where dedent takes effect when ")" is the first token on a line.
+type ParenCloseMode string
+
+const (
+	// ParenCloseBefore places the closing ")" at the outer (N-1) indent level (default).
+	ParenCloseBefore ParenCloseMode = "before"
+	// ParenCloseAfter keeps the closing ")" at the inner (N) indent level.
+	ParenCloseAfter ParenCloseMode = "after"
+)
+
+// ParenIndentCfg configures indentation of content inside multi-line paren blocks.
+type ParenIndentCfg struct {
+	Mode       ParenIndentMode `yaml:"mode"`
+	CloseFirst ParenCloseMode  `yaml:"close_first_on_line"`
+}
+
 type LayoutConfig struct {
 	LineLength  int            `yaml:"line_length"`
 	Indent      IndentCfg      `yaml:"indent"`
@@ -373,6 +431,7 @@ type LayoutConfig struct {
 	Content     ContentCfg     `yaml:"content"`
 	Case        SQLCaseCfg     `yaml:"case"`
 	DollarQuote DollarQuoteCfg `yaml:"dollar_quote"`
+	ParenIndent ParenIndentCfg `yaml:"paren_indent"`
 }
 
 // DefaultLayout returns the default LayoutConfig (all fields set to preserve).
@@ -440,6 +499,10 @@ func defaultLayout() LayoutConfig {
 				},
 			},
 		},
+		ParenIndent: ParenIndentCfg{
+			Mode:       ParenIndentPreserve,
+			CloseFirst: ParenCloseBefore,
+		},
 	}
 }
 
@@ -473,6 +536,8 @@ type Config struct {
 	SystemFunctions      Section             `yaml:"system_functions"`
 	Aliases              AliasSection        `yaml:"aliases"`
 	Columns              Section             `yaml:"columns"`
+	PLpgSQLVariables     Section             `yaml:"plpgsql_variables"`
+	PLpgSQLKeywords      Section             `yaml:"plpgsql_keywords"`
 	TrailingWhitespace   TrailingWS          `yaml:"trailing_whitespace"`
 	Semicolons           SemicolonMode       `yaml:"semicolons"`
 	InequalityOp         InequalityOp        `yaml:"inequality_op"`
@@ -487,6 +552,7 @@ type Config struct {
 	CastStyle            CastStyleMode       `yaml:"cast_style"`
 	NotIn                NotInMode           `yaml:"not_in"`
 	SchemaQual           SchemaQualMode      `yaml:"schema_qualification"`
+	InlineSpacing        InlineSpacingMode   `yaml:"inline_spacing"`
 	Layout               LayoutConfig        `yaml:"layout"`
 }
 
@@ -522,7 +588,7 @@ func defaultConfig() *Config {
 	}
 }
 
-// Load reads a YAML config file. If path is empty, searches for .procrustes.yaml
+// Load reads a YAML config file. If path is empty, searches for .pg_procrustes.yaml
 // walking up from the current directory. Returns defaults if no file is found.
 func Load(path string) (*Config, error) {
 	if path == "" {
@@ -606,7 +672,7 @@ func validate(cfg *Config) error {
 	}
 
 	switch cfg.OperatorSpacing {
-	case OperatorSpacingPreserve, OperatorSpacingNormalize, "":
+	case OperatorSpacingPreserve, OperatorSpacingNormalize, OperatorSpacingCompact, "":
 	default:
 		return fmt.Errorf("operator_spacing must be preserve|normalize, got %q", cfg.OperatorSpacing)
 	}
@@ -636,9 +702,9 @@ func validate(cfg *Config) error {
 	}
 
 	switch cfg.CommaSpacing {
-	case CommaSpacingPreserve, CommaSpacingNormalize, "":
+	case CommaSpacingPreserve, CommaSpacingNormalize, CommaSpacingCompact, "":
 	default:
-		return fmt.Errorf("comma_spacing must be preserve|normalize, got %q", cfg.CommaSpacing)
+		return fmt.Errorf("comma_spacing must be preserve|normalize|compact, got %q", cfg.CommaSpacing)
 	}
 
 	switch cfg.OrderAsc {
@@ -665,15 +731,64 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("schema_qualification must be preserve|remove_public, got %q", cfg.SchemaQual)
 	}
 
+	switch cfg.InlineSpacing {
+	case InlineSpacingPreserve, InlineSpacingNormalize, "":
+	default:
+		return fmt.Errorf("inline_spacing must be preserve|normalize, got %q", cfg.InlineSpacing)
+	}
+
 	switch cfg.Layout.Clauses.Break {
 	case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
 	default:
 		return fmt.Errorf("layout.clauses.break must be preserve|never|always|auto, got %q", cfg.Layout.Clauses.Break)
 	}
-	switch cfg.Layout.Content.Break {
-	case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
-	default:
-		return fmt.Errorf("layout.content.break must be preserve|never|always|auto, got %q", cfg.Layout.Content.Break)
+	for _, r := range []struct {
+		v    BreakMode
+		name string
+	}{
+		{cfg.Layout.Content.Break, "layout.content.break"},
+		{cfg.Layout.Content.SelectList.Break, "layout.content.select_list.break"},
+		{cfg.Layout.Content.WhereConds.Break, "layout.content.where_conds.break"},
+		{cfg.Layout.Content.HavingConds.Break, "layout.content.having_conds.break"},
+		{cfg.Layout.Content.JoinOn.Break, "layout.content.join_on.break"},
+		{cfg.Layout.Content.GroupList.Break, "layout.content.group_list.break"},
+		{cfg.Layout.Content.OrderList.Break, "layout.content.order_list.break"},
+		{cfg.Layout.Content.SetList.Break, "layout.content.set_list.break"},
+		{cfg.Layout.Content.InsertColumns.Break, "layout.content.insert_columns.break"},
+		{cfg.Layout.Content.ValuesList.Break, "layout.content.values_list.break"},
+		{cfg.Layout.Content.ReturningList.Break, "layout.content.returning_list.break"},
+		{cfg.Layout.Content.WithList.Break, "layout.content.with_list.break"},
+	} {
+		switch r.v {
+		case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
+		case "first_inline":
+			return fmt.Errorf("%s: first_inline was removed in 0.2.0; use break: auto (or always) with first_item: inline", r.name)
+		default:
+			return fmt.Errorf("%s must be preserve|never|always|auto, got %q", r.name, r.v)
+		}
+	}
+	for _, r := range []struct {
+		v    FirstItemMode
+		name string
+	}{
+		{cfg.Layout.Content.FirstItem, "layout.content.first_item"},
+		{cfg.Layout.Content.SelectList.FirstItem, "layout.content.select_list.first_item"},
+		{cfg.Layout.Content.WhereConds.FirstItem, "layout.content.where_conds.first_item"},
+		{cfg.Layout.Content.HavingConds.FirstItem, "layout.content.having_conds.first_item"},
+		{cfg.Layout.Content.JoinOn.FirstItem, "layout.content.join_on.first_item"},
+		{cfg.Layout.Content.GroupList.FirstItem, "layout.content.group_list.first_item"},
+		{cfg.Layout.Content.OrderList.FirstItem, "layout.content.order_list.first_item"},
+		{cfg.Layout.Content.SetList.FirstItem, "layout.content.set_list.first_item"},
+		{cfg.Layout.Content.InsertColumns.FirstItem, "layout.content.insert_columns.first_item"},
+		{cfg.Layout.Content.ValuesList.FirstItem, "layout.content.values_list.first_item"},
+		{cfg.Layout.Content.ReturningList.FirstItem, "layout.content.returning_list.first_item"},
+		{cfg.Layout.Content.WithList.FirstItem, "layout.content.with_list.first_item"},
+	} {
+		switch r.v {
+		case FirstItemBreak, FirstItemInline, "":
+		default:
+			return fmt.Errorf("%s must be break|inline, got %q", r.name, r.v)
+		}
 	}
 	switch cfg.Layout.Union.BlankLine {
 	case UnionBlankLinePreserve, UnionBlankLineNone, UnionBlankLineBefore, UnionBlankLineAfter, UnionBlankLineBoth, "":
@@ -757,7 +872,7 @@ func findConfig() (string, error) {
 		return "", err
 	}
 	for {
-		candidate := filepath.Join(dir, ".procrustes.yaml")
+		candidate := filepath.Join(dir, ".pg_procrustes.yaml")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}

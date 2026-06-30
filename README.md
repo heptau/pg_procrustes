@@ -10,13 +10,21 @@ A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL par
 
 In Greek mythology, Procrustes was a bandit who operated an iron bed on the road to Athens. He invited travellers to spend the night — then made sure they fit the bed perfectly. If a guest was too tall, he cut off their legs. If too short, he stretched them until they matched. Either way, everyone fit.
 
-pg_procrustes works the same way. You define the bed — the formatting rules — via `.procrustes.yaml`. Your SQL will fit. Whether it likes it or not.
+pg_procrustes works the same way. You define the bed — the formatting rules — via `.pg_procrustes.yaml`. Your SQL will fit. Whether it likes it or not.
 
 ## Installation
 
+**Homebrew** (macOS and Linux):
+```bash
+brew install heptau/tap/pg-procrustes
+```
+
+**go install** (requires Go toolchain):
 ```bash
 go install github.com/heptau/pg_procrustes@latest
 ```
+
+**Binary download**: grab the archive for your platform from [GitHub Releases](https://github.com/heptau/pg_procrustes/releases), extract, and place the binary on your `PATH`.
 
 ## Usage
 
@@ -36,13 +44,20 @@ pg_procrustes --check *.sql
 
 # Show a unified diff without writing
 pg_procrustes --diff query.sql
+
+# Save original before overwriting (default extension: .bak)
+pg_procrustes -w --backup query.sql
+pg_procrustes -w --backup=.orig query.sql
+
+# Write formatted files to a different directory
+pg_procrustes --out-dir formatted/ migrations/*.sql
 ```
 
 ## Configuration
 
-pg_procrustes looks for `.procrustes.yaml` starting in the current directory and walking up to the filesystem root. Specify a custom path with `-c path/to/config.yaml`. All settings default to `preserve` (no change).
+pg_procrustes looks for `.pg_procrustes.yaml` starting in the current directory and walking up to the filesystem root. Specify a custom path with `-c path/to/config.yaml`. All settings default to `preserve` (no change).
 
-> **Note:** The `.procrustes.yaml` in this repository is the configuration used to format pg_procrustes' own source files — not a default template. Copy and adjust it for your own project.
+> **Note:** The `.pg_procrustes.yaml` in this repository is the configuration used to format pg_procrustes' own source files — not a default template. Copy and adjust it for your own project.
 
 ### Keyword and identifier casing
 
@@ -81,6 +96,26 @@ aliases:
   as: add         # add | preserve | remove
 columns:
   case: lower     # upper | lower | preserve
+
+plpgsql_variables:
+  case: upper     # upper | lower | preserve
+                  # Controls PL/pgSQL runtime values: NEW, OLD, EXCLUDED (ON CONFLICT),
+                  # FOUND, TG_OP, TG_TABLE_NAME, TG_TABLE_SCHEMA, TG_NAME, TG_WHEN,
+                  # TG_LEVEL, TG_NARGS, TG_ARGV, TG_RELID, TG_RELNAME, TG_EVENT, TG_TAG,
+                  # SQLSTATE, SQLERRM, ROW_COUNT, PG_CONTEXT, PG_EXCEPTION_DETAIL,
+                  # PG_EXCEPTION_HINT, PG_EXCEPTION_CONTEXT, RETURNED_SQLSTATE,
+                  # MESSAGE_TEXT, PG_DATATYPE_NAME, PG_ROUTINE_OID.
+                  # When omitted, NEW/OLD follow keywords.case; TG_*/FOUND are left as-is.
+
+plpgsql_keywords:
+  case: upper     # upper | lower | preserve
+                  # Controls PL/pgSQL-only statement keywords that the PostgreSQL scanner
+                  # does not classify as reserved or unreserved keywords and therefore
+                  # receive no transformation from the keywords/reserved_keywords rules:
+                  # RAISE, PERFORM, ELSIF, ELSEIF, FOREACH, REVERSE, SLICE, EXIT, LOOP,
+                  # WHILE, OPEN, ASSERT, EXCEPTION (as RAISE severity / handler keyword),
+                  # DEBUG, INFO, NOTICE, WARNING.
+                  # When omitted these keywords are written exactly as they appear in source.
 ```
 
 Every casing section accepts an optional `exceptions` list. Words that match an
@@ -105,8 +140,8 @@ keywords:
 
 `exceptions` is available on every casing section: `reserved_keywords`,
 `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`,
-`functions`, `conditional_functions`, `system_functions`, `aliases`, and
-`columns`.
+`functions`, `conditional_functions`, `system_functions`, `aliases`, `columns`,
+`plpgsql_variables`, and `plpgsql_keywords`.
 
 ### Punctuation and spacing
 
@@ -123,8 +158,13 @@ join_form: preserve          # preserve | short | long
                              #   short: JOIN, LEFT JOIN, FULL JOIN
                              #   long:  INNER JOIN, LEFT OUTER JOIN, FULL OUTER JOIN
 
-operator_spacing: normalize  # preserve | normalize
+operator_spacing: normalize  # preserve | normalize | compact
                              #   normalize: exactly one space around = != <> < > <= >= ||
+                             #   compact:   no spaces around = != <> < > <= >= ||
+
+comma_spacing: normalize     # preserve | normalize | compact
+                             #   normalize: one space after comma, none before
+                             #   compact:   no spaces around commas
 
 blank_lines: preserve        # preserve | max_3 | max_2 | max_1
 
@@ -134,11 +174,16 @@ quoted_identifiers: remove_safe  # preserve | remove_safe
 
 schema_qualification: preserve   # preserve | remove_public
 
-cast_style: preserve         # preserve | double_colon | cast_function
+cast_style: preserve         # preserve | operator
+                             #   operator: always use CAST(x AS type)
 
-order_asc: preserve          # preserve | explicit | implicit
+order_asc: preserve          # preserve | add | remove
+                             #   add:    make ASC explicit in ORDER BY
+                             #   remove: strip redundant ASC
 
-not_in: preserve             # preserve | not_in | not_equals_any
+not_in: preserve             # preserve | not_in | not_equals_all
+                             #   not_in:        always use NOT IN (...)
+                             #   not_equals_all: always use <> ALL (...)
 ```
 
 ### Layout
@@ -168,10 +213,28 @@ layout:
   content:
     break: preserve          # preserve | never | always | auto
     align: indent            # same | indent
-    # per-section overrides:
-    # select_list, where_conds, join_on, group_list, order_list, set_list, values_list
+    first_item: break        # break | inline
+                             #   break:  first item on new indented line (default)
+                             #   inline: first item stays on keyword line, rest indented below
+    # per-section overrides (each inherits content.break / content.align / content.first_item when omitted):
+    #   select_list    — SELECT column list (comma-split)
+    #   where_conds    — WHERE conditions (AND/OR split)
+    #   having_conds   — HAVING conditions (AND/OR split)
+    #   join_on        — JOIN ON conditions (AND/OR split)
+    #   group_list     — GROUP BY items (comma-split)
+    #   order_list     — ORDER BY items (comma-split)
+    #   set_list       — UPDATE SET assignments (comma-split)
+    #   insert_columns — INSERT INTO table (col1, col2, …) column list
+    #   values_list    — VALUES row tuples (each tuple is one item)
+    #   returning_list — RETURNING items (comma-split)
+    #   with_list      — WITH CTE definitions (comma-split)
     # Example:
-    # where_conds: { break: always }
+    # where_conds:    { break: always }
+    # having_conds:   { break: always, first_item: inline }
+    # select_list:    { break: always, first_item: inline }
+    # insert_columns: { break: always, first_item: inline }
+    # returning_list: { break: always, first_item: inline }
+    # with_list:      { break: always }
 
   union:
     blank_line: preserve     # preserve | none | before | after | both
@@ -203,15 +266,39 @@ ORDER BY u.name
 
 `content.break: auto` breaks the items inside a clause when that clause's content length exceeds `line_length`. SELECT list splits at commas; WHERE/HAVING/JOIN conditions split at AND/OR (keyword placed at start of continuation line).
 
+`content.first_item` controls where the first item lands when breaking occurs. `inline` keeps it on the clause keyword line; `break` (default) puts every item on its own line.
+
 ```sql
-SELECT
-  u.id,
-  u.name,
-  u.email
-FROM users u
-WHERE
-  u.active = TRUE
-  AND u.account_type = 'premium'
+-- select_list: { break: always }       -- select_list: { break: always, first_item: inline }
+SELECT                                  SELECT u.id,
+   u.id,                                   u.name,
+   u.name,                                 u.email
+   u.email
+
+-- where_conds: { break: always }       -- where_conds: { break: always, first_item: inline }
+WHERE                                   WHERE u.active = TRUE
+   u.active = TRUE                         AND u.account_type = 'premium'
+   AND u.account_type = 'premium'
+
+-- having_conds: { break: always, first_item: inline }
+HAVING count(*) > 5
+   AND avg(salary) > 50000
+
+-- returning_list: { break: always, first_item: inline }
+RETURNING id,
+   name,
+   created_at
+
+-- with_list: { break: always }
+WITH
+   cte1 AS (SELECT id FROM t),
+   cte2 AS (SELECT name FROM t2)
+
+-- insert_columns: { break: always, first_item: inline }
+INSERT INTO users (id,
+   name,
+   email
+)
 ```
 
 #### CASE expressions
@@ -373,6 +460,65 @@ END
 **Auto style** (`then_break: auto`, `body_break: auto`) collapses short branches and expands long ones, using `line_length` as the threshold.
 
 The `control_flow` settings apply equally to the EXCEPTION section body — IF, LOOP, and CASE blocks inside exception handlers are formatted with the same rules.
+
+## Migrating from 0.1.x
+
+### `layout.content.break: first_inline` removed
+
+`first_inline` was a combined break-and-placement mode. In 0.2.0 it is replaced by two orthogonal settings:
+
+```yaml
+# 0.1.x
+layout:
+  content:
+    break: first_inline
+
+# 0.2.x equivalent
+layout:
+  content:
+    break: auto          # or always / never — your original intent
+    first_item: inline
+```
+
+Per-section overrides follow the same pattern:
+
+```yaml
+# 0.1.x
+layout:
+  content:
+    select_list: { break: first_inline }
+
+# 0.2.x
+layout:
+  content:
+    select_list: { break: auto, first_item: inline }
+```
+
+## Troubleshooting
+
+**Config file not found**
+
+pg_procrustes walks up from the *current working directory*, not from the location of the SQL file. Run the tool from the project root, or use `-c path/to/.pg_procrustes.yaml` to point at the config explicitly.
+
+**Dollar-quoted block is not formatted**
+
+Only blocks tagged as `$$ … $$ LANGUAGE plpgsql` (or `LANGUAGE plpgsql` anywhere on the same `CREATE FUNCTION/PROCEDURE` statement) are treated as PL/pgSQL and reformatted recursively. Other dollar-quoted strings (`$$plain text$$`, `$tag$…$tag$`) are passed through unchanged.
+
+**Quoted identifiers are not removed**
+
+`quoted_identifiers: remove_safe` only removes double quotes when the identifier is all-lowercase, contains no spaces or special characters, and is not a PostgreSQL reserved keyword. Identifiers that fail any of these checks keep their quotes.
+
+**Formatter returns an error on valid SQL**
+
+pg_procrustes uses the native PostgreSQL parser (`libpg_query`). SQL that the parser rejects — including some procedural extensions or very new syntax — cannot be formatted. Please open an issue with a minimal reproducer.
+
+**Output is not idempotent**
+
+The formatter guarantees idempotence: running it twice on the same file should produce no further changes. If a second run changes the output, that is a bug — please open an issue.
+
+**Performance on large files**
+
+Parsing is done once per `Format()` call via the PostgreSQL C parser, so throughput scales linearly with file size. Files with many complex PL/pgSQL bodies are slower because each dollar-quoted block is parsed and formatted as a separate pass.
 
 ## Status
 

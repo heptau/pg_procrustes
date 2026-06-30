@@ -1,0 +1,9 @@
+layout:
+  clauses:
+    break: always
+  content:
+    insert_columns:
+      break: always
+      first_item: inline
+    values_list:
+      break: always

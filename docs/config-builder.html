@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pg_procrustes — Config Builder</title>
+  <meta name="description" content="Interactive config builder for pg_procrustes. Build your .pg_procrustes.yaml configuration visually and copy it to your project.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pg_procrustes.80.cz/config-builder.html">
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="https://pg_procrustes.80.cz/config-builder.html">
+  <meta property="og:title"       content="pg_procrustes — Config Builder">
+  <meta property="og:description" content="Build your .pg_procrustes.yaml configuration visually. Interactive tool for the pg_procrustes PostgreSQL SQL formatter.">
+  <meta property="og:site_name"   content="pg_procrustes">
+  <link rel="icon"             type="image/x-icon" href="favicon.ico">
+  <link rel="icon"             type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon"             type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180"  href="apple-touch-icon.png">
+  <link rel="manifest"         href="site.webmanifest">
+  <meta name="theme-color"     content="#1a1d27">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #20243a;
+      --border:   #2a2d3a;
+      --accent:   #5b8dee;
+      --accent2:  #7c6af7;
+      --text:     #d4d8e8;
+      --muted:    #7a7f99;
+      --code-bg:  #131620;
+      --code-bdr: #252838;
+      --keyword:  #c792ea;
+      --string:   #c3e88d;
+      --comment:  #546e7a;
+      --nav-w:    220px;
+      --radius:   8px;
+      font-size: 15px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:       #f5f6fa;
+        --surface:  #ffffff;
+        --surface2: #eef0f8;
+        --border:   #dde0ea;
+        --accent:   #2563eb;
+        --accent2:  #6d4ff6;
+        --text:     #1e2032;
+        --muted:    #6b7094;
+        --code-bg:  #f0f1f7;
+        --code-bdr: #d8dae8;
+        --keyword:  #7c3aed;
+        --string:   #16803c;
+        --comment:  #8a96a8;
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── sidebar nav ── */
+    nav {
+      width: var(--nav-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      overflow-y: auto;
+      padding: 2rem 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .nav-logo {
+      padding: 0 1.25rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .nav-logo .logo-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .nav-logo .logo-sub   { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+
+    .nav-section {
+      padding: 0.3rem 1.25rem 0.1rem;
+      font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted); margin-top: 0.8rem;
+    }
+
+    nav a {
+      display: block; padding: 0.28rem 1.25rem;
+      color: var(--muted); text-decoration: none;
+      font-size: 0.83rem;
+      border-left: 2px solid transparent;
+      transition: color 0.15s, background 0.15s;
+    }
+    nav a:hover { color: var(--text); background: rgba(91,141,238,.07); }
+    nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(91,141,238,.08); }
+
+    /* ── page shell ── */
+    .page {
+      margin-left: var(--nav-w);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .page-header {
+      padding: 1.5rem 2rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+    }
+    .page-header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .page-header p  { font-size: 0.85rem; color: var(--muted); margin-top: 0.2rem; }
+    .header-actions { margin-left: auto; display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.45rem 1rem;
+      font-size: 0.82rem; font-weight: 500;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .btn-ghost { background: transparent; color: var(--muted); }
+    .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #4a7de4; border-color: #4a7de4; }
+
+    /* ── builder layout ── */
+    .builder {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 0;
+      align-items: start;
+    }
+
+    /* ── form panel ── */
+    .form-panel {
+      padding: 1.5rem 2rem 4rem;
+      overflow-y: auto;
+    }
+
+    .form-group {
+      margin-bottom: 2.5rem;
+    }
+    .form-group-title {
+      font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--accent2);
+      margin-bottom: 0.9rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      padding: 0.5rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .form-row:hover { background: var(--surface2); }
+    .form-row.focused { background: rgba(91,141,238,.08); outline: 1px solid rgba(91,141,238,.3); }
+
+    .form-row label {
+      font-size: 0.84rem; color: var(--text);
+      cursor: pointer; user-select: none;
+    }
+    .form-row .key-hint {
+      font-size: 0.7rem; color: var(--muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      margin-top: 0.1rem;
+    }
+
+    select, input[type=number], input[type=text] {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 0.35rem 0.6rem;
+      width: 100%;
+      max-width: 240px;
+      transition: border-color 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7f99' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.5rem center;
+      padding-right: 1.8rem;
+    }
+    input[type=number], input[type=text] {
+      background-image: none;
+      padding-right: 0.6rem;
+      max-width: 120px;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    select option { background: #1a1d27; }
+
+    /* ── side panel ── */
+    .side-panel {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .detail-box {
+      flex: 0 0 auto;
+      padding: 1.25rem 1.25rem 1rem;
+      border-bottom: 1px solid var(--border);
+      min-height: 200px;
+      max-height: 45vh;
+      overflow-y: auto;
+    }
+    .detail-box h3 {
+      font-size: 0.88rem; font-weight: 600;
+      color: var(--text); margin-bottom: 0.3rem;
+    }
+    .detail-box .detail-key {
+      font-size: 0.7rem; color: var(--muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      margin-bottom: 0.8rem;
+    }
+    .detail-box p { font-size: 0.83rem; color: var(--muted); margin-bottom: 0.6rem; }
+    .detail-box .values-list {
+      margin: 0.5rem 0 0.8rem;
+      padding: 0;
+      list-style: none;
+    }
+    .detail-box .values-list li {
+      font-size: 0.79rem;
+      padding: 0.1rem 0;
+      color: var(--muted);
+    }
+    .detail-box .values-list li code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: var(--keyword);
+    }
+    .detail-box .ex-label {
+      font-size: 0.68rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 0.3rem;
+    }
+    .detail-box pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-bdr);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: var(--text);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .detail-empty {
+      color: var(--muted);
+      font-size: 0.83rem;
+      margin-top: 0.5rem;
+    }
+
+    .yaml-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .yaml-header {
+      padding: 0.7rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .yaml-copy-btn {
+      padding: 0.2rem 0.5rem;
+      font-size: 0.72rem;
+    }
+
+    #yaml-output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem 1.25rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.75rem;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--code-bg);
+      white-space: pre;
+    }
+    #yaml-output .y-key   { color: var(--accent); }
+    #yaml-output .y-val   { color: var(--string); }
+    #yaml-output .y-num   { color: #f78c6c; }
+    #yaml-output .y-empty { color: var(--muted); font-style: italic; }
+
+    /* ── paste modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 2);
+      padding: 1.5rem;
+      width: min(520px, 90vw);
+      display: flex; flex-direction: column; gap: 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .modal h3 { font-size: 0.95rem; font-weight: 700; margin: 0; }
+    .modal p  { font-size: 0.8rem; color: var(--muted); margin: 0; }
+    .modal textarea {
+      width: 100%; box-sizing: border-box;
+      height: 240px; resize: vertical;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.75rem; line-height: 1.65;
+      padding: 0.75rem 1rem;
+      outline: none;
+    }
+    .modal textarea:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="logo-title">pg_procrustes</div>
+    <div class="logo-sub">Config Builder</div>
+  </div>
+  <span class="nav-section">Builder</span>
+  <a href="#casing">Casing</a>
+  <a href="#punctuation">Punctuation &amp; Spacing</a>
+  <a href="#layout-basics">Layout — Basics</a>
+  <a href="#layout-clauses">Layout — Clauses</a>
+  <a href="#layout-content">Layout — Content</a>
+  <a href="#layout-other">Layout — Other</a>
+  <span class="nav-section">Links</span>
+  <a href="index.html">Documentation</a>
+  <a href="https://github.com/heptau/pg_procrustes" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Config Builder</h1>
+      <p>Build your <code>.pg_procrustes.yaml</code> interactively. Click any option to see details and examples.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-ghost" onclick="resetPreserve()">No changes</button>
+      <button class="btn-ghost" onclick="resetDefaults()">pg_procrustes defaults</button>
+      <button class="btn-ghost"
+              title="On macOS: press ⌘⇧. in the dialog to show hidden files"
+              onclick="document.getElementById('cfg-file-input').click()">Load config file</button>
+      <input type="file" id="cfg-file-input" accept=".yaml,.yml" style="display:none" onchange="onConfigFileLoad(event)">
+      <button class="btn-ghost" onclick="openPasteModal()">Paste YAML</button>
+      <button class="btn-primary" onclick="downloadConfig()">Download .pg_procrustes.yaml</button>
+    </div>
+  </div>
+
+  <!-- paste modal -->
+  <div class="modal-backdrop" id="paste-backdrop" onclick="closePasteModal(event)">
+    <div class="modal">
+      <h3>Paste .pg_procrustes.yaml</h3>
+      <p>Paste your config file content below. Only recognised settings will be applied; unknown keys are ignored.</p>
+      <textarea id="paste-area" spellcheck="false" placeholder="reserved_keywords:&#10;  case: upper&#10;&#10;layout:&#10;  clauses:&#10;    break: always&#10;  ..."></textarea>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closePasteModal()">Cancel</button>
+        <button class="btn-primary" onclick="applyPastedYAML()">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="builder">
+    <div class="form-panel" id="form-panel">
+      <!-- rendered by JS -->
+    </div>
+
+    <div class="side-panel">
+      <div class="detail-box" id="detail-box">
+        <p class="detail-empty">Click or focus any option on the left to see its description and examples here.</p>
+      </div>
+      <div class="yaml-panel">
+        <div class="yaml-header">
+          <span>.pg_procrustes.yaml preview</span>
+          <button class="btn-ghost yaml-copy-btn" onclick="copyYAML()">Copy</button>
+        </div>
+        <div id="yaml-output"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── option definitions ─────────────────────────────────────────────────────
+
+const _BREAK_VALS = [
+  ['preserve', 'preserve — leave as-is'],
+  ['never',    'never — keep on one line'],
+  ['always',   'always — break every item'],
+  ['auto',     'auto — break if too long'],
+];
+const _ALIGN_VALS = [
+  ['same',   'same — keyword indented same as clause'],
+  ['indent', 'indent — content indented under clause'],
+];
+const _FIRST_ITEM_VALS = [
+  ['break',  'break — first item on new indented line'],
+  ['inline', 'inline — first item on keyword line'],
+];
+
+// Precomputed [v, l] arrays with correct inherit labels per context
+const BREAK_DEFAULT           = [['', '(default)'],                                    ..._BREAK_VALS];
+const BREAK_FROM_CLAUSES      = [['', '(inherits layout.clauses.break)'],              ..._BREAK_VALS];
+const BREAK_FROM_CONTENT      = [['', '(inherits layout.content.break)'],              ..._BREAK_VALS];
+const ALIGN_DEFAULT           = [['', '(default)'],                                    ..._ALIGN_VALS];
+const FIRST_ITEM_DEFAULT      = [['', '(default)'],                                    ..._FIRST_ITEM_VALS];
+const FIRST_ITEM_FROM_CONTENT = [['', '(inherits layout.content.first_item)'],         ..._FIRST_ITEM_VALS];
+
+const GROUPS = [
+  {
+    id: 'casing',
+    title: 'Casing',
+    opts: [
+      { key: 'reserved_keywords.case', label: 'Reserved keywords', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'upper',
+        desc: 'Controls casing of reserved SQL keywords: SELECT, FROM, WHERE, JOIN, AND, OR, etc.',
+        example: `-- upper (default)\nSELECT id FROM users WHERE active = TRUE;\n\n-- lower\nselect id from users where active = true;` },
+      { key: 'keywords.case', label: 'Other keywords', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'upper',
+        desc: 'Controls casing of non-reserved keywords such as BEGIN, END, DECLARE, LANGUAGE, RETURNS.',
+        example: `-- upper\nBEGIN\n  NULL;\nEND;\n\n-- lower\nbegin\n  null;\nend;` },
+      { key: 'data_types.case', label: 'Data types — case', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'lower',
+        desc: 'Controls casing of data type names: integer, varchar, timestamp, etc.',
+        example: `-- lower (default)\ncreated_at timestamp with time zone\n\n-- upper\ncreated_at TIMESTAMP WITH TIME ZONE` },
+      { key: 'data_types.form', label: 'Data types — form', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['long','long — full SQL name'], ['short','short — shortest alias'], ['long_no_space','long_no_space — long without spaces']],
+        def: 'long',
+        desc: 'Controls canonical form of data type names.',
+        example: `-- long (default)\ncharacter varying(100)\ndouble precision\n\n-- short\nvarchar(100)\nfloat8\n\n-- long_no_space\nvarchar(100)\ndouble precision → float8 (has space → short)` },
+      { key: 'literals.case', label: 'Literals (TRUE/FALSE/NULL)', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'upper',
+        desc: 'Controls casing of literal keywords: TRUE, FALSE, NULL.',
+        example: `-- upper (default)\nWHERE active = TRUE AND deleted IS NULL\n\n-- lower\nWHERE active = true AND deleted is null` },
+      { key: 'operators.case', label: 'Operators (IS, IN, LIKE…)', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'upper',
+        desc: 'Controls casing of word-form operators: IS, IN, NOT, LIKE, BETWEEN, EXISTS, ANY, ALL.',
+        example: `-- upper (default)\nWHERE name LIKE '%foo%' AND id NOT IN (1,2)\n\n-- lower\nWHERE name like '%foo%' AND id not in (1,2)` },
+      { key: 'schemas.case', label: 'Schema names', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'lower',
+        desc: 'Controls casing of schema names in qualified references: public.users, myschema.table.',
+        example: `-- lower (default)\nSELECT * FROM public.users;\n\n-- upper\nSELECT * FROM PUBLIC.users;` },
+      { key: 'tables.case', label: 'Table names', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'lower',
+        desc: 'Controls casing of table (relation) names.',
+        example: `-- lower (default)\nSELECT * FROM users u;\n\n-- upper\nSELECT * FROM USERS u;` },
+      { key: 'functions.case', label: 'Function names', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'lower',
+        desc: 'Controls casing of user-defined and built-in function calls.',
+        example: `-- lower (default)\nSELECT count(*), max(salary) FROM employees;\n\n-- upper\nSELECT COUNT(*), MAX(salary) FROM employees;` },
+      { key: 'conditional_functions.case', label: 'Conditional functions (COALESCE, NULLIF…)', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'upper',
+        desc: 'Controls casing of conditional functions: COALESCE, NULLIF, GREATEST, LEAST, NVL.',
+        example: `-- upper (default)\nSELECT COALESCE(name, 'unknown') FROM t;\n\n-- lower\nSELECT coalesce(name, 'unknown') FROM t;` },
+      { key: 'system_functions.case', label: 'System functions (NOW, CURRENT_DATE…)', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'upper',
+        desc: 'Controls casing of system/catalog functions: NOW(), CURRENT_DATE, CURRENT_TIMESTAMP, etc.',
+        example: `-- upper (default)\nSELECT NOW(), CURRENT_USER;\n\n-- lower\nSELECT now(), current_user;` },
+      { key: 'aliases.case', label: 'Aliases — case', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'lower',
+        desc: 'Controls casing of table and column aliases.',
+        example: `-- lower (default)\nSELECT u.id AS user_id FROM users AS u;\n\n-- upper\nSELECT u.id AS USER_ID FROM users AS U;` },
+      { key: 'aliases.as', label: 'Aliases — AS keyword', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['add','add — always insert AS'], ['remove','remove — always remove AS']],
+        def: 'add',
+        desc: 'Controls whether the AS keyword appears before aliases.',
+        example: `-- add (default)\nSELECT id AS user_id, name AS full_name\nFROM users AS u;\n\n-- remove\nSELECT id user_id, name full_name\nFROM users u;` },
+      { key: 'columns.case', label: 'Column names', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'lower',
+        desc: 'Controls casing of column references.',
+        example: `-- lower (default)\nSELECT u.id, u.email FROM users u;\n\n-- upper\nSELECT u.ID, u.EMAIL FROM users u;` },
+      { key: 'plpgsql_variables.case', label: 'PL/pgSQL variables', type: 'select',
+        values: [['', '(default/preserve)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'preserve',
+        desc: 'Controls casing of user-defined PL/pgSQL identifiers inside function/procedure bodies: local variables declared in DECLARE, function parameters, and INTO targets. Does not affect SQL keywords or column/table names inside the body.',
+        example: `-- lower\nCREATE FUNCTION calc(p_id integer) RETURNS integer AS $$\nDECLARE\n  v_count integer;\n  v_result integer;\nBEGIN\n  SELECT count(*) INTO v_count FROM orders WHERE user_id = p_id;\n  v_result := v_count * 2;\n  RETURN v_result;\nEND;\n$$ LANGUAGE plpgsql;\n\n-- upper\nCREATE FUNCTION calc(P_ID integer) RETURNS integer AS $$\nDECLARE\n  V_COUNT integer;\n  V_RESULT integer;\nBEGIN\n  SELECT count(*) INTO V_COUNT FROM orders WHERE user_id = P_ID;\n  V_RESULT := V_COUNT * 2;\n  RETURN V_RESULT;\nEND;\n$$ LANGUAGE plpgsql;` },
+      { key: 'plpgsql_keywords.case', label: 'PL/pgSQL procedural keywords', type: 'select',
+        values: [['', '(default/preserve)'], ['preserve','preserve'], ['upper','upper'], ['lower','lower']],
+        def: 'preserve',
+        desc: 'Controls casing of PL/pgSQL-specific keywords inside function bodies: RAISE, NOTICE, RETURN, EXCEPTION, FOUND, etc.',
+        example: `-- upper\nBEGIN\n  RAISE NOTICE 'Processing %', v_id;\n  RETURN NEXT;\nEXCEPTION WHEN others THEN\n  RAISE EXCEPTION 'Error: %', SQLERRM;\nEND;` },
+    ]
+  },
+  {
+    id: 'punctuation',
+    title: 'Punctuation & Spacing',
+    opts: [
+      { key: 'trailing_whitespace', label: 'Trailing whitespace', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['strip','strip — remove trailing spaces']],
+        def: 'strip',
+        desc: 'Controls trailing whitespace at the end of each line.',
+        example: `-- strip (default)\nSELECT id, name    ←(no trailing spaces)\nFROM users;` },
+      { key: 'semicolons', label: 'Semicolons', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['add','add — always add'], ['remove','remove — always remove']],
+        def: 'preserve',
+        desc: 'Controls whether statements end with a semicolon.',
+        example: `-- add\nSELECT 1;\nSELECT 2;\n\n-- remove\nSELECT 1\nSELECT 2` },
+      { key: 'inequality_op', label: 'Inequality operator', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['ansi','ansi — use <>'], ['c','c — use !=']],
+        def: 'c',
+        desc: 'Normalises the inequality operator to either <> (ANSI) or != (C-style).',
+        example: `-- c (default)\nWHERE status != 'deleted'\n\n-- ansi\nWHERE status <> 'deleted'` },
+      { key: 'join_form', label: 'JOIN form', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['short','short — JOIN / LEFT JOIN'], ['long','long — INNER JOIN / LEFT OUTER JOIN']],
+        def: 'preserve',
+        desc: 'Controls whether JOIN keywords are written in short or long form.',
+        example: `-- short\nJOIN orders ON o.user_id = u.id\nLEFT JOIN logs ON ...\n\n-- long\nINNER JOIN orders ON o.user_id = u.id\nLEFT OUTER JOIN logs ON ...` },
+      { key: 'operator_spacing', label: 'Operator spacing', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['normalize','normalize — one space each side'], ['compact','compact — no spaces around operators']],
+        def: 'normalize',
+        desc: 'Controls spaces around symbolic comparison and concatenation operators: =, !=, <>, <, >, <=, >=, ||. Arithmetic operators (+, -, *, /) are not affected (asterisk also means SELECT *).',
+        example: `-- normalize (default)\nWHERE salary > 50000 AND name != 'bot'\nSELECT first_name || ' ' || last_name\n\n-- compact\nWHERE salary>50000 AND name!='bot'\nSELECT first_name||' '||last_name\n\n-- preserve — leaves whatever spacing the input has` },
+      { key: 'blank_lines', label: 'Blank lines between statements', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['max_1','max_1 — at most 1 blank line'], ['max_2','max_2 — at most 2'], ['max_3','max_3 — at most 3']],
+        def: 'preserve',
+        desc: 'Limits the maximum number of consecutive blank lines between SQL statements.',
+        example: `-- max_1\nSELECT 1;\n\nSELECT 2;\n\nSELECT 3;` },
+      { key: 'paren_spacing', label: 'Paren spacing', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['add','add — space inside parens'], ['remove','remove — no space inside parens']],
+        def: 'remove',
+        desc: 'Controls spaces immediately inside parentheses.',
+        example: `-- remove (default)\ncount(id)\nIN (1, 2, 3)\n\n-- add\ncount( id )\nIN ( 1, 2, 3 )` },
+      { key: 'quoted_identifiers', label: 'Quoted identifiers', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['remove_safe','remove_safe — remove unnecessary quotes']],
+        def: 'remove_safe',
+        desc: 'Removes unnecessary double-quote wrappers from identifiers that are safe without them (lowercase, no spaces, not reserved).',
+        example: `-- remove_safe (default)\n-- "users" → users (safe, lowercase, not reserved)\n-- "Order" kept (uppercase → needed)\n-- "from" kept (reserved keyword)` },
+      { key: 'trailing_newline', label: 'Trailing newline', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['add','add — ensure newline at EOF'], ['strip','strip — remove newline at EOF']],
+        def: 'preserve',
+        desc: 'Controls whether the output ends with a newline character.',
+        example: `-- add: output always ends with \\n\n-- strip: output never ends with \\n` },
+      { key: 'comma_spacing', label: 'Comma spacing', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['normalize','normalize — space after, none before'], ['compact','compact — no spaces around commas']],
+        def: 'normalize',
+        desc: 'Controls spaces around commas in SELECT lists, function arguments, VALUES, etc.',
+        example: `-- normalize (default)\nSELECT a, b, c FROM t;\nSELECT coalesce(x, 'n/a') FROM t;\n\n-- compact\nSELECT a,b,c FROM t;\nSELECT coalesce(x,'n/a') FROM t;\n\n-- preserve — leaves whatever spacing the input has` },
+      { key: 'order_asc', label: 'ORDER BY ASC keyword', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['add','add — always add ASC'], ['remove','remove — remove explicit ASC']],
+        def: 'preserve',
+        desc: 'Controls whether ORDER BY columns have an explicit ASC keyword.',
+        example: `-- add\nORDER BY name ASC, created_at DESC\n\n-- remove (ASC is the default anyway)\nORDER BY name, created_at DESC` },
+      { key: 'cast_style', label: 'CAST style', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['operator','operator — use x::type form']],
+        def: 'preserve',
+        desc: 'Controls whether type casts are written as CAST(x AS type) or x::type. SQL has two equivalent syntaxes — the function form (ANSI standard) and the :: operator form (PostgreSQL extension).',
+        example: `-- preserve (default)\n-- leaves both forms as-is in the input:\nSELECT CAST(price AS numeric(10,2)),\n       created_at::date\nFROM orders;\n\n-- operator — converts CAST(x AS t) → x::t\nSELECT price::numeric(10,2),\n       created_at::date\nFROM orders;` },
+      { key: 'not_in', label: 'NOT IN form', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['not_in','not_in — use NOT IN'], ['not_equals_all','not_equals_all — use <> ALL']],
+        def: 'preserve',
+        desc: 'Normalises the NOT IN predicate to either NOT IN (…) or <> ALL (ARRAY[…]).',
+        example: `-- not_in\nWHERE id NOT IN (1, 2, 3)\n\n-- not_equals_all\nWHERE id <> ALL(ARRAY[1, 2, 3])` },
+      { key: 'schema_qualification', label: 'Schema qualification', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['remove_public','remove_public — drop public. prefix']],
+        def: 'preserve',
+        desc: 'Removes the public. schema prefix from object names when it is the default schema.',
+        example: `-- remove_public\nSELECT * FROM users;\n-- (was: SELECT * FROM public.users)` },
+      { key: 'inline_spacing', label: 'Inline spacing', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['normalize','normalize — collapse multiple spaces to one']],
+        def: 'preserve',
+        desc: 'Collapses two or more consecutive horizontal spaces between tokens on the same line to a single space. Does not touch newlines or indentation.',
+        example: `-- normalize\nSELECT a, b FROM t WHERE x = 1;\n-- (was: SELECT  a,  b  FROM t)` },
+    ]
+  },
+  {
+    id: 'layout-basics',
+    title: 'Layout — Basics',
+    opts: [
+      { key: 'layout.line_length', label: 'Line length', type: 'number', min: 40, max: 500, placeholder: '128',
+        def: '128',
+        desc: 'Target line length used by auto break mode to decide when to break clauses or content items onto new lines.',
+        example: `-- line_length: 80, content.break: auto\n-- long SELECT list breaks because it exceeds 80 chars:\nSELECT\n   customer_id,\n   order_date,\n   total_amount\nFROM orders;\n\n-- line_length: 200 — same query stays on one line:\nSELECT customer_id, order_date, total_amount FROM orders;` },
+      { key: 'layout.indent.size', label: 'Indent size', type: 'number', min: 1, max: 8, placeholder: '3',
+        def: '3',
+        desc: 'Number of spaces (or tabs) per indent level.',
+        example: `-- size: 2\nSELECT\n  id,\n  name\nFROM users\nWHERE active = TRUE;\n\n-- size: 3 (default)\nSELECT\n   id,\n   name\nFROM users\nWHERE active = TRUE;\n\n-- size: 4\nSELECT\n    id,\n    name\nFROM users\nWHERE active = TRUE;` },
+      { key: 'layout.indent.type', label: 'Indent type', type: 'select',
+        values: [['', '(default)'], ['spaces','spaces'], ['tab','tab']],
+        def: 'spaces',
+        desc: 'Whether to indent with spaces or a tab character.',
+        example: `-- spaces (default)\nSELECT\n   id,\n   name\nFROM users;\n\n-- tab\nSELECT\n\tid,\n\tname\nFROM users;` },
+      { key: 'layout.indent.normalize', label: 'Indent normalize', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve — keep existing indent'], ['change','change — re-indent to configured style']],
+        def: 'preserve',
+        desc: 'Controls whether existing leading whitespace (indent) is re-written to match indent.size and indent.type.',
+        example: `-- Input with inconsistent 2-space indent:\nSELECT\n  id,\n  name\nFROM users\nWHERE active = TRUE;\n\n-- normalize: change, indent.size: 3\n-- rewrites to 3-space indent:\nSELECT\n   id,\n   name\nFROM users\nWHERE active = TRUE;` },
+      { key: 'layout.indent.remainder', label: 'Indent remainder handling', type: 'select',
+        values: [['', '(default)'], ['keep','keep — preserve partial indent'], ['add','add — round up to next level'], ['remove','remove — round down'], ['round','round — round to nearest']],
+        def: 'keep',
+        desc: 'When re-indenting (normalize=change), controls what happens when existing indent does not divide evenly by indent.size. Example: 5 spaces with size=3 leaves a remainder of 2.',
+        example: `-- Input indented 5 spaces (size=3, remainder=2):\n     SELECT id FROM t;\n\n-- keep: leaves the 2 extra spaces\n   SELECT id FROM t;  -- 3+2 = 5\n\n-- add: rounds up to next level\n      SELECT id FROM t;  -- 6 spaces\n\n-- remove: rounds down, discards remainder\n   SELECT id FROM t;  -- 3 spaces\n\n-- round: nearest multiple of size\n   SELECT id FROM t;  -- 3 (5 rounds to 3)` },
+    ]
+  },
+  {
+    id: 'layout-clauses',
+    title: 'Layout — Clauses',
+    opts: [
+      { key: 'layout.clauses.break', label: 'Default clause break', type: 'select',
+        values: BREAK_DEFAULT,
+        def: 'preserve',
+        desc: 'Default break mode for all SQL clauses (FROM, WHERE, GROUP BY, etc.). Per-clause settings override this.',
+        example: `-- always: every clause on its own line\nSELECT id, name\nFROM users\nWHERE active = TRUE\nORDER BY name;\n\n-- never: everything on one line\nSELECT id, name FROM users WHERE active = TRUE ORDER BY name;` },
+      { key: 'layout.clauses.align', label: 'Default clause align', type: 'select',
+        values: ALIGN_DEFAULT,
+        def: 'same',
+        desc: 'Default alignment mode: same keeps content on the same indent as the keyword; indent pushes content one level deeper.',
+        example: `-- same (default)\nSELECT id, name\nFROM users\nWHERE active = TRUE;\n\n-- indent\n  SELECT id, name\n    FROM users\n   WHERE active = TRUE;` },
+      { key: 'layout.clauses.from.break', label: 'from clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for FROM. Overrides layout.clauses.break for this clause only.',
+        example: `-- always\nSELECT id, name\nFROM users;\n\n-- never\nSELECT id, name FROM users;` },
+      { key: 'layout.clauses.join.break', label: 'join clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for JOIN (and LEFT JOIN, INNER JOIN, etc.).',
+        example: `-- always\nSELECT u.id, o.total\nFROM users AS u\nJOIN orders AS o ON o.user_id = u.id\nLEFT JOIN products AS p ON p.id = o.product_id;\n\n-- never\nSELECT u.id, o.total FROM users AS u JOIN orders AS o ON o.user_id = u.id;` },
+      { key: 'layout.clauses.where.break', label: 'where clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for WHERE.',
+        example: `-- always\nSELECT id FROM users\nWHERE active = TRUE AND role = 'admin';\n\n-- never\nSELECT id FROM users WHERE active = TRUE AND role = 'admin';` },
+      { key: 'layout.clauses.group_by.break', label: 'group by clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for GROUP BY.',
+        example: `-- always\nSELECT dept, count(*)\nFROM employees\nGROUP BY dept;\n\n-- never\nSELECT dept, count(*) FROM employees GROUP BY dept;` },
+      { key: 'layout.clauses.having.break', label: 'having clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for HAVING.',
+        example: `-- always\nSELECT dept, count(*) AS cnt\nFROM employees\nGROUP BY dept\nHAVING count(*) > 5;\n\n-- never\nSELECT dept, count(*) AS cnt FROM employees GROUP BY dept HAVING count(*) > 5;` },
+      { key: 'layout.clauses.order_by.break', label: 'order by clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for ORDER BY.',
+        example: `-- always\nSELECT id, name\nFROM users\nORDER BY name, created_at DESC;\n\n-- never\nSELECT id, name FROM users ORDER BY name, created_at DESC;` },
+      { key: 'layout.clauses.limit.break', label: 'limit clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for LIMIT.',
+        example: `-- always\nSELECT id FROM users\nORDER BY name\nLIMIT 10;\n\n-- never\nSELECT id FROM users ORDER BY name LIMIT 10;` },
+      { key: 'layout.clauses.offset.break', label: 'offset clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for OFFSET.',
+        example: `-- always\nSELECT id FROM users\nORDER BY name\nLIMIT 10\nOFFSET 20;\n\n-- never\nSELECT id FROM users ORDER BY name LIMIT 10 OFFSET 20;` },
+      { key: 'layout.clauses.values.break', label: 'values clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for VALUES in INSERT statements.',
+        example: `-- always\nINSERT INTO users (name, email)\nVALUES ('Alice', 'alice@example.com');\n\n-- never\nINSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');` },
+      { key: 'layout.clauses.set.break', label: 'set clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for SET in UPDATE statements.',
+        example: `-- always\nUPDATE users\nSET name = 'Bob', email = 'bob@example.com'\nWHERE id = 1;\n\n-- never\nUPDATE users SET name = 'Bob', email = 'bob@example.com' WHERE id = 1;` },
+      { key: 'layout.clauses.returning.break', label: 'returning clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for RETURNING.',
+        example: `-- always\nINSERT INTO users (name)\nVALUES ('Alice')\nRETURNING id, name, created_at;\n\n-- never\nINSERT INTO users (name) VALUES ('Alice') RETURNING id, name, created_at;` },
+      { key: 'layout.clauses.with.break', label: 'with clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for WITH (CTEs).',
+        example: `-- always\nWITH active AS (\n   SELECT id FROM users WHERE active = TRUE\n)\nSELECT * FROM active;\n\n-- never\nWITH active AS (SELECT id FROM users WHERE active = TRUE) SELECT * FROM active;` },
+      { key: 'layout.clauses.on_conflict.break', label: 'on conflict clause break', type: 'select',
+        values: BREAK_FROM_CLAUSES, def: '',
+        desc: 'Per-clause break override for ON CONFLICT in INSERT … ON CONFLICT DO UPDATE.',
+        example: `-- always\nINSERT INTO products (id, name, price)\nVALUES (1, 'Widget', 9.99)\nON CONFLICT (id) DO UPDATE\nSET price = excluded.price;\n\n-- never\nINSERT INTO products (id, name, price) VALUES (1, 'Widget', 9.99) ON CONFLICT (id) DO UPDATE SET price = excluded.price;` },
+    ]
+  },
+  {
+    id: 'layout-content',
+    title: 'Layout — Content',
+    opts: [
+      { key: 'layout.content.break', label: 'Default content break', type: 'select',
+        values: BREAK_DEFAULT,
+        def: 'preserve',
+        desc: 'Default break mode for items within clauses (SELECT list, WHERE conditions, etc.). Controls WHETHER to break — see first_item for HOW. Per-section settings override this.',
+        example: `-- always\nSELECT\n   id,\n   name,\n   email\nFROM users;\n\n-- auto — breaks only when content exceeds line_length\nSELECT id, name, email FROM users;  -- stays inline if short\n\n-- never — keeps all items on one line regardless` },
+      { key: 'layout.content.first_item', label: 'Default first item placement', type: 'select',
+        values: FIRST_ITEM_DEFAULT,
+        def: 'break',
+        desc: 'Controls WHERE the first item lands when content breaks. Applies when break=always or break=auto triggers. Per-section settings override this.',
+        example: `-- break (default)\nSELECT\n   id,\n   name,\n   email\nFROM users;\n\n-- inline\nSELECT id,\n   name,\n   email\nFROM users;` },
+      { key: 'layout.content.align', label: 'Default content align', type: 'select',
+        values: ALIGN_DEFAULT,
+        def: 'indent',
+        desc: 'Default alignment for content items within clauses.',
+        example: `-- indent (default): items indented under clause keyword\nSELECT\n   id,\n   name\nFROM users;` },
+      { key: 'layout.content.select_list.break', label: 'select list — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break the SELECT column list. Overrides layout.content.break for SELECT only.',
+        example: `-- always\nSELECT\n   id,\n   name,\n   email\nFROM users;\n\n-- always + first_item: inline\nSELECT id,\n   name,\n   email\nFROM users;` },
+      { key: 'layout.content.select_list.first_item', label: 'select list — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first SELECT column lands when breaking. Overrides layout.content.first_item for SELECT only.',
+        example: `-- break (default)\nSELECT\n   id,\n   name,\n   email\nFROM users;\n\n-- inline\nSELECT id,\n   name,\n   email\nFROM users;` },
+      { key: 'layout.content.where_conds.break', label: 'where conditions — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break WHERE conditions. Overrides layout.content.break for WHERE only.',
+        example: `-- always\nWHERE\n   active = TRUE\n   AND role = 'admin';\n\n-- always + first_item: inline\nWHERE active = TRUE\n   AND role = 'admin';` },
+      { key: 'layout.content.where_conds.first_item', label: 'where conditions — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first WHERE condition lands when breaking. Overrides layout.content.first_item for WHERE only.',
+        example: `-- break (default)\nWHERE\n   active = TRUE\n   AND role = 'admin';\n\n-- inline\nWHERE active = TRUE\n   AND role = 'admin';` },
+      { key: 'layout.content.having_conds.break', label: 'having conditions — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break HAVING conditions. Overrides layout.content.break for HAVING only.',
+        example: `-- always + first_item: break\nHAVING\n   count(*) > 5\n   AND avg(salary) > 50000;\n\n-- always + first_item: inline\nHAVING count(*) > 5\n   AND avg(salary) > 50000;` },
+      { key: 'layout.content.having_conds.first_item', label: 'having conditions — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first HAVING condition lands when breaking.',
+        example: `-- inline\nHAVING count(*) > 5\n   AND avg(salary) > 50000;` },
+      { key: 'layout.content.join_on.break', label: 'join on conditions — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break JOIN ON conditions. Overrides layout.content.break for JOIN ON only.',
+        example: `-- always + first_item: break\nJOIN orders AS o\n   ON o.user_id = u.id\n   AND o.status = 'active';\n\n-- always + first_item: inline\nJOIN orders AS o ON o.user_id = u.id\n   AND o.status = 'active';` },
+      { key: 'layout.content.join_on.first_item', label: 'join on conditions — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first ON condition lands when breaking JOIN ON.',
+        example: `-- inline\nJOIN orders AS o ON o.user_id = u.id\n   AND o.status = 'active';` },
+      { key: 'layout.content.group_list.break', label: 'group by list — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break the GROUP BY column list.',
+        example: `-- always + first_item: break\nGROUP BY\n   department,\n   year;\n\n-- always + first_item: inline\nGROUP BY department,\n   year;` },
+      { key: 'layout.content.group_list.first_item', label: 'group by list — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first GROUP BY column lands when breaking.',
+        example: `-- inline\nGROUP BY department,\n   year,\n   quarter;` },
+      { key: 'layout.content.order_list.break', label: 'order by list — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break the ORDER BY column list.',
+        example: `-- always + first_item: break\nORDER BY\n   name ASC,\n   created_at DESC;\n\n-- always + first_item: inline\nORDER BY name ASC,\n   created_at DESC;` },
+      { key: 'layout.content.order_list.first_item', label: 'order by list — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first ORDER BY column lands when breaking.',
+        example: `-- inline\nORDER BY name ASC,\n   created_at DESC;` },
+      { key: 'layout.content.set_list.break', label: 'set assignments — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break SET assignments in UPDATE.',
+        example: `-- always + first_item: break\nSET\n   name = 'Bob',\n   email = 'bob@example.com';\n\n-- always + first_item: inline\nSET name = 'Bob',\n   email = 'bob@example.com';` },
+      { key: 'layout.content.set_list.first_item', label: 'set assignments — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first SET assignment lands when breaking.',
+        example: `-- inline\nSET name = 'Bob',\n   email = 'bob@example.com',\n   updated_at = now();` },
+      { key: 'layout.content.insert_columns.break', label: 'insert columns — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break the column list in INSERT INTO table (col1, col2, …).',
+        example: `-- always + first_item: break\nINSERT INTO users (\n   id,\n   name,\n   email\n) VALUES (...);\n\n-- always + first_item: inline\nINSERT INTO users (id,\n   name,\n   email\n) VALUES (...);` },
+      { key: 'layout.content.insert_columns.first_item', label: 'insert columns — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first column lands in the INSERT column list when breaking.',
+        example: `-- inline\nINSERT INTO users (id,\n   name,\n   email\n) VALUES (...);` },
+      { key: 'layout.content.values_list.break', label: 'values rows — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break rows in VALUES.',
+        example: `-- always + first_item: break\nVALUES\n   (1, 'Alice'),\n   (2, 'Bob');\n\n-- always + first_item: inline\nVALUES (1, 'Alice'),\n   (2, 'Bob');` },
+      { key: 'layout.content.values_list.first_item', label: 'values rows — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first VALUES row lands when breaking.',
+        example: `-- inline\nVALUES (1, 'Alice', 'alice@example.com'),\n   (2, 'Bob', 'bob@example.com');` },
+      { key: 'layout.content.returning_list.break', label: 'returning list — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break the RETURNING column list.',
+        example: `-- always + first_item: break\nRETURNING\n   id,\n   name,\n   created_at;\n\n-- always + first_item: inline\nRETURNING id,\n   name,\n   created_at;` },
+      { key: 'layout.content.returning_list.first_item', label: 'returning list — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first RETURNING column lands when breaking.',
+        example: `-- inline\nRETURNING id,\n   name,\n   created_at;` },
+      { key: 'layout.content.with_list.break', label: 'with cte list — break', type: 'select',
+        values: BREAK_FROM_CONTENT, def: '',
+        desc: 'Whether to break multiple CTEs in a WITH clause.',
+        example: `-- always + first_item: break\nWITH\n   active AS (SELECT id FROM users WHERE active = TRUE),\n   recent AS (SELECT user_id FROM orders WHERE created_at > now() - interval '30 days')\nSELECT * FROM active;` },
+      { key: 'layout.content.with_list.first_item', label: 'with cte list — first item', type: 'select',
+        values: FIRST_ITEM_FROM_CONTENT, def: '',
+        desc: 'Where the first CTE lands when breaking a WITH clause.',
+        example: `-- inline\nWITH active AS (SELECT id FROM users WHERE active = TRUE),\n   recent AS (SELECT user_id FROM orders WHERE created_at > now() - interval '30 days')\nSELECT * FROM active;` },
+    ]
+  },
+  {
+    id: 'layout-other',
+    title: 'Layout — Other',
+    opts: [
+      { key: 'layout.union.blank_line', label: 'UNION blank line', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['none','none — no blank lines around UNION'], ['before','before — blank line before UNION'], ['after','after — blank line after UNION'], ['both','both — blank lines before and after']],
+        def: 'preserve',
+        desc: 'Controls blank lines around UNION / UNION ALL / INTERSECT / EXCEPT operators.',
+        example: `-- both\nSELECT id FROM a\n\nUNION ALL\n\nSELECT id FROM b;\n\n-- none\nSELECT id FROM a\nUNION ALL\nSELECT id FROM b;` },
+      { key: 'layout.case.break', label: 'CASE expression break', type: 'select',
+        values: BREAK_DEFAULT,
+        def: 'preserve',
+        desc: 'Controls whether WHEN/ELSE branches of a SQL CASE expression break onto new lines.',
+        example: `-- always\nCASE\n   WHEN status = 'active' THEN 1\n   WHEN status = 'pending' THEN 2\n   ELSE 0\nEND\n\n-- never (short)\nCASE WHEN status = 'active' THEN 1 ELSE 0 END` },
+      { key: 'layout.case.indent', label: 'CASE expression indent', type: 'select',
+        values: [['', '(default)'], ['preserve','preserve'], ['none','none — WHEN/ELSE at CASE level'], ['indent','indent — WHEN/ELSE indented under CASE']],
+        def: 'indent',
+        desc: 'Controls indentation of WHEN/ELSE inside a SQL CASE expression.',
+        example: `-- indent (default)\nCASE\n   WHEN x = 1 THEN 'a'\n   ELSE 'b'\nEND\n\n-- none\nCASE\nWHEN x = 1 THEN 'a'\nELSE 'b'\nEND` },
+    ]
+  },
+];
+
+// ── state ──────────────────────────────────────────────────────────────────
+const state = {};
+
+function initState() {
+  for (const g of GROUPS) {
+    for (const o of g.opts) {
+      state[o.key] = '';
+    }
+  }
+}
+
+function resetPreserve() {
+  for (const k in state) state[k] = '';
+  updateAllInputs();
+  renderYAML();
+}
+
+// ── load config file ────────────────────────────────────────────────────────
+
+function parseSimpleYAML(text) {
+  const root = {};
+  const stack = [{ obj: root, indent: -1 }];
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/#.*/, '').trimEnd();
+    if (!line.trim()) continue;
+    const indent = line.length - line.trimStart().length;
+    const trimmed = line.trim();
+    const ci = trimmed.indexOf(':');
+    if (ci === -1) continue;
+    const key = trimmed.slice(0, ci).trim();
+    const val = trimmed.slice(ci + 1).trim();
+    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
+    const parent = stack[stack.length - 1].obj;
+    if (val === '') {
+      parent[key] = {};
+      stack.push({ obj: parent[key], indent });
+    } else {
+      parent[key] = val;
+    }
+  }
+  return root;
+}
+
+function flattenObject(obj, prefix) {
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? prefix + '.' + k : k;
+    if (v && typeof v === 'object') {
+      Object.assign(result, flattenObject(v, key));
+    } else {
+      result[key] = String(v);
+    }
+  }
+  return result;
+}
+
+function onConfigFileLoad(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  const reader = new FileReader();
+  reader.onload = (e) => loadFromText(e.target.result);
+  reader.readAsText(file);
+}
+
+function loadFromText(text) {
+  try {
+    const parsed = parseSimpleYAML(text);
+    const flat = flattenObject(parsed, '');
+    let loaded = 0;
+    for (const [k, v] of Object.entries(flat)) {
+      if (k in state) { state[k] = v; loaded++; }
+    }
+    updateAllInputs();
+    renderYAML();
+    if (loaded === 0) alert('No recognised settings found.');
+  } catch (err) {
+    alert('Failed to parse YAML: ' + err.message);
+  }
+}
+
+function openPasteModal() {
+  document.getElementById('paste-area').value = '';
+  document.getElementById('paste-backdrop').classList.add('open');
+  setTimeout(() => document.getElementById('paste-area').focus(), 50);
+}
+
+function closePasteModal(event) {
+  if (event && event.target !== document.getElementById('paste-backdrop')) return;
+  document.getElementById('paste-backdrop').classList.remove('open');
+}
+
+function applyPastedYAML() {
+  const text = document.getElementById('paste-area').value.trim();
+  if (!text) { document.getElementById('paste-backdrop').classList.remove('open'); return; }
+  document.getElementById('paste-backdrop').classList.remove('open');
+  loadFromText(text);
+}
+
+function resetDefaults() {
+  const DEF = {
+    'reserved_keywords.case': 'upper',
+    'keywords.case': 'upper',
+    'data_types.case': 'lower',
+    'data_types.form': 'long',
+    'literals.case': 'upper',
+    'operators.case': 'upper',
+    'schemas.case': 'lower',
+    'tables.case': 'lower',
+    'functions.case': 'lower',
+    'conditional_functions.case': 'upper',
+    'system_functions.case': 'upper',
+    'aliases.case': 'lower',
+    'aliases.as': 'add',
+    'columns.case': 'lower',
+    'plpgsql_variables.case': 'preserve',
+    'plpgsql_keywords.case': 'preserve',
+    'trailing_whitespace': 'strip',
+    'semicolons': 'preserve',
+    'inequality_op': 'c',
+    'join_form': 'preserve',
+    'operator_spacing': 'normalize',
+    'blank_lines': 'preserve',
+    'paren_spacing': 'remove',
+    'quoted_identifiers': 'remove_safe',
+    'trailing_newline': 'preserve',
+    'comma_spacing': 'normalize',
+    'order_asc': 'preserve',
+    'cast_style': 'preserve',
+    'not_in': 'preserve',
+    'schema_qualification': 'preserve',
+    'inline_spacing': 'preserve',
+    'layout.line_length': '128',
+    'layout.indent.size': '3',
+    'layout.indent.type': 'spaces',
+    'layout.indent.normalize': 'preserve',
+    'layout.indent.remainder': 'keep',
+    'layout.clauses.break': 'preserve',
+    'layout.clauses.align': 'same',
+    'layout.content.break': 'preserve',
+    'layout.content.align': 'indent',
+    'layout.union.blank_line': 'preserve',
+    'layout.case.break': 'preserve',
+    'layout.case.indent': 'indent',
+  };
+  for (const k in state) {
+    state[k] = (k in DEF) ? DEF[k] : '';
+  }
+  updateAllInputs();
+  renderYAML();
+}
+
+// ── YAML generation ────────────────────────────────────────────────────────
+
+function setNested(obj, keys, value) {
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!cur[keys[i]]) cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+}
+
+function isNumericKey(k) {
+  return k === 'line_length' || k === 'size';
+}
+
+function toYAMLLines(obj, indent) {
+  const pad = ' '.repeat(indent * 2);
+  const lines = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'object' && v !== null) {
+      lines.push(`${pad}${k}:`);
+      for (const l of toYAMLLines(v, indent + 1)) lines.push(l);
+    } else {
+      const isNum = isNumericKey(k);
+      lines.push(`${pad}${k}: ${v}`);
+    }
+  }
+  return lines;
+}
+
+function generateYAML() {
+  const nested = {};
+  for (const [key, val] of Object.entries(state)) {
+    if (val === '' || val === null || val === undefined) continue;
+    setNested(nested, key.split('.'), val);
+  }
+  if (Object.keys(nested).length === 0) return null;
+  return toYAMLLines(nested, 0).join('\n');
+}
+
+function renderYAML() {
+  const out = document.getElementById('yaml-output');
+  const yaml = generateYAML();
+  if (!yaml) {
+    out.innerHTML = '<span class="y-empty"># (all options at default — empty config)</span>';
+    return;
+  }
+  // Syntax highlight: lines ending with : are keys, others key: value
+  const html = yaml.split('\n').map(line => {
+    if (line.trimEnd().endsWith(':')) {
+      // section header
+      const m = line.match(/^(\s*)(\S+):(\s*)$/);
+      if (m) return `${m[1]}<span class="y-key">${m[2]}</span>:${m[3]}`;
+    }
+    const m = line.match(/^(\s*)([^:]+):\s*(.+)$/);
+    if (m) {
+      const numVal = parseFloat(m[3]);
+      const isNum = !isNaN(numVal) && String(numVal) === m[3].trim();
+      return `${m[1]}<span class="y-key">${m[2]}</span>: <span class="${isNum ? 'y-num' : 'y-val'}">${m[3]}</span>`;
+    }
+    return line;
+  }).join('\n');
+  out.innerHTML = html;
+}
+
+// ── form rendering ─────────────────────────────────────────────────────────
+
+function renderForm() {
+  const panel = document.getElementById('form-panel');
+  panel.innerHTML = '';
+
+  for (const g of GROUPS) {
+    const div = document.createElement('div');
+    div.className = 'form-group';
+    div.id = g.id;
+
+    const title = document.createElement('div');
+    title.className = 'form-group-title';
+    title.textContent = g.title;
+    div.appendChild(title);
+
+    for (const o of g.opts) {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      row.dataset.key = o.key;
+
+      const labelCol = document.createElement('div');
+      const lbl = document.createElement('label');
+      lbl.textContent = o.label;
+      lbl.htmlFor = 'opt-' + o.key;
+      const hint = document.createElement('div');
+      hint.className = 'key-hint';
+      hint.textContent = o.key;
+      labelCol.appendChild(lbl);
+      labelCol.appendChild(hint);
+
+      let ctrl;
+      if (o.type === 'select') {
+        ctrl = document.createElement('select');
+        ctrl.id = 'opt-' + o.key;
+        for (const [v, l] of o.values) {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = l;
+          ctrl.appendChild(opt);
+        }
+        ctrl.value = state[o.key] || '';
+        ctrl.addEventListener('change', () => {
+          state[o.key] = ctrl.value;
+          renderYAML();
+        });
+      } else {
+        ctrl = document.createElement('input');
+        ctrl.type = 'number';
+        ctrl.id = 'opt-' + o.key;
+        ctrl.min = o.min;
+        ctrl.max = o.max;
+        ctrl.placeholder = o.placeholder || '';
+        ctrl.value = state[o.key] || '';
+        ctrl.addEventListener('input', () => {
+          state[o.key] = ctrl.value;
+          renderYAML();
+        });
+      }
+
+      const focusDetail = () => {
+        document.querySelectorAll('.form-row.focused').forEach(r => r.classList.remove('focused'));
+        row.classList.add('focused');
+        showDetail(o);
+      };
+      row.addEventListener('click', focusDetail);
+      ctrl.addEventListener('focus', focusDetail);
+
+      row.appendChild(labelCol);
+      row.appendChild(ctrl);
+      div.appendChild(row);
+    }
+
+    panel.appendChild(div);
+  }
+}
+
+function updateAllInputs() {
+  for (const g of GROUPS) {
+    for (const o of g.opts) {
+      const el = document.getElementById('opt-' + o.key);
+      if (!el) continue;
+      if (el.tagName === 'SELECT') el.value = state[o.key] || '';
+      else el.value = state[o.key] || '';
+    }
+  }
+}
+
+// ── detail panel ───────────────────────────────────────────────────────────
+
+function showDetail(opt) {
+  const box = document.getElementById('detail-box');
+  const defText = opt.def ? ` (default: <code>${opt.def}</code>)` : '';
+  box.innerHTML = `
+    <h3>${opt.label}</h3>
+    <div class="detail-key">${opt.key}</div>
+    <p>${opt.desc}${defText ? ' ' + defText : ''}</p>
+    ${opt.example ? `<div class="ex-label">Example</div><pre>${escHtml(opt.example)}</pre>` : ''}
+  `;
+  // re-render default text with HTML
+  box.querySelector('p').innerHTML = opt.desc + (opt.def ? ` Default: <code style="color:var(--keyword);font-family:monospace">${opt.def}</code>.` : '');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── copy / download ────────────────────────────────────────────────────────
+
+function getYAMLText() {
+  const yaml = generateYAML();
+  return yaml ? yaml + '\n' : '# (empty — all options at default)\n';
+}
+
+function copyYAML() {
+  navigator.clipboard.writeText(getYAMLText()).then(() => {
+    const btn = document.querySelector('.yaml-copy-btn');
+    const old = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = old, 1500);
+  });
+}
+
+function downloadConfig() {
+  const blob = new Blob([getYAMLText()], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '.pg_procrustes.yaml';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── nav scroll spy ─────────────────────────────────────────────────────────
+
+function initScrollSpy() {
+  const links = document.querySelectorAll('nav a[href^="#"]');
+  const sections = [...links].map(l => document.getElementById(l.getAttribute('href').slice(1))).filter(Boolean);
+  document.querySelector('.form-panel').addEventListener('scroll', () => {
+    const panelTop = document.querySelector('.form-panel').scrollTop;
+    let active = sections[0];
+    for (const s of sections) {
+      if (s.offsetTop - 40 <= panelTop) active = s;
+    }
+    links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + (active && active.id)));
+  });
+}
+
+// ── init ───────────────────────────────────────────────────────────────────
+
+initState();
+renderForm();
+renderYAML();
+initScrollSpy();
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('paste-backdrop').classList.remove('open');
+});
+</script>
+</body>
+</html>

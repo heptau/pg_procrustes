@@ -70,7 +70,7 @@ func main() {
 	flag.BoolVar(&diffMode, "diff", false, "print unified diff of changes without writing")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.BoolVar(&showVersion, "v", false, "print version and exit")
-	flag.StringVar(&configPath, "c", "", "path to config file (default: auto-detect .procrustes.yaml)")
+	flag.StringVar(&configPath, "c", "", "path to config file (default: auto-detect .pg_procrustes.yaml)")
 	flag.StringVar(&backupExt, "backup", "", "before overwriting, save original with this extension (e.g. .bak); requires -w")
 	flag.StringVar(&outDir, "out-dir", "", "write formatted files into this directory instead of stdout")
 	flag.Usage = usage
@@ -399,7 +399,7 @@ With no file arguments reads from stdin. Glob patterns are expanded
 
 Flags:
   -v, --version      print version and exit
-  -c <path>          path to config file (default: auto-detect .procrustes.yaml)
+  -c <path>          path to config file (default: auto-detect .pg_procrustes.yaml)
   -w                 write result back to source files (in-place)
   --backup[=.ext]    save original before overwriting (requires -w); default extension is .bak
   --out-dir <dir>    write formatted files into this directory (cannot be combined with -w)

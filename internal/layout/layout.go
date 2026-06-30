@@ -1,3 +1,4 @@
+// Package layout implements clause-level SQL layout and indentation for pg_procrustes.
 package layout
 
 import (
@@ -33,11 +34,16 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 	if caseBrk == "" {
 		caseBrk = config.BreakPreserve
 	}
+	parenMode := cfg.ParenIndent.Mode
+	if parenMode == "" {
+		parenMode = config.ParenIndentPreserve
+	}
 	return clauseBreak == config.BreakPreserve &&
 		unionBL == config.UnionBlankLinePreserve &&
 		contentBreak == config.BreakPreserve &&
 		indentNorm == config.IndentNormalizePreserve &&
-		caseBrk == config.BreakPreserve
+		caseBrk == config.BreakPreserve &&
+		parenMode == config.ParenIndentPreserve
 }
 
 // Apply applies layout rules (clause breaking, indentation) to already-formatted SQL.
@@ -105,6 +111,10 @@ func Apply(sql string, cfg *config.LayoutConfig) (string, error) {
 
 	if cfg.Indent.Normalize == config.IndentNormalizeChange {
 		result = normalizeIndent(result, cfg)
+	}
+
+	if cfg.ParenIndent.Mode != config.ParenIndentPreserve && cfg.ParenIndent.Mode != "" {
+		result = applyParenIndent(result, indentUnit, cfg.ParenIndent.Mode, cfg.ParenIndent.CloseFirst)
 	}
 
 	return result, nil
@@ -324,6 +334,9 @@ func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 			return clauseDelete, 2
 		}
 	case "union", "intersect", "except":
+		if next() == "all" {
+			return clauseUnion, 2
+		}
 		return clauseUnion, 1
 	case "exception":
 		return clauseException, 1
@@ -455,6 +468,28 @@ func clauseBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMo
 	}
 }
 
+// inlineContent reconstructs the tokens from [from, to) as a single-line string.
+// Unlike originalText, it replaces gaps that contain a newline with a single space,
+// so content originally formatted across multiple lines is collapsed to one line.
+func inlineContent(sql string, tokens []rawTok, from, to int) string {
+	if from >= to {
+		return ""
+	}
+	var sb strings.Builder
+	for i := from; i < to; i++ {
+		if i > from {
+			gap := gapBetween(sql, tokens, i-1, i)
+			if strings.ContainsRune(gap, '\n') {
+				sb.WriteByte(' ')
+			} else {
+				sb.WriteString(gap)
+			}
+		}
+		sb.WriteString(tokens[i].text)
+	}
+	return sb.String()
+}
+
 func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutConfig, indentUnit string, depth int) string {
 	if len(stmt.clauses) == 0 {
 		start := tokens[stmt.startTok].start
@@ -479,6 +514,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	stmtFlatLen := flatLength(sql, tokens, stmtStart, stmtEnd)
 
 	baseIndent := strings.Repeat(indentUnit, depth)
+
+	unionBL := cfg.Union.BlankLine
+	if unionBL == "" {
+		unionBL = config.UnionBlankLinePreserve
+	}
 
 	var sb strings.Builder
 
@@ -543,12 +583,23 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		breakMode, alignMode := clauseBreakAlign(cl.kind, cfg)
 		doBreak := shouldBreak(stmtFlatLen, breakMode, cfg.LineLength)
 
+		// If the previous clause was a UNION with blank-line "after" or "both", insert
+		// a blank line before this clause regardless of the source gap.
+		prevIsUnionBlankAfter := ci > 0 &&
+			stmt.clauses[ci-1].kind == clauseUnion &&
+			(unionBL == config.UnionBlankLineAfter || unionBL == config.UnionBlankLineBoth)
+
 		if !doBreak {
 			if ci > 0 {
-				// Include gap between previous clause content and this clause keyword.
-				prevConEnd := stmt.clauses[ci-1].conEnd
-				if prevConEnd > 0 {
-					sb.WriteString(gapBetween(sql, tokens, prevConEnd-1, kwStart))
+				if prevIsUnionBlankAfter {
+					sb.WriteString("\n\n")
+					sb.WriteString(baseIndent)
+				} else {
+					// Include gap between previous clause content and this clause keyword.
+					prevConEnd := stmt.clauses[ci-1].conEnd
+					if prevConEnd > 0 {
+						sb.WriteString(gapBetween(sql, tokens, prevConEnd-1, kwStart))
+					}
 				}
 			}
 			needsCaseReformat := cfg.Case.Break != "" && cfg.Case.Break != config.BreakPreserve
@@ -573,7 +624,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 
 		if ci > 0 {
-			sb.WriteByte('\n')
+			if prevIsUnionBlankAfter {
+				sb.WriteString("\n\n")
+			} else {
+				sb.WriteByte('\n')
+			}
 			sb.WriteString(clauseIndent)
 		} else {
 			sb.WriteString(clauseIndent)
@@ -582,7 +637,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		kwText := strings.TrimSpace(originalText(sql, tokens, kwStart, kwEnd))
 		sb.WriteString(kwText)
 
-		contentBreakMode, contentAlign := contentBreakAlign(cl.kind, cfg)
+		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
 
@@ -592,7 +647,10 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 
 		if !doContentBreak {
 			sb.WriteByte(' ')
-			content := strings.TrimSpace(originalText(sql, tokens, kwEnd, conEnd))
+			// Use inlineContent instead of originalText: the original may span multiple
+			// lines (e.g. ORDER BY items each on their own line), and placing that verbatim
+			// on the same line as the keyword would embed raw newlines in the output.
+			content := inlineContent(sql, tokens, kwEnd, conEnd)
 			content = reformatCaseExprs(content, clauseIndent, cfg.Case, indentUnit, cfg.LineLength)
 			sb.WriteString(content)
 			continue
@@ -603,12 +661,113 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			contentIndent = clauseIndent
 		}
 
+		// Special case: INSERT INTO table_name (col1, col2, ...) column list.
+		if cl.kind == clauseInsert {
+			openIdx, closeIdx := findInsertColumnParen(tokens, kwEnd, conEnd)
+			if openIdx >= 0 {
+				prefix := strings.TrimSpace(inlineContent(sql, tokens, kwEnd, openIdx))
+				colItems := splitAtComma(sql, tokens, openIdx+1, closeIdx)
+				sb.WriteByte(' ')
+				if prefix != "" {
+					sb.WriteString(prefix)
+					sb.WriteByte(' ')
+				}
+				if len(colItems) <= 1 {
+					sb.WriteByte('(')
+					if len(colItems) == 1 {
+						sb.WriteString(colItems[0])
+					}
+					sb.WriteByte(')')
+				} else if contentFirstItem == config.FirstItemInline {
+					sb.WriteByte('(')
+					for ii, item := range colItems {
+						if ii == 0 {
+							sb.WriteString(item)
+						} else {
+							sb.WriteByte(',')
+							sb.WriteByte('\n')
+							sb.WriteString(contentIndent)
+							sb.WriteString(item)
+						}
+					}
+					sb.WriteByte('\n')
+					sb.WriteString(clauseIndent)
+					sb.WriteByte(')')
+				} else {
+					sb.WriteString("(\n")
+					for ii, item := range colItems {
+						sb.WriteString(contentIndent)
+						sb.WriteString(item)
+						if ii < len(colItems)-1 {
+							sb.WriteByte(',')
+						}
+						sb.WriteByte('\n')
+					}
+					sb.WriteString(clauseIndent)
+					sb.WriteByte(')')
+				}
+				if closeIdx+1 < conEnd {
+					trailing := strings.TrimSpace(inlineContent(sql, tokens, closeIdx+1, conEnd))
+					if trailing != "" {
+						sb.WriteByte(' ')
+						sb.WriteString(trailing)
+					}
+				}
+				continue
+			}
+		}
+
 		items := splitContent(sql, tokens, kwEnd, conEnd, cl.kind)
 		useComma := usesCommaSeparator(cl.kind)
+
+		// reindentItem ensures continuation lines of a multi-line item are indented correctly.
+		reindentItem := func(item string) string {
+			if !strings.ContainsRune(item, '\n') {
+				return item
+			}
+			firstNewline := strings.IndexByte(item, '\n')
+			if firstNewline < 0 || strings.HasPrefix(item[firstNewline+1:], contentIndent) {
+				return item
+			}
+			parts := strings.Split(item, "\n")
+			for j := 1; j < len(parts); j++ {
+				if strings.TrimSpace(parts[j]) != "" {
+					parts[j] = contentIndent + parts[j]
+				}
+			}
+			return strings.Join(parts, "\n")
+		}
+
+		if contentFirstItem == config.FirstItemInline {
+			// first_item: inline — first item on the keyword line, subsequent items on new lines.
+			for ii, item := range items {
+				item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
+				item = reindentItem(item)
+				if ii == 0 {
+					sb.WriteByte(' ')
+				} else {
+					sb.WriteByte('\n')
+					sb.WriteString(contentIndent)
+				}
+				sb.WriteString(item)
+				if useComma && ii < len(items)-1 {
+					sb.WriteByte(',')
+				}
+			}
+			continue
+		}
+
 		for ii, item := range items {
 			sb.WriteByte('\n')
 			sb.WriteString(contentIndent)
 			item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
+			// When an item spans multiple lines and its continuation lines are NOT
+			// already indented to contentIndent level (e.g. case.break=preserve keeps
+			// WHEN/END at zero indent, or the source had the expression broken across
+			// lines), add contentIndent to each continuation line so that reindentLines
+			// (applied by applyLayoutToSQL) produces the correct absolute indentation
+			// for the whole item without disrupting the relative structure.
+			item = reindentItem(item)
 			sb.WriteString(item)
 			if useComma && ii < len(items)-1 {
 				sb.WriteByte(',')
@@ -623,16 +782,24 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	return sb.String()
 }
 
-func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMode, config.AlignMode) {
+func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMode, config.AlignMode, config.FirstItemMode) {
 	c := &cfg.Content
-	get := func(r config.ContentRule) (config.BreakMode, config.AlignMode) {
-		return effectiveBreak(r.Break, c.Break), effectiveAlign(r.Align, c.Align)
+	effectiveFirstItem := func(r config.FirstItemMode) config.FirstItemMode {
+		if r != "" {
+			return r
+		}
+		return c.FirstItem
+	}
+	get := func(r config.ContentRule) (config.BreakMode, config.AlignMode, config.FirstItemMode) {
+		return effectiveBreak(r.Break, c.Break), effectiveAlign(r.Align, c.Align), effectiveFirstItem(r.FirstItem)
 	}
 	switch kind {
 	case clauseSelect, clausePerform:
 		return get(c.SelectList)
 	case clauseWhere:
 		return get(c.WhereConds)
+	case clauseHaving:
+		return get(c.HavingConds)
 	case clauseJoin:
 		return get(c.JoinOn)
 	case clauseGroupBy:
@@ -641,10 +808,16 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 		return get(c.OrderList)
 	case clauseSet:
 		return get(c.SetList)
+	case clauseInsert:
+		return get(c.InsertColumns)
 	case clauseValues:
 		return get(c.ValuesList)
+	case clauseReturning:
+		return get(c.ReturningList)
+	case clauseWith:
+		return get(c.WithList)
 	default:
-		return c.Break, c.Align
+		return c.Break, c.Align, c.FirstItem
 	}
 }
 
@@ -1063,7 +1236,29 @@ func findCaseKeywordAny(toks []rawTok, from, to int) int {
 
 func normalizeIndent(s string, cfg *config.LayoutConfig) string {
 	lines := strings.Split(s, "\n")
+	dqDelim := "" // current dollar-quote delimiter; non-empty when inside a dollar-quoted body
 	for i, line := range lines {
+		inDollarBody := dqDelim != ""
+		if dqDelim != "" {
+			if idx := strings.Index(line, dqDelim); idx >= 0 {
+				// Closing delimiter found; check the rest of the line for a new opening.
+				_, dqDelim = parenScanLine(line[idx+len(dqDelim):])
+			}
+		} else {
+			_, dqDelim = parenScanLine(line)
+		}
+
+		// Inside a dollar-quoted body, skip normalization for tab-leading lines.
+		// These lines were placed by applyLayoutPerStatement's reindentLines and are
+		// already in the correct relative position. Re-normalizing them would change
+		// the byte sequence of "baseIndent+contentIndent" in a way that breaks
+		// stripLeadingIndent on subsequent passes (non-idempotent).
+		// Lines with pure space indentation (e.g. from a 3-space-indented source body)
+		// are still normalized: they haven't been through reindentLines.
+		if inDollarBody && len(line) > 0 && line[0] == '\t' {
+			continue
+		}
+
 		j := 0
 		for j < len(line) && (line[j] == ' ' || line[j] == '\t') {
 			j++
@@ -1103,16 +1298,228 @@ func normalizeIndent(s string, cfg *config.LayoutConfig) string {
 			case config.IndentRemainderRemove:
 				remainder = 0
 			case config.IndentRemainderRound:
-				if remainder >= size/2 {
+				// Standard "round half up": round up when remainder >= half the size.
+				// Use remainder*2 >= size to avoid integer-division truncation
+				// (e.g. size=3: 3/2=1 would round up for ANY remainder, but 1*2=2 < 3 → truncate).
+				if remainder*2 >= size {
 					tabs++
-					remainder = 0
-				} else {
-					remainder = 0
 				}
+				remainder = 0
 			}
 			newLeading = strings.Repeat("\t", tabs) + strings.Repeat(" ", remainder)
 		}
 		lines[i] = newLeading + rest
 	}
 	return strings.Join(lines, "\n")
+}
+
+// applyParenIndent re-indents content inside multi-line parenthesised blocks.
+// It replaces the leading whitespace of each non-skipped line with exactly
+// depth * indentUnit, where depth is the number of unclosed parentheses at
+// the start of that line. Lines inside dollar-quoted strings are left unchanged.
+func applyParenIndent(text, indentUnit string, mode config.ParenIndentMode, closeFirst config.ParenCloseMode) string {
+	lines := strings.Split(text, "\n")
+	n := len(lines)
+	if n == 0 {
+		return text
+	}
+
+	depths := make([]int, n)
+	skip := make([]bool, n)
+
+	depth := 0
+	dqDelim := "" // current dollar-quote delimiter, or "" if not in one
+
+	for i, line := range lines {
+		depths[i] = depth
+
+		if dqDelim != "" {
+			skip[i] = true
+			// Look for the closing delimiter on this line.
+			if idx := strings.Index(line, dqDelim); idx >= 0 {
+				rest := line[idx+len(dqDelim):]
+				d, newDelim := parenScanLine(rest)
+				depth += d
+				if depth < 0 {
+					depth = 0
+				}
+				dqDelim = newDelim
+			}
+			continue
+		}
+
+		d, newDelim := parenScanLine(line)
+		depth += d
+		if depth < 0 {
+			depth = 0
+		}
+		dqDelim = newDelim
+	}
+
+	result := make([]string, n)
+	for i, line := range lines {
+		if skip[i] {
+			result[i] = line
+			continue
+		}
+
+		stripped := strings.TrimLeft(line, " \t")
+		if stripped == "" {
+			result[i] = line // preserve blank lines as-is
+			continue
+		}
+
+		d := depths[i]
+		// For closing-paren-first lines: dedent before the paren.
+		if strings.HasPrefix(stripped, ")") && closeFirst != config.ParenCloseAfter {
+			d = max(0, d-1)
+		}
+
+		switch mode {
+		case config.ParenIndentIndent:
+			if d == 0 {
+				result[i] = line // preserve clause-level indentation added by rebuildStatement
+			} else {
+				result[i] = strings.Repeat(indentUnit, d) + stripped
+			}
+		case config.ParenIndentNone:
+			result[i] = stripped
+		default:
+			result[i] = line
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// parenScanLine counts the net parentheses on a single line, respecting
+// single-quoted strings, double-quoted identifiers, line comments (--), and
+// block comments (/* … */). Returns (netParens, dollarQuoteDelimiter).
+// dollarQuoteDelimiter is non-empty when the line opened a dollar-quoted block
+// that was not closed on the same line.
+func parenScanLine(line string) (int, string) {
+	net := 0
+	i := 0
+	for i < len(line) {
+		ch := line[i]
+
+		// Line comment: stop counting.
+		if ch == '-' && i+1 < len(line) && line[i+1] == '-' {
+			break
+		}
+
+		// Block comment: skip to closing */.
+		if ch == '/' && i+1 < len(line) && line[i+1] == '*' {
+			end := strings.Index(line[i+2:], "*/")
+			if end < 0 {
+				break // comment runs to end of line (or next line)
+			}
+			i += 2 + end + 2
+			continue
+		}
+
+		// Single-quoted string (SQL uses '' for escape, not \').
+		if ch == '\'' {
+			i++
+			for i < len(line) {
+				if line[i] == '\'' {
+					if i+1 < len(line) && line[i+1] == '\'' {
+						i += 2
+						continue
+					}
+					break
+				}
+				i++
+			}
+			i++ // skip closing '
+			continue
+		}
+
+		// Double-quoted identifier.
+		if ch == '"' {
+			i++
+			for i < len(line) && line[i] != '"' {
+				i++
+			}
+			i++ // skip closing "
+			continue
+		}
+
+		// Dollar-quoted string.
+		if ch == '$' {
+			if delim, dlen := parenParseDollarDelim(line, i); dlen > 0 {
+				rest := line[i+dlen:]
+				closeIdx := strings.Index(rest, delim)
+				if closeIdx >= 0 {
+					// Opened and closed on same line — skip body.
+					i += dlen + closeIdx + len(delim)
+					continue
+				}
+				// Not closed on this line — signal to caller.
+				return net, delim
+			}
+		}
+
+		switch ch {
+		case '(':
+			net++
+		case ')':
+			net--
+		}
+		i++
+	}
+	return net, ""
+}
+
+// findInsertColumnParen returns the indices of the opening and closing parentheses
+// of an INSERT column list: INSERT INTO table_name (col1, col2, ...).
+// Returns (-1, -1) when no column list is present (e.g. INSERT INTO t SELECT ...).
+func findInsertColumnParen(tokens []rawTok, from, to int) (int, int) {
+	depth := 0
+	for i := from; i < to; i++ {
+		t := tokens[i].text
+		if t == "(" {
+			if depth == 0 {
+				// Found the column list opening paren; now find its matching close.
+				for j := i + 1; j < to; j++ {
+					switch tokens[j].text {
+					case "(":
+						depth++
+					case ")":
+						if depth == 0 {
+							return i, j
+						}
+						depth--
+					}
+				}
+				return -1, -1
+			}
+			depth++
+		} else if t == ")" && depth > 0 {
+			depth--
+		}
+	}
+	return -1, -1
+}
+
+// parenParseDollarDelim tries to parse a dollar-quote delimiter starting at
+// position pos in s. Returns (delimiter, length) or ("", 0) on failure.
+// Delimiter format: $[tag]$ where [tag] is zero or more letters/digits/underscores.
+func parenParseDollarDelim(s string, pos int) (string, int) {
+	if pos >= len(s) || s[pos] != '$' {
+		return "", 0
+	}
+	i := pos + 1
+	for i < len(s) {
+		c := s[i]
+		if c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			i++
+			continue
+		}
+		break
+	}
+	if i >= len(s) || s[i] != '$' {
+		return "", 0
+	}
+	return s[pos : i+1], i + 1 - pos
 }

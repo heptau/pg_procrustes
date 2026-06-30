@@ -1,0 +1,21 @@
+aliases:
+  as: add
+semicolons: add
+layout:
+  line_length: 100
+  indent:
+    type: tab
+    size: 3
+    normalize: change
+  clauses:
+    break: auto
+    align: same
+  content:
+    break: auto
+    align: indent
+  case:
+    break: preserve
+    indent: indent
+  paren_indent:
+    mode: indent
+    close_first_on_line: before

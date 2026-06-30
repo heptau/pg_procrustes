@@ -4,7 +4,58 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>pg_procrustes — PostgreSQL SQL Formatter</title>
-  <meta name="description" content="A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL parser.">
+  <meta name="description" content="A fast, flexible PostgreSQL SQL formatter in Go. Driven by the native PostgreSQL parser, it reformats SQL files according to a declarative YAML config. Supports plain SQL, DML, DDL, CTEs, and PL/pgSQL.">
+  <meta name="robots" content="index, follow">
+  <meta name="keywords" content="PostgreSQL, SQL formatter, SQL linter, pg_procrustes, Go, PL/pgSQL, SQL style, SQL beautifier">
+  <link rel="canonical" href="https://pg_procrustes.80.cz/">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="https://pg_procrustes.80.cz/">
+  <meta property="og:title"       content="pg_procrustes — PostgreSQL SQL Formatter">
+  <meta property="og:description" content="A fast, flexible PostgreSQL SQL formatter in Go. Driven by the native PostgreSQL parser. Supports plain SQL, DML, DDL, CTEs, and PL/pgSQL.">
+  <meta property="og:site_name"   content="pg_procrustes">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary">
+  <meta name="twitter:title"       content="pg_procrustes — PostgreSQL SQL Formatter">
+  <meta name="twitter:description" content="A fast, flexible PostgreSQL SQL formatter in Go. Driven by the native PostgreSQL parser.">
+
+  <!-- Favicon -->
+  <link rel="icon"             type="image/x-icon" href="favicon.ico">
+  <link rel="icon"             type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon"             type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180"  href="apple-touch-icon.png">
+  <link rel="manifest"         href="site.webmanifest">
+  <meta name="theme-color"     content="#1a1d27">
+
+  <!-- OG image -->
+  <meta property="og:image"       content="https://pg_procrustes.80.cz/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta name="twitter:image"      content="https://pg_procrustes.80.cz/icon-512.png">
+
+  <!-- JSON-LD structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "pg_procrustes",
+    "alternateName": "pg-procrustes",
+    "description": "A fast, flexible PostgreSQL SQL formatter in Go. Driven by the native PostgreSQL parser, it reformats SQL files according to a declarative YAML configuration.",
+    "url": "https://pg_procrustes.80.cz/",
+    "downloadUrl": "https://github.com/heptau/pg_procrustes/releases",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Linux, Windows",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "license": "https://opensource.org/licenses/MIT",
+    "codeRepository": "https://github.com/heptau/pg_procrustes",
+    "programmingLanguage": "Go",
+    "keywords": "PostgreSQL, SQL formatter, SQL linter, PL/pgSQL, Go"
+  }
+  </script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -346,14 +397,48 @@
       gap: 0.5rem;
     }
 
+    /* ── hamburger ── */
+    .menu-btn {
+      display: none;
+      position: fixed;
+      top: 1rem; left: 1rem;
+      z-index: 200;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.45rem 0.6rem;
+      cursor: pointer;
+      line-height: 1;
+      font-size: 1.2rem;
+      color: var(--text);
+    }
+    .menu-btn:hover { background: var(--border); }
+
     /* ── responsive ── */
     @media (max-width: 900px) {
-      nav { display: none; }
-      main { margin-left: 0; padding: 2rem 1.5rem 4rem; }
+      .menu-btn { display: block; }
+      nav {
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+        z-index: 100;
+        box-shadow: 4px 0 24px rgba(0,0,0,.4);
+      }
+      nav.open { transform: translateX(0); }
+      .nav-overlay {
+        display: none;
+        position: fixed; inset: 0;
+        z-index: 99;
+        background: rgba(0,0,0,.45);
+      }
+      .nav-overlay.open { display: block; }
+      main { margin-left: 0; padding: 4rem 1.25rem 4rem; }
     }
   </style>
 </head>
 <body>
+
+<button class="menu-btn" id="menu-btn" aria-label="Open navigation" aria-expanded="false">☰</button>
+<div class="nav-overlay" id="nav-overlay"></div>
 
 <nav id="sidebar">
   <div class="nav-logo">
@@ -371,6 +456,7 @@
 
   <span class="nav-section">Configuration</span>
   <a href="#casing">Keyword &amp; identifier casing</a>
+  <a href="#plpgsql-vars">PL/pgSQL variables &amp; keywords</a>
   <a href="#punctuation">Punctuation &amp; spacing</a>
   <a href="#layout">Layout</a>
   <a href="#clauses">Clause breaking</a>
@@ -381,8 +467,12 @@
   <a href="#plpgsql-loop">LOOP blocks</a>
   <a href="#plpgsql-case">CASE statements</a>
 
+  <span class="nav-section">Tools</span>
+  <a href="config-builder.html">Config Builder</a>
   <span class="nav-section">Project</span>
-  <a href="https://github.com/heptau/pg_procrustes" target="_blank">GitHub ↗</a>
+  <a href="https://github.com/heptau/pg_procrustes" target="_blank" rel="noopener">GitHub ↗</a>
+  <a href="https://github.com/heptau/pg_procrustes/releases" target="_blank" rel="noopener">Releases ↗</a>
+  <a href="llms.txt">For AI / llms.txt</a>
 </nav>
 
 <main>
@@ -394,7 +484,7 @@
     <div class="hero-badges">
       <span class="badge">Go</span>
       <span class="badge">PostgreSQL</span>
-      <span class="badge badge-accent">v0.1.0</span>
+
       <span class="badge">MIT</span>
     </div>
   </div>
@@ -411,7 +501,7 @@
     </div>
     <p>
       <strong>pg_procrustes</strong> works the same way. You define the bed — the formatting rules — via
-      <code>.procrustes.yaml</code>. Your SQL will fit. Whether it likes it or not.
+      <code>.pg_procrustes.yaml</code>. Your SQL will fit. Whether it likes it or not.
     </p>
   </section>
 
@@ -419,26 +509,32 @@
   <section id="installation">
     <h2>Installation</h2>
 
-    <h3>go install</h3>
+    <h3>Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS and Linux)</span></h3>
+    <pre><code>brew install heptau/tap/pg-procrustes</code></pre>
+
+    <h3>Binary download</h3>
+    <p>Download the archive for your platform from <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, extract, and place the binary on your <code>PATH</code>.</p>
+    <table>
+      <thead><tr><th>Archive</th><th>Platform</th></tr></thead>
+      <tbody>
+        <tr><td><code>pg_procrustes-&lt;ver&gt;-darwin-arm64.tar.gz</code></td><td>macOS Apple Silicon</td></tr>
+        <tr><td><code>pg_procrustes-&lt;ver&gt;-darwin-amd64.tar.gz</code></td><td>macOS Intel</td></tr>
+        <tr><td><code>pg_procrustes-&lt;ver&gt;-linux-amd64.tar.gz</code></td><td>Linux x86-64</td></tr>
+        <tr><td><code>pg_procrustes-&lt;ver&gt;-linux-arm64.tar.gz</code></td><td>Linux ARM64</td></tr>
+        <tr><td><code>pg_procrustes-&lt;ver&gt;-windows-amd64.zip</code></td><td>Windows x86-64</td></tr>
+        <tr><td><code>pg_procrustes-&lt;ver&gt;-windows-arm64.zip</code></td><td>Windows ARM64</td></tr>
+      </tbody>
+    </table>
+
+    <h3>go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(requires Go toolchain)</span></h3>
     <pre><code>go install github.com/heptau/pg_procrustes@latest</code></pre>
 
     <h3>Build from source</h3>
     <pre><code><span class="cm"># current platform</span>
 make build
 
-<span class="cm"># all platforms at once</span>
-make release</code></pre>
-    <p>Binaries are placed in <code>build/</code>. The <code>make release</code> target produces:</p>
-    <table>
-      <thead><tr><th>File</th><th>Platform</th></tr></thead>
-      <tbody>
-        <tr><td><code>pg_procrustes-darwin-arm64</code></td><td>macOS Apple Silicon</td></tr>
-        <tr><td><code>pg_procrustes-darwin-amd64</code></td><td>macOS Intel</td></tr>
-        <tr><td><code>pg_procrustes-linux-amd64</code></td><td>Linux x86-64</td></tr>
-        <tr><td><code>pg_procrustes-linux-arm64</code></td><td>Linux ARM64</td></tr>
-        <tr><td><code>pg_procrustes-windows-amd64.exe</code></td><td>Windows x86-64</td></tr>
-      </tbody>
-    </table>
+<span class="cm"># raw binaries for all platforms</span>
+make build-all</code></pre>
   </section>
 
   <!-- ── USAGE ── -->
@@ -468,8 +564,10 @@ pg_procrustes --version</code></pre>
       <thead><tr><th>Flag</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td><code>-v, --version</code></td><td>Print version and exit</td></tr>
-        <tr><td><code>-c &lt;path&gt;</code></td><td>Path to config file (default: auto-detect <code>.procrustes.yaml</code>)</td></tr>
+        <tr><td><code>-c &lt;path&gt;</code></td><td>Path to config file (default: auto-detect <code>.pg_procrustes.yaml</code>)</td></tr>
         <tr><td><code>-w</code></td><td>Write result back to source files (in-place)</td></tr>
+        <tr><td><code>--backup[=.ext]</code></td><td>Save the original before overwriting (requires <code>-w</code>); default extension is <code>.bak</code></td></tr>
+        <tr><td><code>--out-dir &lt;dir&gt;</code></td><td>Write formatted files into this directory instead of in-place (cannot be combined with <code>-w</code>)</td></tr>
         <tr><td><code>--check</code></td><td>Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
         <tr><td><code>--diff</code></td><td>Print a unified diff of changes without writing</td></tr>
       </tbody>
@@ -477,7 +575,7 @@ pg_procrustes --version</code></pre>
 
     <h4>Config file lookup</h4>
     <p>
-      pg_procrustes looks for <code>.procrustes.yaml</code> starting in the current directory and walking up to the filesystem root.
+      pg_procrustes looks for <code>.pg_procrustes.yaml</code> starting in the current directory and walking up to the filesystem root.
       Use <code>-c</code> to specify a path explicitly. All settings default to <code>preserve</code> — if no config is found, nothing changes.
     </p>
   </section>
@@ -513,6 +611,26 @@ aliases:
   case: lower
   as: add         <span class="cm"># add | preserve | remove</span></code></pre>
 
+    <h4>Casing exceptions</h4>
+    <p>Any casing section accepts an <code>exceptions</code> list. Words in the list keep their exact capitalisation regardless of the section's <code>case</code> setting.</p>
+    <pre><code>reserved_keywords:
+  case: upper
+  exceptions:
+    - select    <span class="cm"># stays lowercase even though case: upper</span>
+    - from
+
+columns:
+  case: lower
+  exceptions:
+    - ID        <span class="cm"># stays "ID" instead of "id"</span>
+    - CreatedAt
+
+functions:
+  case: lower
+  exceptions:
+    - MyFunc</code></pre>
+    <p>Exceptions are matched case-insensitively — the value in the list defines the exact output casing.</p>
+
     <h4>Data type forms</h4>
     <table>
       <thead><tr><th>form</th><th>Example output</th></tr></thead>
@@ -525,21 +643,88 @@ aliases:
     </table>
   </section>
 
+  <!-- ── PLPGSQL VARS/KEYWORDS ── -->
+  <section id="plpgsql-vars">
+    <h2>PL/pgSQL variables &amp; keywords</h2>
+    <p>Two dedicated sections for tokens that the PostgreSQL scanner classifies as <code>NO_KEYWORD</code> — they are invisible to the standard <code>keywords</code> / <code>reserved_keywords</code> rules.</p>
+
+    <h3>plpgsql_variables</h3>
+    <p>Runtime pseudo-variables available inside trigger and function bodies:</p>
+    <pre><code>plpgsql_variables:
+  case: upper   <span class="cm"># upper | lower | preserve</span>
+  <span class="cm"># Covers: NEW, OLD, EXCLUDED (ON CONFLICT),</span>
+  <span class="cm">#         FOUND, TG_OP, TG_TABLE_NAME, TG_TABLE_SCHEMA,</span>
+  <span class="cm">#         TG_NAME, TG_WHEN, TG_LEVEL, TG_NARGS, TG_ARGV,</span>
+  <span class="cm">#         TG_RELID, TG_RELNAME, TG_EVENT, TG_TAG,</span>
+  <span class="cm">#         SQLSTATE, SQLERRM, ROW_COUNT, PG_CONTEXT,</span>
+  <span class="cm">#         PG_EXCEPTION_DETAIL, PG_EXCEPTION_HINT, PG_EXCEPTION_CONTEXT,</span>
+  <span class="cm">#         RETURNED_SQLSTATE, MESSAGE_TEXT, PG_DATATYPE_NAME, PG_ROUTINE_OID</span></code></pre>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code><span class="kw">IF</span> tg_op = <span class="str">'INSERT'</span> <span class="kw">THEN</span>
+  <span class="kw">INSERT INTO</span> audit(tbl, op, new_id)
+    <span class="kw">VALUES</span>(tg_table_name, tg_op, new.id);
+<span class="kw">END IF</span>;
+<span class="kw">RETURN</span> new;</code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — plpgsql_variables: upper</div>
+        <pre><code><span class="kw">IF</span> TG_OP = <span class="str">'INSERT'</span> <span class="kw">THEN</span>
+  <span class="kw">INSERT INTO</span> audit(tbl, op, new_id)
+    <span class="kw">VALUES</span>(TG_TABLE_NAME, TG_OP, NEW.id);
+<span class="kw">END IF</span>;
+<span class="kw">RETURN</span> NEW;</code></pre>
+      </div>
+    </div>
+
+    <h3>plpgsql_keywords</h3>
+    <p>PL/pgSQL statement keywords not classified as SQL keywords by the scanner:</p>
+    <pre><code>plpgsql_keywords:
+  case: upper   <span class="cm"># upper | lower | preserve</span>
+  <span class="cm"># Covers: RAISE, PERFORM, ELSIF, ELSEIF, FOREACH, REVERSE,</span>
+  <span class="cm">#         SLICE, EXIT, LOOP, WHILE, OPEN, ASSERT,</span>
+  <span class="cm">#         DEBUG, INFO, NOTICE, WARNING, EXCEPTION (as RAISE severity / handler)</span></code></pre>
+
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">Before</div>
+        <pre><code>loop
+  exit when i >= n;
+  raise notice <span class="str">'i=%'</span>, i;
+  i := i + <span class="num">1</span>;
+end loop;</code></pre>
+      </div>
+      <div>
+        <div class="ba-label">After — plpgsql_keywords: upper</div>
+        <pre><code>LOOP
+  EXIT WHEN i >= n;
+  RAISE NOTICE <span class="str">'i=%'</span>, i;
+  i := i + <span class="num">1</span>;
+END LOOP;</code></pre>
+      </div>
+    </div>
+
+    <p>Both sections accept an <code>exceptions</code> list — words matching an exception keep their original capitalisation.</p>
+  </section>
+
   <!-- ── PUNCTUATION ── -->
   <section id="punctuation">
     <h2>Punctuation &amp; spacing</h2>
-    <pre><code>trailing_whitespace: strip      <span class="cm"># strip | preserve</span>
-semicolons:          preserve   <span class="cm"># preserve | add | remove</span>
-inequality_op:       c          <span class="cm"># preserve | ansi (&lt;&gt;) | c (!=)</span>
-join_form:           preserve   <span class="cm"># preserve | short | long</span>
-operator_spacing:    normalize  <span class="cm"># preserve | normalize (one space around = != &lt;&gt; &lt; &gt; &lt;= &gt;= ||)</span>
-blank_lines:         preserve   <span class="cm"># preserve | max_3 | max_2 | max_1</span>
-paren_spacing:       remove     <span class="cm"># preserve | add | remove</span>
-quoted_identifiers:  remove_safe
-schema_qualification: preserve  <span class="cm"># preserve | remove_public</span>
-cast_style:          preserve   <span class="cm"># preserve | double_colon | cast_function</span>
-order_asc:           preserve   <span class="cm"># preserve | explicit | implicit</span>
-not_in:              preserve   <span class="cm"># preserve | not_in | not_equals_any</span></code></pre>
+    <pre><code>trailing_whitespace:  strip      <span class="cm"># strip | preserve</span>
+semicolons:           preserve   <span class="cm"># preserve | add | remove</span>
+inequality_op:        c          <span class="cm"># preserve | ansi (&lt;&gt;) | c (!=)</span>
+join_form:            preserve   <span class="cm"># preserve | short | long</span>
+operator_spacing:     normalize  <span class="cm"># preserve | normalize | compact</span>
+comma_spacing:        normalize  <span class="cm"># preserve | normalize | compact</span>
+blank_lines:          preserve   <span class="cm"># preserve | max_3 | max_2 | max_1</span>
+paren_spacing:        remove     <span class="cm"># preserve | add | remove</span>
+quoted_identifiers:   remove_safe
+schema_qualification: preserve   <span class="cm"># preserve | remove_public</span>
+cast_style:           preserve   <span class="cm"># preserve | operator  (CAST(x AS t) → x::t)</span>
+order_asc:            preserve   <span class="cm"># preserve | add | remove</span>
+not_in:               preserve   <span class="cm"># preserve | not_in | not_equals_all</span></code></pre>
   </section>
 
   <!-- ── LAYOUT ── -->
@@ -554,7 +739,29 @@ not_in:              preserve   <span class="cm"># preserve | not_in | not_equal
     size: 3           <span class="cm"># spaces per level (ignored when type: tab)</span>
     type: spaces      <span class="cm"># spaces | tab</span>
     normalize: preserve
-    remainder: keep   <span class="cm"># keep | add | remove | round</span></code></pre>
+    remainder: keep   <span class="cm"># keep | add | remove | round</span>
+
+  union:
+    blank_line: preserve   <span class="cm"># preserve | none | before | after | both</span>
+
+  paren_indent:
+    mode: preserve         <span class="cm"># preserve | indent | none</span>
+    close_first_on_line: same  <span class="cm"># same | after</span></code></pre>
+
+    <h4>union.blank_line</h4>
+    <p>Controls blank lines around <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, and <code>EXCEPT</code>.</p>
+    <table>
+      <thead><tr><th>value</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>none</code></td><td>No blank lines — set operators on same flow as surrounding SELECTs</td></tr>
+        <tr><td><code>before</code></td><td>Blank line before the set operator keyword</td></tr>
+        <tr><td><code>after</code></td><td>Blank line after the set operator keyword</td></tr>
+        <tr><td><code>both</code></td><td>Blank line before <em>and</em> after</td></tr>
+      </tbody>
+    </table>
+
+    <h4>paren_indent</h4>
+    <p><code>mode: indent</code> re-indents content inside multi-line parenthesised blocks (subqueries, <code>IN (…)</code>) to exactly N spaces per depth level. <code>close_first_on_line: after</code> places the closing <code>)</code> on its own line at the inner indentation level.</p>
   </section>
 
   <!-- ── CLAUSE BREAKING ── -->
@@ -588,28 +795,100 @@ not_in:              preserve   <span class="cm"># preserve | not_in | not_equal
   <!-- ── CONTENT BREAKING ── -->
   <section id="content">
     <h2>Content breaking</h2>
-    <p><code>content.break: auto</code> breaks items <em>inside</em> a clause when that clause's content exceeds <code>line_length</code>. SELECT splits at commas; WHERE/HAVING/JOIN split at AND/OR.</p>
+    <p>Controls how items <em>inside</em> a clause are laid out. SELECT and RETURNING split at commas; WHERE, HAVING, and JOIN conditions split at AND/OR (the operator is placed at the start of the continuation line).</p>
+
+    <h3>Break modes</h3>
+    <table>
+      <thead><tr><th>mode</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>preserve</code></td><td>Leave as written (default)</td></tr>
+        <tr><td><code>never</code></td><td>Always collapse to one line</td></tr>
+        <tr><td><code>always</code></td><td>Always break each item onto its own line</td></tr>
+        <tr><td><code>auto</code></td><td>Break when clause content length exceeds <code>line_length</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>first_item</h3>
+    <p><code>first_item</code> controls where the first item goes when breaking is active. Independent of the break mode.</p>
+    <table>
+      <thead><tr><th>value</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>break</code></td><td>First item on a new indented line (default)</td></tr>
+        <tr><td><code>inline</code></td><td>First item stays on the same line as the clause keyword</td></tr>
+      </tbody>
+    </table>
+
     <pre><code>layout:
   content:
-    break: auto     <span class="cm"># preserve | never | always | auto</span>
-    align: indent   <span class="cm"># same | indent</span>
-    where_conds: { break: always }</code></pre>
+    break: auto        <span class="cm"># global default for all sections</span>
+    align: indent      <span class="cm"># same | indent</span>
+    first_item: break  <span class="cm"># break | inline</span>
+    <span class="cm"># per-section overrides — each inherits content settings when omitted:</span>
+    select_list:    { break: always, first_item: inline }  <span class="cm"># SELECT column list (comma)</span>
+    where_conds:    { break: always, first_item: inline }  <span class="cm"># WHERE conditions (AND/OR)</span>
+    having_conds:   { break: always, first_item: inline }  <span class="cm"># HAVING conditions (AND/OR)</span>
+    join_on:        { break: always }                      <span class="cm"># JOIN ON conditions (AND/OR)</span>
+    group_list:     { break: auto }                        <span class="cm"># GROUP BY items (comma)</span>
+    order_list:     { break: auto }                        <span class="cm"># ORDER BY items (comma)</span>
+    set_list:       { break: always }                      <span class="cm"># UPDATE SET assignments (comma)</span>
+    insert_columns: { break: always, first_item: inline }  <span class="cm"># INSERT INTO table(col1, col2, …)</span>
+    values_list:    { break: always }                      <span class="cm"># VALUES row tuples</span>
+    returning_list: { break: always, first_item: inline }  <span class="cm"># RETURNING items (comma)</span>
+    with_list:      { break: always }                      <span class="cm"># WITH CTE definitions (comma)</span></code></pre>
 
+    <h3>break: always + first_item</h3>
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Before</div>
-        <pre><code><span class="kw">SELECT</span> u.id, u.name, u.email
-<span class="kw">WHERE</span> u.active = <span class="kw">TRUE AND</span> u.type = <span class="str">'premium'</span></code></pre>
+        <div class="ba-label">first_item: break (default)</div>
+        <pre><code><span class="kw">SELECT</span>
+   u.id,
+   u.name,
+   u.email
+<span class="kw">WHERE</span>
+   u.active = <span class="kw">TRUE</span>
+   <span class="kw">AND</span> u.type = <span class="str">'premium'</span></code></pre>
       </div>
       <div>
-        <div class="ba-label">After — break: always</div>
-        <pre><code><span class="kw">SELECT</span>
-  u.id,
-  u.name,
-  u.email
-<span class="kw">WHERE</span>
-  u.active = <span class="kw">TRUE</span>
-  <span class="kw">AND</span> u.type = <span class="str">'premium'</span></code></pre>
+        <div class="ba-label">first_item: inline</div>
+        <pre><code><span class="kw">SELECT</span> u.id,
+   u.name,
+   u.email
+<span class="kw">WHERE</span> u.active = <span class="kw">TRUE</span>
+   <span class="kw">AND</span> u.type = <span class="str">'premium'</span></code></pre>
+      </div>
+    </div>
+
+    <h3>INSERT column list</h3>
+    <p><code>insert_columns</code> controls the <code>(col1, col2, …)</code> list after the table name in INSERT statements. For <code>always</code> the opening paren gets its own line; for <code>first_inline</code> the first column stays on the paren line.</p>
+    <div class="ba-grid">
+      <div>
+        <div class="ba-label">insert_columns: always</div>
+        <pre><code><span class="kw">INSERT INTO</span> users (
+   id,
+   name,
+   email
+)
+<span class="kw">VALUES</span> (...)</code></pre>
+      </div>
+      <div>
+        <div class="ba-label">insert_columns: first_inline</div>
+        <pre><code><span class="kw">INSERT INTO</span> users (id,
+   name,
+   email
+)
+<span class="kw">VALUES</span> (...)</code></pre>
+      </div>
+    </div>
+
+    <h3>WITH clause</h3>
+    <p><code>with_list: always</code> puts each CTE definition on its own indented line:</p>
+    <div class="ba-stack">
+      <div>
+        <div class="ba-label">with_list: always</div>
+        <pre><code><span class="kw">WITH</span>
+   active_users <span class="kw">AS</span> (<span class="kw">SELECT</span> id, name <span class="kw">FROM</span> users <span class="kw">WHERE</span> active = <span class="kw">TRUE</span>),
+   recent_orders <span class="kw">AS</span> (<span class="kw">SELECT</span> user_id, <span class="fn">count</span>(*) <span class="kw">FROM</span> orders <span class="kw">GROUP BY</span> user_id)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> active_users</code></pre>
       </div>
     </div>
   </section>
@@ -661,6 +940,11 @@ not_in:              preserve   <span class="cm"># preserve | not_in | not_equal
   dollar_quote:
     newline_after_open:   preserve  <span class="cm"># preserve | add | remove</span>
     newline_before_close: preserve
+
+    sql:                            <span class="cm"># for LANGUAGE sql bodies</span>
+      body_indent:       preserve   <span class="cm"># preserve | none | indent</span>
+      blank_line_before: preserve   <span class="cm"># blank line after opening $$</span>
+      blank_line_after:  preserve   <span class="cm"># blank line before closing $$</span>
 
     plpgsql:
       keyword_indent:     preserve  <span class="cm"># preserve | none | indent  (DECLARE/BEGIN/END)</span>
@@ -817,13 +1101,19 @@ total := total + i;
 
   <footer>
     <span>pg_procrustes — MIT License</span>
-    <span><a href="https://github.com/heptau/pg_procrustes">github.com/heptau/pg_procrustes</a></span>
+    <span style="display:flex;gap:1rem;flex-wrap:wrap">
+      <a href="https://github.com/heptau/pg_procrustes" rel="noopener">GitHub</a>
+      <a href="https://github.com/heptau/pg_procrustes/releases" rel="noopener">Releases</a>
+      <a href="llms.txt">llms.txt</a>
+      <a href="sitemap.xml">Sitemap</a>
+      <a href=".well-known/security.txt">Security</a>
+    </span>
   </footer>
 
 </main>
 
 <script>
-  // Highlight active nav link on scroll
+  // Active nav link on scroll
   const sections = document.querySelectorAll('section[id], div[id]');
   const links = document.querySelectorAll('nav a[href^="#"]');
   const obs = new IntersectionObserver(entries => {
@@ -834,6 +1124,29 @@ total := total + i;
     });
   }, { rootMargin: '0px 0px -60% 0px', threshold: 0 });
   sections.forEach(s => obs.observe(s));
+
+  // Mobile hamburger menu
+  const sidebar  = document.getElementById('sidebar');
+  const menuBtn  = document.getElementById('menu-btn');
+  const overlay  = document.getElementById('nav-overlay');
+
+  function openNav() {
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    menuBtn.setAttribute('aria-expanded', 'true');
+    menuBtn.textContent = '✕';
+  }
+  function closeNav() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    menuBtn.textContent = '☰';
+  }
+
+  menuBtn.addEventListener('click', () => sidebar.classList.contains('open') ? closeNav() : openNav());
+  overlay.addEventListener('click', closeNav);
+  sidebar.querySelectorAll('a[href^="#"]').forEach(a => a.addEventListener('click', closeNav));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
 </script>
 
 </body>

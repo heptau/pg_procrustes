@@ -3,6 +3,29 @@
 All notable changes to pg_procrustes are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] — 2026-06-30
+
+### Added
+
+- `exceptions` list on all casing sections (`reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `columns`, `plpgsql_variables`, `plpgsql_keywords`) — individual identifiers can be pinned to a specific case regardless of the section setting
+- `operator_spacing: compact` — removes all spaces around symbolic operators (`=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `||`); complements the existing `normalize` option
+- `comma_spacing: compact` — removes all spaces around commas; complements `normalize`
+- `layout.content.first_item` — new orthogonal setting controlling where the first item lands when content breaks (`break` = new indented line, `inline` = keyword line); replaces the former `first_inline` break mode
+- `--backup` CLI flag — saves the original file with a given extension before overwriting in-place (`-w`)
+- `--out-dir` CLI flag — writes formatted files into a target directory instead of stdout
+
+### Changed
+
+- `layout.content.break: first_inline` removed; replaced by `layout.content.first_item: inline` combined with any non-preserve break mode — existing configs using `first_inline` must be migrated
+
+### Fixed
+
+- Dollar-quoted blank line handling: blank line rules now apply only inside function bodies (after `AS` or `DO`), not to every `$$`-delimited string
+- `order_asc: add` scanned past a semicolon into the next statement's SELECT list and inserted spurious ASC keywords there
+- `cast_style: operator` emitted a double space when a CAST expression immediately followed a symbolic operator such as `||`
+- `layout.union.blank_line` split `UNION ALL` onto two lines because the keyword length was tracked as 1 (only `UNION`), leaving `ALL` as clause content
+- `layout.union.blank_line` did not emit the configured blank line when no tokens appeared between a `UNION ALL` and the following `SELECT`
+
 ## [0.1.1] — 2026-06-22
 
 ### Fixed

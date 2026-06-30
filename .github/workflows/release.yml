@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Create the GitHub release immediately so assets can trickle in ───────────
+  prepare:
+    name: Create release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          awk "/^\#\# \[${VERSION}\]/{found=1; next} found && /^\#\# \[/{exit} found && NF{print}" CHANGELOG.md > notes.txt
+          if [[ ! -s notes.txt ]]; then echo "Release v${VERSION}" > notes.txt; fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "pg_procrustes v${{ steps.version.outputs.version }}" \
+            --notes-file notes.txt
+
+  # ── Build each platform natively, upload asset as soon as it's ready ─────────
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-latest,    os: darwin,  arch: arm64 }
+          - { runner: ubuntu-latest,   os: linux,   arch: amd64 }
+          - { runner: ubuntu-24.04-arm,os: linux,   arch: arm64 }
+          - { runner: windows-latest,  os: windows, arch: amd64 }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build archive
+        shell: bash
+        run: scripts/build_release.sh
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+
+      - name: Upload asset to GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          gh release upload "v${VERSION}" dist/pg_procrustes-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}* || true
+
+      - name: Upload artifact (for Homebrew step)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/
+          retention-days: 1
+
+  # ── After all builds: merge checksums, update Homebrew tap ───────────────────
+  homebrew:
+    name: Update Homebrew tap
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Merge checksums
+        run: |
+          cat dist/checksums-*.txt | sort -k2 > dist/checksums.txt
+          rm dist/checksums-*.txt
+
+      - name: Upload checksums to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="$(cat VERSION)"
+          gh release upload "v${VERSION}" dist/checksums.txt
+
+      - name: Generate Homebrew formula
+        run: scripts/gen_formula.sh
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAP_REPO="${HOMEBREW_TAP_REPO:-heptau/homebrew-tap}"
+          TAP_FORMULA="${HOMEBREW_TAP_FORMULA:-Formula/pg-procrustes.rb}"
+          VERSION="$(cat VERSION)"
+
+          CURRENT_SHA=$(gh api "repos/${TAP_REPO}/contents/${TAP_FORMULA}" \
+            --jq '.sha' 2>/dev/null || true)
+          CONTENT=$(base64 < dist/pg-procrustes.rb | tr -d '\n')
+
+          if [[ -n "$CURRENT_SHA" ]]; then
+            gh api "repos/${TAP_REPO}/contents/${TAP_FORMULA}" \
+              --method PUT \
+              -f message="pg_procrustes v${VERSION}" \
+              -f content="${CONTENT}" \
+              -f sha="${CURRENT_SHA}"
+          else
+            gh api "repos/${TAP_REPO}/contents/${TAP_FORMULA}" \
+              --method PUT \
+              -f message="pg_procrustes v${VERSION}" \
+              -f content="${CONTENT}"
+          fi
+          echo "Homebrew tap updated in ${TAP_REPO}."

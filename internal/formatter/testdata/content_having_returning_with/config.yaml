@@ -1,0 +1,12 @@
+layout:
+  clauses:
+    break: always
+  content:
+    having_conds:
+      break: always
+      first_item: inline
+    returning_list:
+      break: always
+      first_item: inline
+    with_list:
+      break: always

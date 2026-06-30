@@ -1,0 +1,4 @@
+layout:
+  clauses:
+    break: always
+    align: same

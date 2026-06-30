@@ -1,0 +1,14 @@
+reserved_keywords:
+  case: upper
+  exceptions:
+    - select
+    - from
+columns:
+  case: lower
+  exceptions:
+    - ID
+    - CreatedAt
+functions:
+  case: lower
+  exceptions:
+    - MyFunc

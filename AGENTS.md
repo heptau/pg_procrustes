@@ -4,7 +4,7 @@ Context for AI agents working on this codebase.
 
 ## What this project is
 
-A PostgreSQL SQL formatter in Go. It reads `.sql` files (or stdin), applies style rules from `.procrustes.yaml`, and writes normalized SQL back. It has two independent processing layers:
+A PostgreSQL SQL formatter in Go. It reads `.sql` files (or stdin), applies style rules from `.pg_procrustes.yaml`, and writes normalized SQL back. It has two independent processing layers:
 
 1. **Formatter** (`internal/formatter/`) — token-level: keyword casing, identifier casing, operator normalization, PL/pgSQL control flow restructuring.
 2. **Layout** (`internal/layout/`) — clause-level: line breaking, indentation, CASE expression expansion/collapsing.
@@ -24,7 +24,7 @@ The formatter runs first; layout runs on its output.
 | `internal/formatter/*_test.go` | Formatter tests (keyword, PL/pgSQL, operators, …) |
 | `internal/layout/case_test.go` | Layout CASE expression tests |
 | `internal/layout/layout_test.go` | Layout clause/content break tests |
-| `.procrustes.yaml` | Reference config with all options and inline comments |
+| `.pg_procrustes.yaml` | Reference config with all options and inline comments |
 
 ## Core patterns
 
@@ -121,12 +121,125 @@ func assertLayoutFormat(t *testing.T, sql string, cfg *config.LayoutConfig, want
 - **PL/pgSQL keyword scanner**: keyword detection uses `strings.HasPrefix(trimmedLine, "KEYWORD")` after uppercasing. Adding a new keyword: ensure it doesn't prefix-match another valid keyword (e.g., `END` must check for `END IF` before `END`).
 - **CASE statement vs CASE expression**: PL/pgSQL `CASE` (a statement, ends with `END CASE;`) is handled in `formatter/plpgsql.go`. SQL `CASE` expressions (end with `END`) are handled in `layout/layout.go` via `reformatCaseExprs`. They are completely separate code paths.
 
+## Formatter internals — detailed code map
+
+### rawToken and token scanning
+
+```go
+type rawToken struct {
+    start, end int           // byte offsets in source SQL
+    text       string        // raw text: sql[start:end]
+    kind       pg_query.KeywordKind
+}
+```
+
+`pg_query.Scan(sql)` → `[]ScanToken`. Converted to `[]rawToken` in `Format()`. `kind` values:
+`RESERVED_KEYWORD`, `UNRESERVED_KEYWORD`, `COL_NAME_KEYWORD`, `TYPE_FUNC_NAME_KEYWORD`, or 0 (non-keyword).
+
+### tokenClass and classification priority
+
+Every token gets a `tokenClass` in `classifyToken()` (`keywords.go`). Priority (first match wins):
+
+1. `classSchema` / `classTable` / `classFunction*` — byte offset in the corresponding `pos.*` map
+2. `classAlias` — offset in `pos.aliases`
+3. `classColumn` — offset in `pos.columns`
+4. `classDataType` — name in `dataTypeNames` map AND not a keyword-override case
+5. `classLiteral` — name in `literalNames` (`true`, `false`, `null`, `unknown`)
+6. `classOperator` — name in `operatorKeywords` (`and`, `or`, `not`, `in`, …)
+7. `classReservedKeyword` — `kind == RESERVED_KEYWORD`
+8. `classKeyword` — any other keyword kind (UNRESERVED, COL_NAME, TYPE_FUNC)
+9. `classOther` — punctuation, numbers, symbolic operators
+
+**Trap**: names like `event`, `type`, `status` are `UNRESERVED_KEYWORD` in pg_query, so they fall through to `classKeyword` and get uppercased unless their byte offset appears in `pos.columns`. Always register conflict-target columns and SET assignment targets explicitly.
+
+### astPositions — the pre-scan map
+
+Populated by `collectASTPositions(sql)` before the token rewrite loop. Maps byte offsets → category.
+
+```go
+type astPositions struct {
+    schemas, tables, functions, conditionalFunctions, systemFunctions map[int]bool
+    aliases, columns                                                  map[int]bool
+    pendingAliases    []pendingAlias  // SELECT aliases resolved post-scan
+    sortByDefaultLocs []int           // ORDER BY ordinal positions (not identifiers)
+    castFuncLocs      []int           // CAST(x AS t) keyword positions
+    sql               string
+}
+```
+
+### pendingAliases — two-pass alias resolution
+
+`ResTarget.Location` in pg_query points to the expression START (e.g., the `1` in `1+2 AS total`), not to the alias. So:
+
+1. `walkNode()` adds each `ResTarget` with a non-empty `.Name` to `pos.pendingAliases`.
+2. After tree walk, `pos.resolveAliases(tokens)` calls `findAliasToken()` per alias.
+3. `findAliasToken()` scans forward from `exprStart` for the token with the alias name that is followed by a clause boundary, `,`, `)`, or EOF.
+
+**Trap**: `walkSetTargetList()` must be used (not `walkNode()`) for UPDATE SET and ON CONFLICT SET lists. In those lists, `ResTarget.Name` is the assignment target column, NOT an alias — it must go to `pos.columns`, not `pendingAliases`. Using `walkNode()` on a SET list causes the column to be registered as an alias, and `findAliasToken` then inserts a spurious `AS` keyword.
+
+### walkNode vs walkSetTargetList
+
+- `walkNode(node, pos)` — generic recursive tree walker. For `Node_ResTarget` always appends to `pendingAliases`. Use for SELECT list.
+- `walkSetTargetList(nodes, pos)` — SET-list walker. Registers `ResTarget.Name` directly to `pos.columns` at `r.Location`, then recurses into the value expression with `walkNode`. Use for UPDATE and ON CONFLICT SET clauses.
+
+### resolveOnConflictCols
+
+ON CONFLICT conflict-target columns (`ON CONFLICT (col1, col2) DO UPDATE`) appear as `IndexElem` nodes which have NO `Location` field. The AST walk cannot register them.
+
+`resolveOnConflictCols(tokens, pos)` does a token-stream scan: finds `ON CONFLICT (` sequences, then scans depth-1 to register each depth-1 comma-separated token as `pos.columns`. Called after `pos.resolveAliases(tokens)` in `Format()`.
+
+### restructurePLpgSQL and trimHWS
+
+`restructurePLpgSQL` in `plpgsql.go` rewrites DECLARE/BEGIN/EXCEPTION/END keyword indentation. The `trimHWS` closure strips trailing horizontal whitespace from the `strings.Builder` before writing each keyword; without it, whitespace left by `indentBodyLines` accumulates and the keyword gets extra indentation on every pass (idempotence failure).
+
+```go
+var sb strings.Builder
+trimHWS := func() {
+    s := sb.String(); i := len(s)
+    for i > 0 && (s[i-1]==' ' || s[i-1]=='\t') { i-- }
+    if i < len(s) { sb.Reset(); sb.Grow(i+64); sb.WriteString(s[:i]) }
+}
+// Usage: trimHWS(); sb.WriteString(kwIndent); sb.WriteString(body[kwStart:kwEnd])
+```
+
+### Format() pipeline — full sequence
+
+```
+Format(sql, cfg):
+  1. pg_query.Scan(sql)          → []rawToken
+  2. collectASTPositions(sql)    → *astPositions (AST tree walk)
+  3. pos.resolveAliases(tokens)  → populate pos.aliases from pendingAliases
+  4. resolveOnConflictCols(...)  → populate pos.columns for ON CONFLICT targets
+  5. main token loop             → rewrite each token: casing, type normalization,
+                                   paren spacing, semicolons, operators, aliases,
+                                   dollar-quoted bodies (inline PL/pgSQL reformat)
+  6. layout.Apply(result, cfg)  → clause/content breaking, CASE reformatting,
+                                   indent normalization, paren indent
+```
+
+Dollar-quoted blocks are processed inside step 5: the body is extracted, `reformatPLpgSQL()` is called (which calls `reformatControlFlow()` and `restructurePLpgSQL()`), and the result is spliced back before the token loop continues after the closing `$$`.
+
+### Multi-token type sequences
+
+`multiTokenTypes` maps the first token of a multi-word type (e.g., `character`) to `[]multiTokenSeq`. Each entry has `next []string` (follow-on tokens, lowercase), `longForm`, and `shortForm`. The token loop does greedy longest-match. When matched, follow-on tokens are consumed (skipped) and a single replacement string is emitted. Type rewriting MUST happen in the main token loop because it consumes future tokens.
+
+### Adding a new formatter option
+
+1. Define `type XMode string` + constants in `config/config.go`.
+2. Add the field to the relevant config struct and set a default in `defaultFormatter()` / `defaultLayout()`.
+3. Add validation in `validate()` if needed.
+4. Consume the value in the token loop (formatter) or `layout.go` (layout).
+5. Update `layout.IsNoop()` if the new option lives in `LayoutConfig`.
+6. Add a golden test case in `internal/formatter/testdata/<name>/` with `input.sql` + optional `config.yaml` + `want.sql`.
+
 ## Running tests
 
 ```bash
 go test ./... -count=1                          # all tests
 go test ./internal/formatter/... -v -run PLSQL  # PL/pgSQL subset
 go test ./internal/layout/... -v -run Case      # CASE layout subset
+go test ./internal/formatter/... -run TestGolden -update  # regenerate golden files
+go test ./internal/formatter/... -run '^$' -bench=. -benchmem  # benchmarks
 ```
 
 All tests must pass before committing. The idempotence tests are part of the normal test suite and will catch regressions in most formatting logic.

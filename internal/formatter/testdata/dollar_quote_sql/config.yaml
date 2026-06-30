@@ -1,0 +1,5 @@
+layout:
+  dollar_quote:
+    sql:
+      blank_line_before: add
+      blank_line_after: add

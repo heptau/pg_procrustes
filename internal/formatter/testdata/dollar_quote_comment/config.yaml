@@ -1,0 +1,10 @@
+reserved_keywords:
+  case: upper
+keywords:
+  case: upper
+operators:
+  case: upper
+columns:
+  case: lower
+tables:
+  case: lower

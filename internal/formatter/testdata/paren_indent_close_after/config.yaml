@@ -1,0 +1,4 @@
+layout:
+  paren_indent:
+    mode: indent
+    close_first_on_line: after
