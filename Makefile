@@ -36,10 +36,10 @@ test: ## Run all tests
 	go test ./... -count=1
 
 test-update: ## Regenerate golden want.sql files (run after intentional formatter changes)
-	go test ./internal/formatter/... -run TestGolden -update
+	go test ./formatter/... -run TestGolden -update
 
 bench: ## Run benchmarks
-	go test ./internal/formatter/... -run '^$$' -bench=. -benchmem
+	go test ./formatter/... -run '^$$' -bench=. -benchmem
 
 lint: ## Run linter (requires golangci-lint)
 	golangci-lint run ./...

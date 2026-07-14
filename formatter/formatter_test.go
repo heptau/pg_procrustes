@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/heptau/pg_procrustes/internal/config"
-	"github.com/heptau/pg_procrustes/internal/formatter"
+	"github.com/heptau/pg_procrustes/config"
+	"github.com/heptau/pg_procrustes/formatter"
 )
 
 var preserve = config.CasePreserve

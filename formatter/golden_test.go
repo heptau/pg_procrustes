@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/heptau/pg_procrustes/internal/config"
-	"github.com/heptau/pg_procrustes/internal/formatter"
+	"github.com/heptau/pg_procrustes/config"
+	"github.com/heptau/pg_procrustes/formatter"
 )
 
 // Run with -update to rewrite want.sql files instead of comparing.
 //
-//	go test ./internal/formatter/... -run TestGolden -update
+//	go test ./formatter/... -run TestGolden -update
 var goldenUpdate = flag.Bool("update", false, "rewrite want.sql golden files")
 
 // TestGolden runs every subdirectory of testdata/ as a formatting golden test.
@@ -76,7 +76,7 @@ func TestGolden(t *testing.T) {
 
 			want, err := os.ReadFile(wantPath)
 			if err != nil {
-				t.Fatalf("want.sql: %v\n  hint: run `go test ./internal/formatter/... -run TestGolden -update` to generate", err)
+				t.Fatalf("want.sql: %v\n  hint: run `go test ./formatter/... -run TestGolden -update` to generate", err)
 			}
 			if got != string(want) {
 				t.Errorf("output mismatch for %s\n--- want ---\n%s\n--- got ---\n%s", name, want, got)

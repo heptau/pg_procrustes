@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/heptau/pg_procrustes/internal/config"
-	"github.com/heptau/pg_procrustes/internal/formatter"
+	"github.com/heptau/pg_procrustes/config"
+	"github.com/heptau/pg_procrustes/formatter"
 )
 
 func loadBenchFixture(b *testing.B, dir string) (string, *config.Config) {

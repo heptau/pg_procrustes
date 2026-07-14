@@ -42,17 +42,17 @@ The two layers are **independent**: formatter produces clean token-level text; l
 ```bash
 go build ./...
 go test ./... -count=1
-go test ./internal/formatter/... -run TestPLpgSQL -v   # specific subset
+go test ./formatter/... -run TestPLpgSQL -v   # specific subset
 go test ./internal/layout/... -run TestSQLCase -v
 ```
 
 ## Adding a new config option
 
-1. **Add the struct field** in `internal/config/config.go`. Use a new named type (`type MyMode string`) with `const` values if the option is an enum.
+1. **Add the struct field** in `config/config.go`. Use a new named type (`type MyMode string`) with `const` values if the option is an enum.
 2. **Set the default** in `defaultLayout()` or `defaultFormatter()` (usually `preserve`).
 3. **Validate** in `validate()` — a `switch` checking all legal values.
 4. **Implement** in the relevant layer:
-   - Formatter options: edit the appropriate file under `internal/formatter/`.
+   - Formatter options: edit the appropriate file under `formatter/`.
    - Layout options: edit `internal/layout/layout.go`.
 5. **Add tests** covering at least: preserve (no-op), each non-trivial value, and idempotence (applying the same config twice produces the same result).
 6. **Document** in `.pg_procrustes.yaml` with inline comments and in `README.md` under the relevant section.

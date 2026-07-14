@@ -6,7 +6,7 @@ Context for AI agents working on this codebase.
 
 A PostgreSQL SQL formatter in Go. It reads `.sql` files (or stdin), applies style rules from `.pg_procrustes.yaml`, and writes normalized SQL back. It has two independent processing layers:
 
-1. **Formatter** (`internal/formatter/`) — token-level: keyword casing, identifier casing, operator normalization, PL/pgSQL control flow restructuring.
+1. **Formatter** (`formatter/`) — token-level: keyword casing, identifier casing, operator normalization, PL/pgSQL control flow restructuring.
 2. **Layout** (`internal/layout/`) — clause-level: line breaking, indentation, CASE expression expansion/collapsing.
 
 The formatter runs first; layout runs on its output.
@@ -15,13 +15,13 @@ The formatter runs first; layout runs on its output.
 
 | File | Purpose |
 |---|---|
-| `internal/config/config.go` | All config structs, defaults (`defaultLayout`, `defaultFormatter`), `Validate()` |
-| `internal/formatter/formatter.go` | `Format()` entry point; token loop; routes to sub-formatters |
-| `internal/formatter/plpgsql.go` | Dollar-quote detection; `reformatPLpgSQL`; `reformatControlFlow` (event scanner); `restructurePLpgSQL` |
-| `internal/formatter/keywords.go` | Keyword and identifier classification and case rewriting |
-| `internal/formatter/operators.go` | Operator normalization (spacing, `!=`/`<>`, cast style) |
+| `config/config.go` | All config structs, defaults (`defaultLayout`, `defaultFormatter`), `Validate()` |
+| `formatter/formatter.go` | `Format()` entry point; token loop; routes to sub-formatters |
+| `formatter/plpgsql.go` | Dollar-quote detection; `reformatPLpgSQL`; `reformatControlFlow` (event scanner); `restructurePLpgSQL` |
+| `formatter/keywords.go` | Keyword and identifier classification and case rewriting |
+| `formatter/operators.go` | Operator normalization (spacing, `!=`/`<>`, cast style) |
 | `internal/layout/layout.go` | `Apply()` — all layout logic including `rebuildStatement`, `splitAtAndOr`, `reformatCaseExprs` |
-| `internal/formatter/*_test.go` | Formatter tests (keyword, PL/pgSQL, operators, …) |
+| `formatter/*_test.go` | Formatter tests (keyword, PL/pgSQL, operators, …) |
 | `internal/layout/case_test.go` | Layout CASE expression tests |
 | `internal/layout/layout_test.go` | Layout clause/content break tests |
 | `.pg_procrustes.yaml` | Reference config with all options and inline comments |
@@ -91,7 +91,7 @@ Splits a WHERE/HAVING/JOIN content string at top-level AND/OR. Tracks both `pare
 - Each feature has its own `_test.go` file.
 - Tests use `mustFormat(t, input, cfg)` helper.
 - Always test: `preserve` (no change), the active value(s), idempotence (two passes produce identical output).
-- PL/pgSQL tests are in `internal/formatter/plpgsql_test.go` and cover IF/ELSIF/ELSE, LOOP, FOR, WHILE, CASE (simple and searched), nested blocks, EXCEPTION section.
+- PL/pgSQL tests are in `formatter/plpgsql_test.go` and cover IF/ELSIF/ELSE, LOOP, FOR, WHILE, CASE (simple and searched), nested blocks, EXCEPTION section.
 
 ### Layout tests
 
@@ -230,16 +230,16 @@ Dollar-quoted blocks are processed inside step 5: the body is extracted, `reform
 3. Add validation in `validate()` if needed.
 4. Consume the value in the token loop (formatter) or `layout.go` (layout).
 5. Update `layout.IsNoop()` if the new option lives in `LayoutConfig`.
-6. Add a golden test case in `internal/formatter/testdata/<name>/` with `input.sql` + optional `config.yaml` + `want.sql`.
+6. Add a golden test case in `formatter/testdata/<name>/` with `input.sql` + optional `config.yaml` + `want.sql`.
 
 ## Running tests
 
 ```bash
 go test ./... -count=1                          # all tests
-go test ./internal/formatter/... -v -run PLSQL  # PL/pgSQL subset
+go test ./formatter/... -v -run PLSQL  # PL/pgSQL subset
 go test ./internal/layout/... -v -run Case      # CASE layout subset
-go test ./internal/formatter/... -run TestGolden -update  # regenerate golden files
-go test ./internal/formatter/... -run '^$' -bench=. -benchmem  # benchmarks
+go test ./formatter/... -run TestGolden -update  # regenerate golden files
+go test ./formatter/... -run '^$' -bench=. -benchmem  # benchmarks
 ```
 
 All tests must pass before committing. The idempotence tests are part of the normal test suite and will catch regressions in most formatting logic.

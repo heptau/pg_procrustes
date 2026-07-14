@@ -3,7 +3,7 @@ package layout_test
 import (
 	"testing"
 
-	"github.com/heptau/pg_procrustes/internal/config"
+	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/internal/layout"
 )
 

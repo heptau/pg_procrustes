@@ -3,6 +3,12 @@
 All notable changes to pg_procrustes are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] — 2026-07-14
+
+### Changed
+
+- Moved `internal/config` and `internal/formatter` to top-level `config` and `formatter` packages so they can be imported as a public API from other Go modules (e.g. `omnidb-go-server`); no behavior change
+
 ## [0.2.0] — 2026-06-30
 
 ### Added

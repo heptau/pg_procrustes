@@ -6,7 +6,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/heptau/pg_procrustes/internal/config"
+	"github.com/heptau/pg_procrustes/config"
 )
 
 // IsNoop returns true if all layout settings are effectively "preserve" / no-op.

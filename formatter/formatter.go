@@ -8,7 +8,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/heptau/pg_procrustes/internal/config"
+	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/internal/layout"
 )
 
