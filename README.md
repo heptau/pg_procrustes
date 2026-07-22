@@ -53,6 +53,54 @@ use({
 
 If [conform.nvim](https://github.com/stevearc/conform.nvim) is installed, `sql` buffers get `pg_procrustes` registered as a formatter automatically — `require("conform").format()` and format-on-save pick it up like any other formatter. Without conform.nvim, use `:PgProcrustesFormat` to format the current buffer directly. Run `:checkhealth pg_procrustes` to verify the setup. See `:help pg_procrustes` for details, or [pg_procrustes.80.cz](https://pg_procrustes.80.cz).
 
+**Zed** has built-in support for external formatters — no extension needed. Add this to your project (`.zed/settings.json`) or user (`~/.config/zed/settings.json`) settings:
+
+```json
+{
+  "languages": {
+    "SQL": {
+      "formatter": {
+        "external": {
+          "command": "pg_procrustes",
+          "arguments": []
+        }
+      }
+    }
+  }
+}
+```
+
+Then format with the `editor: format` command, or set `"format_on_save": "on"`.
+
+**VS Code** has no built-in "external formatter" option, but the [Custom Local Formatters](https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters) extension adds one purely through settings:
+
+```json
+"customLocalFormatters.formatters": [
+  {
+    "command": "pg_procrustes",
+    "languages": ["sql"]
+  }
+],
+"[sql]": {
+  "editor.defaultFormatter": "jkillian.custom-local-formatters"
+}
+```
+
+Format Document (`Shift+Alt+F`) and `editor.formatOnSave` will now run `pg_procrustes`.
+
+**DataGrip & other JetBrains IDEs**: DataGrip bundles the *File Watchers* plugin (enable it under `Settings → Tools → File Watchers` if it's off). Add a custom watcher with:
+
+| Field | Value |
+| --- | --- |
+| File type | `SQL` |
+| Program | path to `pg_procrustes` (or just the binary name if it resolves on `PATH`) |
+| Arguments | `-w $FilePath$` |
+| Output paths to refresh | `$FilePath$` |
+
+The file is reformatted in place on every save. For a manual, on-demand trigger instead, use `Settings → Tools → External Tools` with the same Program/Arguments.
+
+Zed, VS Code, and DataGrip above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
+
 ## Usage
 
 ```bash

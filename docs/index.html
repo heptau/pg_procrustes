@@ -569,8 +569,57 @@ use({
       Run <code>:checkhealth pg_procrustes</code> to verify the setup, or <code>:help pg_procrustes</code> for the full reference.
     </p>
 
+    <h3>Zed</h3>
+    <p>Zed has built-in support for external formatters — no extension needed. Add this to your project settings (<code>.zed/settings.json</code>) or user settings (<code>~/.config/zed/settings.json</code>):</p>
+    <pre><code><span class="cm">// .zed/settings.json</span>
+{
+  "languages": {
+    "SQL": {
+      "formatter": {
+        "external": {
+          "command": "pg_procrustes",
+          "arguments": []
+        }
+      }
+    }
+  }
+}</code></pre>
+    <p>Then format with the <code>editor: format</code> command, or set <code>"format_on_save": "on"</code>.</p>
+
+    <h3>VS Code</h3>
+    <p>
+      VS Code has no built-in "external formatter" option, but the
+      <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+      extension adds one purely through settings — no extension of your own required. Install it, then add:
+    </p>
+    <pre><code><span class="cm">// settings.json</span>
+"customLocalFormatters.formatters": [
+  {
+    "command": "pg_procrustes",
+    "languages": ["sql"]
+  }
+],
+"[sql]": {
+  "editor.defaultFormatter": "jkillian.custom-local-formatters"
+}</code></pre>
+    <p>Format Document (<code>Shift+Alt+F</code>) and <code>editor.formatOnSave</code> will now run <code>pg_procrustes</code>.</p>
+
+    <h3>DataGrip &amp; other JetBrains IDEs</h3>
+    <p>DataGrip bundles the <strong>File Watchers</strong> plugin (enable it under <code>Settings → Tools → File Watchers</code> if it's off). Add a custom watcher:</p>
+    <table>
+      <tbody>
+        <tr><td>File type</td><td><code>SQL</code></td></tr>
+        <tr><td>Program</td><td>path to <code>pg_procrustes</code> (or just the binary name if it resolves on <code>PATH</code>)</td></tr>
+        <tr><td>Arguments</td><td><code>-w $FilePath$</code></td></tr>
+        <tr><td>Output paths to refresh</td><td><code>$FilePath$</code></td></tr>
+      </tbody>
+    </table>
+    <p>
+      The file is reformatted in place on every save. For a manual, on-demand trigger instead, use <code>Settings → Tools → External Tools</code> with the same Program/Arguments.
+    </p>
+
     <p style="color:var(--muted);font-size:0.9rem;">
-      More editor integrations (VS Code, JetBrains/DataGrip, …) are planned — this section will grow as they ship.
+      Zed, VS Code, and DataGrip above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
     </p>
   </section>
 
