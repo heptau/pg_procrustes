@@ -453,6 +453,7 @@
   <span class="nav-section">Getting Started</span>
   <a href="#installation">Installation</a>
   <a href="#editor-integration">Editor integration</a>
+  <a href="#automation">Automation &amp; CI</a>
   <a href="#usage">Usage</a>
 
   <span class="nav-section">Configuration</span>
@@ -655,9 +656,57 @@ auto-format = true</code></pre>
 }</code></pre>
     <p>Or trigger it manually from the command palette with <strong>Fmt: Format Buffer</strong>.</p>
 
+    <h3>Vim (via ALE)</h3>
+    <p>With <a href="https://github.com/dense-analysis/ale">ALE</a> installed, define a fixer in your <code>.vimrc</code>:</p>
+    <pre><code><span class="cm">" .vimrc</span>
+let g:ale_fixers = {
+\   'sql': [
+\     {buffer -> {'command': 'pg_procrustes'}},
+\   ],
+\}
+let g:ale_fix_on_save = 1</code></pre>
+    <p>Or run it on demand with <code>:ALEFix</code>.</p>
+
     <p style="color:var(--muted);font-size:0.9rem;">
-      Zed, VS Code, DataGrip, Emacs, Helix, and Sublime Text above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
+      Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text, and Vim above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
     </p>
+  </section>
+
+  <!-- ── AUTOMATION ── -->
+  <section id="automation">
+    <h2>Automation &amp; CI</h2>
+
+    <h3>pre-commit</h3>
+    <p>
+      Add a <a href="https://pre-commit.com">pre-commit</a> local hook (requires <code>pg_procrustes</code> on <code>PATH</code> — see <a href="#installation">Installation</a>) to <code>.pre-commit-config.yaml</code>:
+    </p>
+    <pre><code><span class="cm"># .pre-commit-config.yaml</span>
+repos:
+  - repo: local
+    hooks:
+      - id: pg_procrustes
+        name: pg_procrustes
+        language: system
+        entry: pg_procrustes --check
+        files: \.sql$</code></pre>
+    <p>
+      <code>--check</code> fails the commit without touching files, so you review the diff and run <code>pg_procrustes -w</code> yourself. Prefer autofix-on-commit instead? Swap the entry for <code>pg_procrustes -w</code> — pre-commit detects that files were modified and still fails that run, so you can review, re-stage, and commit again.
+    </p>
+
+    <h3>GitHub Actions</h3>
+    <p>A minimal CI job that fails a pull request if any tracked <code>.sql</code> file isn't formatted:</p>
+    <pre><code><span class="cm"># .github/workflows/pg_procrustes.yml</span>
+name: SQL formatting
+on: [pull_request]
+
+jobs:
+  pg_procrustes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: go install github.com/heptau/pg_procrustes@latest
+      - run: pg_procrustes --check $(git ls-files '*.sql')</code></pre>
+    <p>Swap the <code>go install</code> step for the <a href="#installation">Homebrew or binary download</a> methods if you'd rather not depend on a Go toolchain in CI.</p>
   </section>
 
   <!-- ── USAGE ── -->

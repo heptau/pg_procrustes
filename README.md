@@ -145,7 +145,54 @@ Format on demand with `:format`, or let `auto-format` run it on every save.
 
 Or trigger it manually from the command palette with **Fmt: Format Buffer**.
 
-Zed, VS Code, DataGrip, Emacs, Helix, and Sublime Text above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
+**Vim** (via [ALE](https://github.com/dense-analysis/ale)): define a fixer in your `.vimrc`:
+
+```vim
+let g:ale_fixers = {
+\   'sql': [
+\     {buffer -> {'command': 'pg_procrustes'}},
+\   ],
+\}
+let g:ale_fix_on_save = 1
+```
+
+Or run it on demand with `:ALEFix`.
+
+Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text, and Vim above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
+
+### Automation & CI
+
+**pre-commit**: add a [pre-commit](https://pre-commit.com) local hook (requires `pg_procrustes` on `PATH` — see [Installation](#installation)) to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: pg_procrustes
+        name: pg_procrustes
+        language: system
+        entry: pg_procrustes --check
+        files: \.sql$
+```
+
+`--check` fails the commit without touching files, so you review the diff and run `pg_procrustes -w` yourself. Prefer autofix-on-commit instead? Swap the entry for `pg_procrustes -w` — pre-commit detects that files were modified and still fails that run, so you can review, re-stage, and commit again.
+
+**GitHub Actions**: a minimal CI job that fails a pull request if any tracked `.sql` file isn't formatted:
+
+```yaml
+name: SQL formatting
+on: [pull_request]
+
+jobs:
+  pg_procrustes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: go install github.com/heptau/pg_procrustes@latest
+      - run: pg_procrustes --check $(git ls-files '*.sql')
+```
+
+Swap the `go install` step for the [Homebrew or binary download](#installation) methods if you'd rather not depend on a Go toolchain in CI.
 
 ## Usage
 

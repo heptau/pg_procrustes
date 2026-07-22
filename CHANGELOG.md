@@ -11,6 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Documented config-only editor integration for Zed (built-in external formatter), VS Code (via the Custom Local Formatters extension), and DataGrip/JetBrains IDEs (via File Watchers) in the README and on the website
 - Documented config-only editor integration for Emacs (via apheleia.el or reformatter.el) and Helix (via `languages.toml`) in the README and on the website
 - Documented config-only editor integration for Sublime Text (via the Fmt package) in the README and on the website
+- Documented config-only editor integration for Vim (via ALE) in the README and on the website
+- New "Automation & CI" section in the README and on the website, documenting a pre-commit local hook and a GitHub Actions CI job
 
 ## [0.2.1] — 2026-07-14
 
