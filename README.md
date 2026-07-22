@@ -128,7 +128,24 @@ auto-format = true
 
 Format on demand with `:format`, or let `auto-format` run it on every save.
 
-Zed, VS Code, DataGrip, Emacs, and Helix above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
+**Sublime Text**: install [Fmt](https://packagecontrol.io/packages/Fmt) via Package Control, then add to its settings (`Preferences → Package Settings → Fmt → Settings`):
+
+```json
+{
+  "rules": [
+    {
+      "selector": "source.sql",
+      "cmd": ["pg_procrustes"],
+      "format_on_save": true,
+      "merge_type": "diff"
+    }
+  ]
+}
+```
+
+Or trigger it manually from the command palette with **Fmt: Format Buffer**.
+
+Zed, VS Code, DataGrip, Emacs, Helix, and Sublime Text above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
 
 ## Usage
 

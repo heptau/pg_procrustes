@@ -640,8 +640,23 @@ formatter = { command = "pg_procrustes" }
 auto-format = true</code></pre>
     <p>Format on demand with <code>:format</code>, or let <code>auto-format</code> run it on every save.</p>
 
+    <h3>Sublime Text</h3>
+    <p>Install <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> via Package Control, then add to its settings (<code>Preferences → Package Settings → Fmt → Settings</code>):</p>
+    <pre><code><span class="cm">// Fmt.sublime-settings</span>
+{
+  "rules": [
+    {
+      "selector": "source.sql",
+      "cmd": ["pg_procrustes"],
+      "format_on_save": true,
+      "merge_type": "diff"
+    }
+  ]
+}</code></pre>
+    <p>Or trigger it manually from the command palette with <strong>Fmt: Format Buffer</strong>.</p>
+
     <p style="color:var(--muted);font-size:0.9rem;">
-      Zed, VS Code, DataGrip, Emacs, and Helix above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
+      Zed, VS Code, DataGrip, Emacs, Helix, and Sublime Text above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
     </p>
   </section>
 
