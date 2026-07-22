@@ -452,6 +452,7 @@
 
   <span class="nav-section">Getting Started</span>
   <a href="#installation">Installation</a>
+  <a href="#editor-integration">Editor integration</a>
   <a href="#usage">Usage</a>
 
   <span class="nav-section">Configuration</span>
@@ -535,6 +536,42 @@ make build
 
 <span class="cm"># raw binaries for all platforms</span>
 make build-all</code></pre>
+  </section>
+
+  <!-- ── EDITOR INTEGRATION ── -->
+  <section id="editor-integration">
+    <h2>Editor integration</h2>
+    <p>This repository doubles as a Neovim plugin. Requires the <code>pg_procrustes</code> binary on your <code>PATH</code> (see <a href="#installation">Installation</a> above).</p>
+
+    <h3>Neovim</h3>
+    <p>With <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:</p>
+    <pre><code><span class="cm">-- lazy.nvim</span>
+{
+  "heptau/pg_procrustes",
+  ft = "sql",
+  config = function()
+    require("pg_procrustes").setup()
+  end,
+}</code></pre>
+
+    <p>With <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:</p>
+    <pre><code><span class="cm">-- packer.nvim</span>
+use({
+  "heptau/pg_procrustes",
+  config = function()
+    require("pg_procrustes").setup()
+  end,
+})</code></pre>
+
+    <p>
+      If <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a> is installed, <code>sql</code> buffers get <code>pg_procrustes</code> registered as a formatter automatically —
+      <code>require("conform").format()</code> and format-on-save pick it up like any other formatter. Without conform.nvim, use <code>:PgProcrustesFormat</code> to format the current buffer directly.
+      Run <code>:checkhealth pg_procrustes</code> to verify the setup, or <code>:help pg_procrustes</code> for the full reference.
+    </p>
+
+    <p style="color:var(--muted);font-size:0.9rem;">
+      More editor integrations (VS Code, JetBrains/DataGrip, …) are planned — this section will grow as they ship.
+    </p>
   </section>
 
   <!-- ── USAGE ── -->

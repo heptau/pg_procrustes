@@ -1,0 +1,47 @@
+*pg_procrustes.txt*  Format PostgreSQL SQL/PL-pgSQL with pg_procrustes
+
+==============================================================================
+CONTENTS                                                *pg_procrustes-contents*
+
+    1. Introduction ........... |pg_procrustes-introduction|
+    2. Setup .................. |pg_procrustes-setup|
+    3. Commands ............... |pg_procrustes-commands|
+    4. Health .................. |pg_procrustes-health|
+
+==============================================================================
+1. Introduction                                     *pg_procrustes-introduction*
+
+pg_procrustes.nvim wires the `pg_procrustes` CLI formatter
+(https://pg_procrustes.80.cz) into Neovim, either through conform.nvim or as
+a standalone command.
+
+Requires the `pg_procrustes` binary on your PATH.
+
+==============================================================================
+2. Setup                                                   *pg_procrustes-setup*
+>lua
+    require("pg_procrustes").setup({
+      bin = "pg_procrustes", -- binary name or absolute path
+      args = {},             -- e.g. { "-c", "/path/to/.pg_procrustes.yaml" }
+    })
+<
+With conform.nvim installed, `sql` buffers get `pg_procrustes` appended to
+their formatters automatically, so `require("conform").format()` (or
+format-on-save through conform.nvim) picks it up like any other formatter.
+
+==============================================================================
+3. Commands                                             *pg_procrustes-commands*
+
+:PgProcrustesFormat                                     *:PgProcrustesFormat*
+    Format the current buffer with pg_procrustes, independent of
+    conform.nvim.
+
+==============================================================================
+4. Health                                                 *pg_procrustes-health*
+>
+    :checkhealth pg_procrustes
+<
+    Reports whether the binary is on PATH, its version, and whether
+    conform.nvim integration is active.
+
+ vim:tw=78:ts=8:ft=help:norl:

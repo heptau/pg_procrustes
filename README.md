@@ -26,6 +26,33 @@ go install github.com/heptau/pg_procrustes@latest
 
 **Binary download**: grab the archive for your platform from [GitHub Releases](https://github.com/heptau/pg_procrustes/releases), extract, and place the binary on your `PATH`.
 
+### Editor integration
+
+**Neovim** (requires the `pg_procrustes` binary on your `PATH` — see above): this repository doubles as a Neovim plugin. With [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  "heptau/pg_procrustes",
+  ft = "sql",
+  config = function()
+    require("pg_procrustes").setup()
+  end,
+}
+```
+
+With [packer.nvim](https://github.com/wbthomason/packer.nvim):
+
+```lua
+use({
+  "heptau/pg_procrustes",
+  config = function()
+    require("pg_procrustes").setup()
+  end,
+})
+```
+
+If [conform.nvim](https://github.com/stevearc/conform.nvim) is installed, `sql` buffers get `pg_procrustes` registered as a formatter automatically — `require("conform").format()` and format-on-save pick it up like any other formatter. Without conform.nvim, use `:PgProcrustesFormat` to format the current buffer directly. Run `:checkhealth pg_procrustes` to verify the setup. See `:help pg_procrustes` for details, or [pg_procrustes.80.cz](https://pg_procrustes.80.cz).
+
 ## Usage
 
 ```bash

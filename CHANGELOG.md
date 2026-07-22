@@ -3,6 +3,12 @@
 All notable changes to pg_procrustes are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Neovim plugin (`lua/pg_procrustes`, `plugin/pg_procrustes.lua`, `doc/pg_procrustes.txt`) — this repository doubles as a Neovim plugin providing `pg_procrustes` as a `conform.nvim` formatter for `sql` buffers, a standalone `:PgProcrustesFormat` command, and `:checkhealth pg_procrustes`
+
 ## [0.2.1] — 2026-07-14
 
 ### Changed
