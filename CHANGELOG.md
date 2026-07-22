@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Neovim plugin (`lua/pg_procrustes`, `plugin/pg_procrustes.lua`, `doc/pg_procrustes.txt`) — this repository doubles as a Neovim plugin providing `pg_procrustes` as a `conform.nvim` formatter for `sql` buffers, a standalone `:PgProcrustesFormat` command, and `:checkhealth pg_procrustes`
 - Documented config-only editor integration for Zed (built-in external formatter), VS Code (via the Custom Local Formatters extension), and DataGrip/JetBrains IDEs (via File Watchers) in the README and on the website
+- Documented config-only editor integration for Emacs (via apheleia.el or reformatter.el) and Helix (via `languages.toml`) in the README and on the website
 
 ## [0.2.1] — 2026-07-14
 

@@ -618,8 +618,30 @@ use({
       The file is reformatted in place on every save. For a manual, on-demand trigger instead, use <code>Settings → Tools → External Tools</code> with the same Program/Arguments.
     </p>
 
+    <h3>Emacs</h3>
+    <p>With <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (async, keeps point position):</p>
+    <pre><code><span class="cm">;; init.el</span>
+(setf (alist-get 'pg-procrustes apheleia-formatters) '("pg_procrustes"))
+(setf (alist-get 'sql-mode apheleia-mode-alist) 'pg-procrustes)
+(add-hook 'sql-mode-hook #'apheleia-mode)</code></pre>
+    <p>Or with the lighter <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:</p>
+    <pre><code><span class="cm">;; init.el</span>
+(reformatter-define pg-procrustes-format
+  :program "pg_procrustes")
+(add-hook 'sql-mode-hook #'pg-procrustes-format-on-save-mode)</code></pre>
+    <p>Either gives you format-on-save without writing a package of your own.</p>
+
+    <h3>Helix</h3>
+    <p>Add to <code>~/.config/helix/languages.toml</code> (or a project-local <code>.helix/languages.toml</code>):</p>
+    <pre><code><span class="cm"># languages.toml</span>
+[[language]]
+name = "sql"
+formatter = { command = "pg_procrustes" }
+auto-format = true</code></pre>
+    <p>Format on demand with <code>:format</code>, or let <code>auto-format</code> run it on every save.</p>
+
     <p style="color:var(--muted);font-size:0.9rem;">
-      Zed, VS Code, and DataGrip above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
+      Zed, VS Code, DataGrip, Emacs, and Helix above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
     </p>
   </section>
 

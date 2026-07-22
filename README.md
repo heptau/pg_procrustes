@@ -99,7 +99,36 @@ Format Document (`Shift+Alt+F`) and `editor.formatOnSave` will now run `pg_procr
 
 The file is reformatted in place on every save. For a manual, on-demand trigger instead, use `Settings → Tools → External Tools` with the same Program/Arguments.
 
-Zed, VS Code, and DataGrip above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
+**Emacs**: with [apheleia.el](https://github.com/radian-software/apheleia) (async, keeps point position):
+
+```elisp
+(setf (alist-get 'pg-procrustes apheleia-formatters) '("pg_procrustes"))
+(setf (alist-get 'sql-mode apheleia-mode-alist) 'pg-procrustes)
+(add-hook 'sql-mode-hook #'apheleia-mode)
+```
+
+Or with the lighter [reformatter.el](https://github.com/purcell/reformatter.el):
+
+```elisp
+(reformatter-define pg-procrustes-format
+  :program "pg_procrustes")
+(add-hook 'sql-mode-hook #'pg-procrustes-format-on-save-mode)
+```
+
+Either gives you format-on-save without writing a package of your own.
+
+**Helix**: add to `~/.config/helix/languages.toml` (or a project-local `.helix/languages.toml`):
+
+```toml
+[[language]]
+name = "sql"
+formatter = { command = "pg_procrustes" }
+auto-format = true
+```
+
+Format on demand with `:format`, or let `auto-format` run it on every save.
+
+Zed, VS Code, DataGrip, Emacs, and Helix above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
 
 ## Usage
 
