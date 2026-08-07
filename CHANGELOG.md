@@ -14,6 +14,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Documented config-only editor integration for Vim (via ALE) in the README and on the website
 - New "Automation & CI" section in the README and on the website, documenting a pre-commit local hook and a GitHub Actions CI job
 
+### Security
+
+- Bumped indirect dependency `google.golang.org/protobuf` to v1.33.0, fixing a denial-of-service in `protojson.Unmarshal` (infinite loop on certain invalid JSON)
+
 ## [0.2.1] — 2026-07-14
 
 ### Changed

@@ -7,4 +7,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require google.golang.org/protobuf v1.31.0 // indirect
+require google.golang.org/protobuf v1.33.0 // indirect
