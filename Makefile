@@ -12,7 +12,7 @@ LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
         build-darwin-arm64 build-darwin-amd64 \
         build-linux-amd64 build-linux-arm64 \
         build-windows-amd64 build-windows-arm64 \
-        build-all release-local release
+        build-all release-local prepare-release release
 
 help: ## Show this help
 	@echo "pg_procrustes — PostgreSQL SQL formatter"
@@ -79,11 +79,14 @@ build-all: build-darwin-arm64 build-darwin-amd64 \
 
 # ── release ───────────────────────────────────────────────────────────────────
 
-release-local: ## Test, build current platform archive, verify — no git, no push
-	@scripts/release.sh --local
+prepare-release: ## Bump VERSION + roll CHANGELOG [Unreleased] into a dated entry, commit and push
+	@VERSION=$(VERSION) scripts/prepare_release.sh
 
-release: ## Tag and push — GitHub Actions builds all platforms, releases, updates tap
-	@scripts/release.sh --github
+release-local: ## Test, build current platform archive, verify — no git, no push
+	@VERSION=$(VERSION) scripts/release.sh --local
+
+release: clean prepare-release ## Bump, build all platforms locally, tag, publish GitHub release, update tap
+	@VERSION=$(VERSION) scripts/release.sh
 
 # ── cleanup ───────────────────────────────────────────────────────────────────
 

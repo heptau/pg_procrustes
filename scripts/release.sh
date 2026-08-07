@@ -1,37 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # =============================================================================
-# release.sh — Release pg_procrustes locally (current platform) or to GitHub
+# release.sh — Test, then tag and push. GitHub Actions (release.yml) builds
+#              every platform natively, creates the GitHub release and updates
+#              the Homebrew tap.
 #
-# Usage:
-#   scripts/release.sh --local    Test, build current platform, verify
-#   scripts/release.sh --github   Verify clean state, tag, push → CI does the rest
-#
-# After --github the GitHub Actions release workflow (release.yml) runs on
-# native macOS/Linux/Windows runners, builds all platforms, creates the GitHub
-# release, and updates the Homebrew tap automatically.
-#
-# Environment variables:
-#   HOMEBREW_TAP_REPO     GitHub repo of the Homebrew tap (default: heptau/homebrew-tap)
-#   HOMEBREW_TAP_FORMULA  Path to formula inside the tap   (default: Formula/pg-procrustes.rb)
+# Called by: make release VERSION=X.Y.Z  (version already bumped by prepare-release)
+#            make release-local          (builds the current platform only, no git)
 # =============================================================================
 
 MODE="${1:-}"
-if [[ "$MODE" != "--local" && "$MODE" != "--github" ]]; then
-  echo "Usage: $0 [--local|--github]"
-  echo ""
-  echo "  --local   Test, build current platform only, verify artifacts"
-  echo "  --github  Tag and push — GitHub Actions will build all platforms,"
-  echo "            create the GitHub release, and update the Homebrew tap"
-  exit 1
-fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR/.."
 
-VERSION="$(cat VERSION)"
+VERSION="${VERSION:-$(cat VERSION | tr -d '\r\n')}"
 
-echo "pg_procrustes release — v${VERSION} (${MODE})"
+echo "pg_procrustes release — v${VERSION} (${MODE:-full})"
 echo ""
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -45,13 +30,12 @@ if [[ "$MODE" == "--local" ]]; then
   scripts/build_release.sh
   echo ""
 
-  DIST="dist"
   HOST_OS="$(go env GOOS)"
   HOST_ARCH="$(go env GOARCH)"
   if [[ "$HOST_OS" == "windows" ]]; then
-    ARCHIVE="${DIST}/pg_procrustes-${VERSION}-${HOST_OS}-${HOST_ARCH}.zip"
+    ARCHIVE="dist/pg_procrustes-${VERSION}-${HOST_OS}-${HOST_ARCH}.zip"
   else
-    ARCHIVE="${DIST}/pg_procrustes-${VERSION}-${HOST_OS}-${HOST_ARCH}.tar.gz"
+    ARCHIVE="dist/pg_procrustes-${VERSION}-${HOST_OS}-${HOST_ARCH}.tar.gz"
   fi
 
   echo "==> Verifying..."
@@ -59,21 +43,22 @@ if [[ "$MODE" == "--local" ]]; then
   echo "    OK  $ARCHIVE"
   echo ""
   echo "Local build ready. Inspect dist/ before running:"
-  echo "  make release"
+  echo "  make release VERSION=${VERSION}"
   exit 0
 fi
 
-# ── GitHub mode ───────────────────────────────────────────────────────────────
+# ── Full release mode ─────────────────────────────────────────────────────────
 
-# Guard: uncommitted changes
+# Guard: uncommitted changes (prepare-release should have committed)
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Error: uncommitted changes present. Commit or stash before releasing."
+  echo "Error: uncommitted changes present. Run 'make prepare-release VERSION=${VERSION}'" >&2
+  echo "first, or commit/stash manually." >&2
   exit 1
 fi
 
 # Guard: tag must not already exist on remote
 if git ls-remote --tags origin "refs/tags/v${VERSION}" | grep -q .; then
-  echo "Error: tag v${VERSION} already exists on remote. Bump VERSION and try again."
+  echo "Error: tag v${VERSION} already exists on remote. Bump VERSION and try again." >&2
   exit 1
 fi
 
