@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('pg_procrustes_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>pg_procrustes — PostgreSQL SQL Formatter</title>
@@ -62,6 +70,7 @@
     :root {
       --bg:       #0f1117;
       --surface:  #1a1d27;
+      --surface-glass: rgba(26, 29, 39, 0.55);
       --border:   #2a2d3a;
       --accent:   #5b8dee;
       --accent2:  #7c6af7;
@@ -81,6 +90,7 @@
       :root {
         --bg:       #f5f6fa;
         --surface:  #ffffff;
+        --surface-glass: rgba(255, 255, 255, 0.55);
         --border:   #dde0ea;
         --accent:   #2563eb;
         --accent2:  #6d4ff6;
@@ -92,6 +102,38 @@
         --string:   #16803c;
         --comment:  #8a96a8;
       }
+    }
+
+    /* explicit theme override (takes precedence over prefers-color-scheme) */
+    :root[data-theme="dark"] {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface-glass: rgba(26, 29, 39, 0.55);
+      --border:   #2a2d3a;
+      --accent:   #5b8dee;
+      --accent2:  #7c6af7;
+      --text:     #d4d8e8;
+      --muted:    #7a7f99;
+      --code-bg:  #131620;
+      --code-bdr: #252838;
+      --keyword:  #c792ea;
+      --string:   #c3e88d;
+      --comment:  #546e7a;
+    }
+    :root[data-theme="light"] {
+      --bg:       #f5f6fa;
+      --surface:  #ffffff;
+      --surface-glass: rgba(255, 255, 255, 0.55);
+      --border:   #dde0ea;
+      --accent:   #2563eb;
+      --accent2:  #6d4ff6;
+      --text:     #1e2032;
+      --muted:    #6b7094;
+      --code-bg:  #f0f1f7;
+      --code-bdr: #d8dae8;
+      --keyword:  #7c3aed;
+      --string:   #16803c;
+      --comment:  #8a96a8;
     }
 
     html { scroll-behavior: smooth; }
@@ -163,8 +205,9 @@
     main {
       margin-left: var(--nav-w);
       flex: 1;
+      min-width: 0;
       max-width: 860px;
-      padding: 3rem 3.5rem 6rem;
+      padding: 4.5rem 3.5rem 6rem;
     }
 
     /* ── hero ── */
@@ -284,11 +327,16 @@
     .diff-hdr { color: var(--muted); }
 
     /* ── tables ── */
+    .table-scroll {
+      overflow-x: auto;
+      margin: 0.8rem 0 1.4rem;
+      -webkit-overflow-scrolling: touch;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 0.875rem;
-      margin: 0.8rem 0 1.4rem;
+      margin: 0;
     }
     th {
       text-align: left;
@@ -355,6 +403,7 @@
     }
     .ba-grid > div, .ba-stack > div {
       border: 1px solid var(--border);
+      min-width: 0;
     }
     .ba-grid > div:first-child, .ba-stack > div:first-child {
       border-bottom: none;
@@ -403,20 +452,104 @@
       position: fixed;
       top: 1rem; left: 1rem;
       z-index: 200;
-      background: var(--surface);
+      background: var(--surface-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 0.45rem 0.6rem;
+      color: var(--muted);
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      border-radius: 0.625rem;
       cursor: pointer;
       line-height: 1;
       font-size: 1.2rem;
-      color: var(--text);
+      transition: 0.2s;
+      align-items: center;
+      justify-content: center;
     }
-    .menu-btn:hover { background: var(--border); }
+    .menu-btn:hover { border-color: var(--accent); color: var(--text); background: var(--surface-glass); }
+
+    /* ── language / theme switchers ── */
+    .top-actions {
+      position: fixed;
+      top: 1rem; right: 1rem;
+      z-index: 200;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .icon-btn {
+      background: var(--surface-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      border-radius: 0.625rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.2s;
+    }
+    .icon-btn:hover { border-color: var(--accent); color: var(--text); background: var(--surface-glass); }
+    .icon-sw { width: 1.25rem; height: 1.25rem; display: block; }
+
+    .lang-dropdown, .theme-dropdown { position: relative; display: inline-block; }
+    .lang-menu, .theme-menu {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.5rem;
+      min-width: 150px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.3);
+      display: none;
+      flex-direction: column;
+      gap: 0.25rem;
+      z-index: 210;
+      backdrop-filter: blur(8px);
+      animation: switcherSlideIn 0.2s ease-out;
+    }
+    .lang-dropdown.open .lang-menu, .theme-dropdown.open .theme-menu { display: flex; }
+    .lang-option, .theme-option {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      text-align: left;
+      transition: 0.2s;
+      width: 100%;
+      font-family: inherit;
+    }
+    .lang-option:hover, .theme-option:hover { background-color: rgba(91,141,238,.08); color: var(--accent); }
+    .lang-option.active, .theme-option.active { color: var(--accent); background-color: rgba(91,141,238,.06); }
+    .lang-option-icon, .theme-option-icon { font-size: 1.125rem; width: 1.25rem; display: flex; justify-content: center; }
+
+    @keyframes switcherSlideIn {
+      0%   { opacity: 0; transform: translateY(-10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 480px) {
+      .top-actions { top: 0.7rem; right: 0.7rem; gap: 0.4rem; }
+      .icon-btn { width: 2.5rem; height: 2.5rem; }
+      .menu-btn { top: 0.7rem; left: 0.7rem; width: 2.5rem; height: 2.5rem; }
+    }
 
     /* ── responsive ── */
     @media (max-width: 900px) {
-      .menu-btn { display: block; }
+      .menu-btn { display: flex; }
       nav {
         transform: translateX(-100%);
         transition: transform 0.22s ease;
@@ -424,6 +557,7 @@
         box-shadow: 4px 0 24px rgba(0,0,0,.4);
       }
       nav.open { transform: translateX(0); }
+      nav a { padding: 0.55rem 1.5rem; }
       .nav-overlay {
         display: none;
         position: fixed; inset: 0;
@@ -432,6 +566,7 @@
       }
       .nav-overlay.open { display: block; }
       main { margin-left: 0; padding: 4rem 1.25rem 4rem; }
+      .hero h1 { font-size: 1.9rem; }
     }
   </style>
 </head>
@@ -440,41 +575,70 @@
 <button class="menu-btn" id="menu-btn" aria-label="Open navigation" aria-expanded="false">☰</button>
 <div class="nav-overlay" id="nav-overlay"></div>
 
+<div class="top-actions">
+  <div class="lang-dropdown" id="lang-dropdown">
+    <button class="icon-btn lang-trigger" id="lang-trigger" aria-label="Change language" aria-haspopup="true" aria-expanded="false">
+      <svg class="icon-sw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="2" y1="12" x2="22" y2="12"></line>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+      </svg>
+    </button>
+    <div class="lang-menu" id="lang-menu">
+      <button class="lang-option" data-lang-value="auto"><span class="lang-option-icon">🌐</span><span data-i18n="lang_auto">Auto</span></button>
+      <button class="lang-option" data-lang-value="en"><span class="lang-option-icon">🇬🇧</span><span>English</span></button>
+      <button class="lang-option" data-lang-value="cs"><span class="lang-option-icon">🇨🇿</span><span>Čeština</span></button>
+    </div>
+  </div>
+  <div class="theme-dropdown" id="theme-dropdown">
+    <button class="icon-btn theme-trigger" id="theme-trigger" aria-label="Change theme" aria-haspopup="true" aria-expanded="false">
+      <svg class="icon-sw" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18V4c4.42 0 8 3.58 8 8s-3.58 8-8 8z"></path>
+      </svg>
+    </button>
+    <div class="theme-menu" id="theme-menu">
+      <button class="theme-option" data-theme-value="auto"><span class="theme-option-icon">🖥️</span><span data-i18n="theme_auto">Auto</span></button>
+      <button class="theme-option" data-theme-value="light"><span class="theme-option-icon">☀️</span><span data-i18n="theme_light">Light</span></button>
+      <button class="theme-option" data-theme-value="dark"><span class="theme-option-icon">🌙</span><span data-i18n="theme_dark">Dark</span></button>
+    </div>
+  </div>
+</div>
+
 <nav id="sidebar">
   <div class="nav-logo">
     <div class="logo-title">pg_procrustes</div>
-    <div class="logo-sub">PostgreSQL SQL Formatter</div>
+    <div class="logo-sub" data-i18n="nav_logo_sub">PostgreSQL SQL Formatter</div>
   </div>
 
-  <span class="nav-section">Introduction</span>
-  <a href="#intro">Overview</a>
-  <a href="#name">The name</a>
+  <span class="nav-section" data-i18n="nav_sec_intro">Introduction</span>
+  <a href="#intro" data-i18n="nav_overview">Overview</a>
+  <a href="#name" data-i18n="nav_name">The name</a>
 
-  <span class="nav-section">Getting Started</span>
-  <a href="#installation">Installation</a>
-  <a href="#editor-integration">Editor integration</a>
-  <a href="#automation">Automation &amp; CI</a>
-  <a href="#usage">Usage</a>
+  <span class="nav-section" data-i18n="nav_sec_start">Getting Started</span>
+  <a href="#installation" data-i18n="nav_installation">Installation</a>
+  <a href="#editor-integration" data-i18n="nav_editor">Editor integration</a>
+  <a href="#automation" data-i18n="nav_automation">Automation &amp; CI</a>
+  <a href="#usage" data-i18n="nav_usage">Usage</a>
 
-  <span class="nav-section">Configuration</span>
-  <a href="#casing">Keyword &amp; identifier casing</a>
-  <a href="#plpgsql-vars">PL/pgSQL variables &amp; keywords</a>
-  <a href="#punctuation">Punctuation &amp; spacing</a>
-  <a href="#layout">Layout</a>
-  <a href="#clauses">Clause breaking</a>
-  <a href="#content">Content breaking</a>
-  <a href="#case-sql">CASE expressions</a>
-  <a href="#plpgsql">PL/pgSQL</a>
-  <a href="#plpgsql-if">IF blocks</a>
-  <a href="#plpgsql-loop">LOOP blocks</a>
-  <a href="#plpgsql-case">CASE statements</a>
+  <span class="nav-section" data-i18n="nav_sec_config">Configuration</span>
+  <a href="#casing" data-i18n="nav_casing">Keyword &amp; identifier casing</a>
+  <a href="#plpgsql-vars" data-i18n="nav_plpgsql_vars">PL/pgSQL variables &amp; keywords</a>
+  <a href="#punctuation" data-i18n="nav_punctuation">Punctuation &amp; spacing</a>
+  <a href="#layout" data-i18n="nav_layout">Layout</a>
+  <a href="#clauses" data-i18n="nav_clauses">Clause breaking</a>
+  <a href="#content" data-i18n="nav_content">Content breaking</a>
+  <a href="#case-sql" data-i18n="nav_case_sql">CASE expressions</a>
+  <a href="#plpgsql" data-i18n="nav_plpgsql">PL/pgSQL</a>
+  <a href="#plpgsql-if" data-i18n="nav_plpgsql_if">IF blocks</a>
+  <a href="#plpgsql-loop" data-i18n="nav_plpgsql_loop">LOOP blocks</a>
+  <a href="#plpgsql-case" data-i18n="nav_plpgsql_case">CASE statements</a>
 
-  <span class="nav-section">Tools</span>
-  <a href="config-builder.html">Config Builder</a>
-  <span class="nav-section">Project</span>
+  <span class="nav-section" data-i18n="nav_sec_tools">Tools</span>
+  <a href="config-builder.html" data-i18n="nav_config_builder">Config Builder</a>
+  <span class="nav-section" data-i18n="nav_sec_project">Project</span>
   <a href="https://github.com/heptau/pg_procrustes" target="_blank" rel="noopener">GitHub ↗</a>
   <a href="https://github.com/heptau/pg_procrustes/releases" target="_blank" rel="noopener">Releases ↗</a>
-  <a href="llms.txt">For AI / llms.txt</a>
+  <a href="llms.txt" data-i18n="nav_llms">For AI / llms.txt</a>
 </nav>
 
 <main>
@@ -482,7 +646,7 @@
   <!-- ── HERO ── -->
   <div class="hero" id="intro">
     <h1><span>pg_</span>procrustes</h1>
-    <p>A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL parser, it understands your code like the database itself.</p>
+    <p data-i18n="hero_desc">A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL parser, it understands your code like the database itself.</p>
     <div class="hero-badges">
       <span class="badge">Go</span>
       <span class="badge">PostgreSQL</span>
@@ -493,15 +657,15 @@
 
   <!-- ── NAME ── -->
   <section id="name">
-    <h2>The name</h2>
-    <div class="myth-box">
+    <h2 data-i18n="name_h2">The name</h2>
+    <div class="myth-box" data-i18n="name_myth">
       In Greek mythology, Procrustes was a bandit who operated an iron bed on the road to Athens.
       He invited travellers to spend the night — then made sure they fit the bed perfectly.
       If a guest was too tall, he cut off their legs. If too short, he stretched them until they matched.
       He actually kept <em>two</em> beds: one small, one large — so no guest could ever escape adjustment.
       Either way, everyone fit.
     </div>
-    <p>
+    <p data-i18n="name_p">
       <strong>pg_procrustes</strong> works the same way. You define the bed — the formatting rules — via
       <code>.pg_procrustes.yaml</code>. Your SQL will fit. Whether it likes it or not.
     </p>
@@ -509,15 +673,15 @@
 
   <!-- ── INSTALLATION ── -->
   <section id="installation">
-    <h2>Installation</h2>
+    <h2 data-i18n="install_h2">Installation</h2>
 
-    <h3>Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS and Linux)</span></h3>
+    <h3 data-i18n="install_homebrew_h3">Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS and Linux)</span></h3>
     <pre><code>brew install heptau/tap/pg-procrustes</code></pre>
 
-    <h3>Binary download</h3>
-    <p>Download the archive for your platform from <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, extract, and place the binary on your <code>PATH</code>.</p>
-    <table>
-      <thead><tr><th>Archive</th><th>Platform</th></tr></thead>
+    <h3 data-i18n="install_binary_h3">Binary download</h3>
+    <p data-i18n="install_binary_p">Download the archive for your platform from <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, extract, and place the binary on your <code>PATH</code>.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="install_th_archive">Archive</th><th data-i18n="install_th_platform">Platform</th></tr></thead>
       <tbody>
         <tr><td><code>pg_procrustes-&lt;ver&gt;-darwin-arm64.tar.gz</code></td><td>macOS Apple Silicon</td></tr>
         <tr><td><code>pg_procrustes-&lt;ver&gt;-darwin-amd64.tar.gz</code></td><td>macOS Intel</td></tr>
@@ -526,12 +690,12 @@
         <tr><td><code>pg_procrustes-&lt;ver&gt;-windows-amd64.zip</code></td><td>Windows x86-64</td></tr>
         <tr><td><code>pg_procrustes-&lt;ver&gt;-windows-arm64.zip</code></td><td>Windows ARM64</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <h3>go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(requires Go toolchain)</span></h3>
+    <h3 data-i18n="install_goinstall_h3">go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(requires Go toolchain)</span></h3>
     <pre><code>go install github.com/heptau/pg_procrustes@latest</code></pre>
 
-    <h3>Build from source</h3>
+    <h3 data-i18n="install_source_h3">Build from source</h3>
     <pre><code><span class="cm"># current platform</span>
 make build
 
@@ -541,11 +705,11 @@ make build-all</code></pre>
 
   <!-- ── EDITOR INTEGRATION ── -->
   <section id="editor-integration">
-    <h2>Editor integration</h2>
-    <p>This repository doubles as a Neovim plugin. Requires the <code>pg_procrustes</code> binary on your <code>PATH</code> (see <a href="#installation">Installation</a> above).</p>
+    <h2 data-i18n="editor_h2">Editor integration</h2>
+    <p data-i18n="editor_intro_p">This repository doubles as a Neovim plugin. Requires the <code>pg_procrustes</code> binary on your <code>PATH</code> (see <a href="#installation">Installation</a> above).</p>
 
     <h3>Neovim</h3>
-    <p>With <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:</p>
+    <p data-i18n="editor_neovim_lazy_p">With <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:</p>
     <pre><code><span class="cm">-- lazy.nvim</span>
 {
   "heptau/pg_procrustes",
@@ -555,7 +719,7 @@ make build-all</code></pre>
   end,
 }</code></pre>
 
-    <p>With <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:</p>
+    <p data-i18n="editor_neovim_packer_p">With <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:</p>
     <pre><code><span class="cm">-- packer.nvim</span>
 use({
   "heptau/pg_procrustes",
@@ -564,14 +728,14 @@ use({
   end,
 })</code></pre>
 
-    <p>
+    <p data-i18n="editor_neovim_conform_p">
       If <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a> is installed, <code>sql</code> buffers get <code>pg_procrustes</code> registered as a formatter automatically —
       <code>require("conform").format()</code> and format-on-save pick it up like any other formatter. Without conform.nvim, use <code>:PgProcrustesFormat</code> to format the current buffer directly.
       Run <code>:checkhealth pg_procrustes</code> to verify the setup, or <code>:help pg_procrustes</code> for the full reference.
     </p>
 
     <h3>Zed</h3>
-    <p>Zed has built-in support for external formatters — no extension needed. Add this to your project settings (<code>.zed/settings.json</code>) or user settings (<code>~/.config/zed/settings.json</code>):</p>
+    <p data-i18n="editor_zed_p">Zed has built-in support for external formatters — no extension needed. Add this to your project settings (<code>.zed/settings.json</code>) or user settings (<code>~/.config/zed/settings.json</code>):</p>
     <pre><code><span class="cm">// .zed/settings.json</span>
 {
   "languages": {
@@ -585,10 +749,10 @@ use({
     }
   }
 }</code></pre>
-    <p>Then format with the <code>editor: format</code> command, or set <code>"format_on_save": "on"</code>.</p>
+    <p data-i18n="editor_zed_format_p">Then format with the <code>editor: format</code> command, or set <code>"format_on_save": "on"</code>.</p>
 
     <h3>VS Code</h3>
-    <p>
+    <p data-i18n="editor_vscode_p">
       VS Code has no built-in "external formatter" option, but the
       <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
       extension adds one purely through settings — no extension of your own required. Install it, then add:
@@ -603,46 +767,46 @@ use({
 "[sql]": {
   "editor.defaultFormatter": "jkillian.custom-local-formatters"
 }</code></pre>
-    <p>Format Document (<code>Shift+Alt+F</code>) and <code>editor.formatOnSave</code> will now run <code>pg_procrustes</code>.</p>
+    <p data-i18n="editor_vscode_format_p">Format Document (<code>Shift+Alt+F</code>) and <code>editor.formatOnSave</code> will now run <code>pg_procrustes</code>.</p>
 
-    <h3>DataGrip &amp; other JetBrains IDEs</h3>
-    <p>DataGrip bundles the <strong>File Watchers</strong> plugin (enable it under <code>Settings → Tools → File Watchers</code> if it's off). Add a custom watcher:</p>
-    <table>
+    <h3 data-i18n="editor_datagrip_h3">DataGrip &amp; other JetBrains IDEs</h3>
+    <p data-i18n="editor_datagrip_p">DataGrip bundles the <strong>File Watchers</strong> plugin (enable it under <code>Settings → Tools → File Watchers</code> if it's off). Add a custom watcher:</p>
+    <div class="table-scroll"><table>
       <tbody>
-        <tr><td>File type</td><td><code>SQL</code></td></tr>
-        <tr><td>Program</td><td>path to <code>pg_procrustes</code> (or just the binary name if it resolves on <code>PATH</code>)</td></tr>
-        <tr><td>Arguments</td><td><code>-w $FilePath$</code></td></tr>
-        <tr><td>Output paths to refresh</td><td><code>$FilePath$</code></td></tr>
+        <tr><td data-i18n="editor_datagrip_filetype">File type</td><td><code>SQL</code></td></tr>
+        <tr><td data-i18n="editor_datagrip_program">Program</td><td data-i18n="editor_datagrip_program_val">path to <code>pg_procrustes</code> (or just the binary name if it resolves on <code>PATH</code>)</td></tr>
+        <tr><td data-i18n="editor_datagrip_arguments">Arguments</td><td><code>-w $FilePath$</code></td></tr>
+        <tr><td data-i18n="editor_datagrip_output">Output paths to refresh</td><td><code>$FilePath$</code></td></tr>
       </tbody>
-    </table>
-    <p>
+    </table></div>
+    <p data-i18n="editor_datagrip_note_p">
       The file is reformatted in place on every save. For a manual, on-demand trigger instead, use <code>Settings → Tools → External Tools</code> with the same Program/Arguments.
     </p>
 
     <h3>Emacs</h3>
-    <p>With <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (async, keeps point position):</p>
+    <p data-i18n="editor_emacs_apheleia_p">With <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (async, keeps point position):</p>
     <pre><code><span class="cm">;; init.el</span>
 (setf (alist-get 'pg-procrustes apheleia-formatters) '("pg_procrustes"))
 (setf (alist-get 'sql-mode apheleia-mode-alist) 'pg-procrustes)
 (add-hook 'sql-mode-hook #'apheleia-mode)</code></pre>
-    <p>Or with the lighter <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:</p>
+    <p data-i18n="editor_emacs_reformatter_p">Or with the lighter <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:</p>
     <pre><code><span class="cm">;; init.el</span>
 (reformatter-define pg-procrustes-format
   :program "pg_procrustes")
 (add-hook 'sql-mode-hook #'pg-procrustes-format-on-save-mode)</code></pre>
-    <p>Either gives you format-on-save without writing a package of your own.</p>
+    <p data-i18n="editor_emacs_note_p">Either gives you format-on-save without writing a package of your own.</p>
 
     <h3>Helix</h3>
-    <p>Add to <code>~/.config/helix/languages.toml</code> (or a project-local <code>.helix/languages.toml</code>):</p>
+    <p data-i18n="editor_helix_p">Add to <code>~/.config/helix/languages.toml</code> (or a project-local <code>.helix/languages.toml</code>):</p>
     <pre><code><span class="cm"># languages.toml</span>
 [[language]]
 name = "sql"
 formatter = { command = "pg_procrustes" }
 auto-format = true</code></pre>
-    <p>Format on demand with <code>:format</code>, or let <code>auto-format</code> run it on every save.</p>
+    <p data-i18n="editor_helix_format_p">Format on demand with <code>:format</code>, or let <code>auto-format</code> run it on every save.</p>
 
     <h3>Sublime Text</h3>
-    <p>Install <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> via Package Control, then add to its settings (<code>Preferences → Package Settings → Fmt → Settings</code>):</p>
+    <p data-i18n="editor_sublime_p">Install <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> via Package Control, then add to its settings (<code>Preferences → Package Settings → Fmt → Settings</code>):</p>
     <pre><code><span class="cm">// Fmt.sublime-settings</span>
 {
   "rules": [
@@ -654,10 +818,10 @@ auto-format = true</code></pre>
     }
   ]
 }</code></pre>
-    <p>Or trigger it manually from the command palette with <strong>Fmt: Format Buffer</strong>.</p>
+    <p data-i18n="editor_sublime_trigger_p">Or trigger it manually from the command palette with <strong>Fmt: Format Buffer</strong>.</p>
 
     <h3>Vim (via ALE)</h3>
-    <p>With <a href="https://github.com/dense-analysis/ale">ALE</a> installed, define a fixer in your <code>.vimrc</code>:</p>
+    <p data-i18n="editor_vim_p">With <a href="https://github.com/dense-analysis/ale">ALE</a> installed, define a fixer in your <code>.vimrc</code>:</p>
     <pre><code><span class="cm">" .vimrc</span>
 let g:ale_fixers = {
 \   'sql': [
@@ -665,19 +829,19 @@ let g:ale_fixers = {
 \   ],
 \}
 let g:ale_fix_on_save = 1</code></pre>
-    <p>Or run it on demand with <code>:ALEFix</code>.</p>
+    <p data-i18n="editor_vim_ale_p">Or run it on demand with <code>:ALEFix</code>.</p>
 
-    <p style="color:var(--muted);font-size:0.9rem;">
+    <p style="color:var(--muted);font-size:0.9rem;" data-i18n="editor_note_p">
       Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text, and Vim above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's <code>PATH</code>; use the absolute path from <code>which pg_procrustes</code> if the command isn't found.
     </p>
   </section>
 
   <!-- ── AUTOMATION ── -->
   <section id="automation">
-    <h2>Automation &amp; CI</h2>
+    <h2 data-i18n="automation_h2">Automation &amp; CI</h2>
 
     <h3>pre-commit</h3>
-    <p>
+    <p data-i18n="automation_precommit_p">
       Add a <a href="https://pre-commit.com">pre-commit</a> local hook (requires <code>pg_procrustes</code> on <code>PATH</code> — see <a href="#installation">Installation</a>) to <code>.pre-commit-config.yaml</code>:
     </p>
     <pre><code><span class="cm"># .pre-commit-config.yaml</span>
@@ -689,12 +853,12 @@ repos:
         language: system
         entry: pg_procrustes --check
         files: \.sql$</code></pre>
-    <p>
+    <p data-i18n="automation_check_p">
       <code>--check</code> fails the commit without touching files, so you review the diff and run <code>pg_procrustes -w</code> yourself. Prefer autofix-on-commit instead? Swap the entry for <code>pg_procrustes -w</code> — pre-commit detects that files were modified and still fails that run, so you can review, re-stage, and commit again.
     </p>
 
     <h3>GitHub Actions</h3>
-    <p>A minimal CI job that fails a pull request if any tracked <code>.sql</code> file isn't formatted:</p>
+    <p data-i18n="automation_gha_p">A minimal CI job that fails a pull request if any tracked <code>.sql</code> file isn't formatted:</p>
     <pre><code><span class="cm"># .github/workflows/pg_procrustes.yml</span>
 name: SQL formatting
 on: [pull_request]
@@ -706,12 +870,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: go install github.com/heptau/pg_procrustes@latest
       - run: pg_procrustes --check $(git ls-files '*.sql')</code></pre>
-    <p>Swap the <code>go install</code> step for the <a href="#installation">Homebrew or binary download</a> methods if you'd rather not depend on a Go toolchain in CI.</p>
+    <p data-i18n="automation_gha_swap_p">Swap the <code>go install</code> step for the <a href="#installation">Homebrew or binary download</a> methods if you'd rather not depend on a Go toolchain in CI.</p>
   </section>
 
   <!-- ── USAGE ── -->
   <section id="usage">
-    <h2>Usage</h2>
+    <h2 data-i18n="usage_h2">Usage</h2>
     <pre><code><span class="cm"># format a file in place</span>
 pg_procrustes -w query.sql
 pg_procrustes -w migrations/*.sql
@@ -731,22 +895,22 @@ pg_procrustes --diff query.sql
 <span class="cm"># show version</span>
 pg_procrustes --version</code></pre>
 
-    <h4>Flags</h4>
-    <table>
-      <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+    <h4 data-i18n="usage_flags_h4">Flags</h4>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="usage_th_flag">Flag</th><th data-i18n="usage_th_desc">Description</th></tr></thead>
       <tbody>
-        <tr><td><code>-v, --version</code></td><td>Print version and exit</td></tr>
-        <tr><td><code>-c &lt;path&gt;</code></td><td>Path to config file (default: auto-detect <code>.pg_procrustes.yaml</code>)</td></tr>
-        <tr><td><code>-w</code></td><td>Write result back to source files (in-place)</td></tr>
-        <tr><td><code>--backup[=.ext]</code></td><td>Save the original before overwriting (requires <code>-w</code>); default extension is <code>.bak</code></td></tr>
-        <tr><td><code>--out-dir &lt;dir&gt;</code></td><td>Write formatted files into this directory instead of in-place (cannot be combined with <code>-w</code>)</td></tr>
-        <tr><td><code>--check</code></td><td>Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
-        <tr><td><code>--diff</code></td><td>Print a unified diff of changes without writing</td></tr>
+        <tr><td><code>-v, --version</code></td><td data-i18n="usage_flag_version">Print version and exit</td></tr>
+        <tr><td><code>-c &lt;path&gt;</code></td><td data-i18n="usage_flag_c">Path to config file (default: auto-detect <code>.pg_procrustes.yaml</code>)</td></tr>
+        <tr><td><code>-w</code></td><td data-i18n="usage_flag_w">Write result back to source files (in-place)</td></tr>
+        <tr><td><code>--backup[=.ext]</code></td><td data-i18n="usage_flag_backup">Save the original before overwriting (requires <code>-w</code>); default extension is <code>.bak</code></td></tr>
+        <tr><td><code>--out-dir &lt;dir&gt;</code></td><td data-i18n="usage_flag_outdir">Write formatted files into this directory instead of in-place (cannot be combined with <code>-w</code>)</td></tr>
+        <tr><td><code>--check</code></td><td data-i18n="usage_flag_check">Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
+        <tr><td><code>--diff</code></td><td data-i18n="usage_flag_diff">Print a unified diff of changes without writing</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <h4>Config file lookup</h4>
-    <p>
+    <h4 data-i18n="usage_lookup_h4">Config file lookup</h4>
+    <p data-i18n="usage_lookup_p">
       pg_procrustes looks for <code>.pg_procrustes.yaml</code> starting in the current directory and walking up to the filesystem root.
       Use <code>-c</code> to specify a path explicitly. All settings default to <code>preserve</code> — if no config is found, nothing changes.
     </p>
@@ -754,8 +918,8 @@ pg_procrustes --version</code></pre>
 
   <!-- ── CASING ── -->
   <section id="casing">
-    <h2>Keyword &amp; identifier casing</h2>
-    <p>Each token class can be set to <code>upper</code>, <code>lower</code>, or <code>preserve</code>.</p>
+    <h2 data-i18n="casing_h2">Keyword &amp; identifier casing</h2>
+    <p data-i18n="casing_p">Each token class can be set to <code>upper</code>, <code>lower</code>, or <code>preserve</code>.</p>
     <pre><code>reserved_keywords:
   case: upper     <span class="cm"># SELECT, FROM, WHERE, JOIN, …</span>
 
@@ -783,8 +947,8 @@ aliases:
   case: lower
   as: add         <span class="cm"># add | preserve | remove</span></code></pre>
 
-    <h4>Casing exceptions</h4>
-    <p>Any casing section accepts an <code>exceptions</code> list. Words in the list keep their exact capitalisation regardless of the section's <code>case</code> setting.</p>
+    <h4 data-i18n="casing_exceptions_h4">Casing exceptions</h4>
+    <p data-i18n="casing_exceptions_p">Any casing section accepts an <code>exceptions</code> list. Words in the list keep their exact capitalisation regardless of the section's <code>case</code> setting.</p>
     <pre><code>reserved_keywords:
   case: upper
   exceptions:
@@ -801,27 +965,27 @@ functions:
   case: lower
   exceptions:
     - MyFunc</code></pre>
-    <p>Exceptions are matched case-insensitively — the value in the list defines the exact output casing.</p>
+    <p data-i18n="casing_exceptions_note_p">Exceptions are matched case-insensitively — the value in the list defines the exact output casing.</p>
 
-    <h4>Data type forms</h4>
-    <table>
-      <thead><tr><th>form</th><th>Example output</th></tr></thead>
+    <h4 data-i18n="casing_forms_h4">Data type forms</h4>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="casing_th_form">form</th><th data-i18n="casing_th_example">Example output</th></tr></thead>
       <tbody>
         <tr><td><code>long</code></td><td><code>character varying</code>, <code>double precision</code>, <code>timestamp with time zone</code></td></tr>
         <tr><td><code>short</code></td><td><code>varchar</code>, <code>float8</code>, <code>timestamptz</code></td></tr>
         <tr><td><code>long_no_space</code></td><td><code>integer</code>, <code>bigint</code>, <code>varchar</code></td></tr>
-        <tr><td><code>preserve</code></td><td>Left as written</td></tr>
+        <tr><td><code>preserve</code></td><td data-i18n="casing_left_as_written">Left as written</td></tr>
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <!-- ── PLPGSQL VARS/KEYWORDS ── -->
   <section id="plpgsql-vars">
-    <h2>PL/pgSQL variables &amp; keywords</h2>
-    <p>Two dedicated sections for tokens that the PostgreSQL scanner classifies as <code>NO_KEYWORD</code> — they are invisible to the standard <code>keywords</code> / <code>reserved_keywords</code> rules.</p>
+    <h2 data-i18n="plv_h2">PL/pgSQL variables &amp; keywords</h2>
+    <p data-i18n="plv_p">Two dedicated sections for tokens that the PostgreSQL scanner classifies as <code>NO_KEYWORD</code> — they are invisible to the standard <code>keywords</code> / <code>reserved_keywords</code> rules.</p>
 
     <h3>plpgsql_variables</h3>
-    <p>Runtime pseudo-variables available inside trigger and function bodies:</p>
+    <p data-i18n="plv_vars_p">Runtime pseudo-variables available inside trigger and function bodies:</p>
     <pre><code>plpgsql_variables:
   case: upper   <span class="cm"># upper | lower | preserve</span>
   <span class="cm"># Covers: NEW, OLD, EXCLUDED (ON CONFLICT),</span>
@@ -834,7 +998,7 @@ functions:
 
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Before</div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
         <pre><code><span class="kw">IF</span> tg_op = <span class="str">'INSERT'</span> <span class="kw">THEN</span>
   <span class="kw">INSERT INTO</span> audit(tbl, op, new_id)
     <span class="kw">VALUES</span>(tg_table_name, tg_op, new.id);
@@ -842,7 +1006,7 @@ functions:
 <span class="kw">RETURN</span> new;</code></pre>
       </div>
       <div>
-        <div class="ba-label">After — plpgsql_variables: upper</div>
+        <div class="ba-label" data-i18n="lbl_after_plv">After — plpgsql_variables: upper</div>
         <pre><code><span class="kw">IF</span> TG_OP = <span class="str">'INSERT'</span> <span class="kw">THEN</span>
   <span class="kw">INSERT INTO</span> audit(tbl, op, new_id)
     <span class="kw">VALUES</span>(TG_TABLE_NAME, TG_OP, NEW.id);
@@ -852,7 +1016,7 @@ functions:
     </div>
 
     <h3>plpgsql_keywords</h3>
-    <p>PL/pgSQL statement keywords not classified as SQL keywords by the scanner:</p>
+    <p data-i18n="plv_keywords_p">PL/pgSQL statement keywords not classified as SQL keywords by the scanner:</p>
     <pre><code>plpgsql_keywords:
   case: upper   <span class="cm"># upper | lower | preserve</span>
   <span class="cm"># Covers: RAISE, PERFORM, ELSIF, ELSEIF, FOREACH, REVERSE,</span>
@@ -861,7 +1025,7 @@ functions:
 
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Before</div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
         <pre><code>loop
   exit when i >= n;
   raise notice <span class="str">'i=%'</span>, i;
@@ -869,7 +1033,7 @@ functions:
 end loop;</code></pre>
       </div>
       <div>
-        <div class="ba-label">After — plpgsql_keywords: upper</div>
+        <div class="ba-label" data-i18n="lbl_after_plk">After — plpgsql_keywords: upper</div>
         <pre><code>LOOP
   EXIT WHEN i >= n;
   RAISE NOTICE <span class="str">'i=%'</span>, i;
@@ -878,12 +1042,12 @@ END LOOP;</code></pre>
       </div>
     </div>
 
-    <p>Both sections accept an <code>exceptions</code> list — words matching an exception keep their original capitalisation.</p>
+    <p data-i18n="plv_exceptions_p">Both sections accept an <code>exceptions</code> list — words matching an exception keep their original capitalisation.</p>
   </section>
 
   <!-- ── PUNCTUATION ── -->
   <section id="punctuation">
-    <h2>Punctuation &amp; spacing</h2>
+    <h2 data-i18n="punct_h2">Punctuation &amp; spacing</h2>
     <pre><code>trailing_whitespace:  strip      <span class="cm"># strip | preserve</span>
 semicolons:           preserve   <span class="cm"># preserve | add | remove</span>
 inequality_op:        c          <span class="cm"># preserve | ansi (&lt;&gt;) | c (!=)</span>
@@ -901,8 +1065,8 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
   <!-- ── LAYOUT ── -->
   <section id="layout">
-    <h2>Layout</h2>
-    <p>The <code>layout</code> section controls clause-level line breaking and indentation. All modes default to <code>preserve</code>.</p>
+    <h2 data-i18n="layout_h2">Layout</h2>
+    <p data-i18n="layout_p">The <code>layout</code> section controls clause-level line breaking and indentation. All modes default to <code>preserve</code>.</p>
 
     <pre><code>layout:
   line_length: 128
@@ -920,27 +1084,27 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
     mode: preserve         <span class="cm"># preserve | indent | none</span>
     close_first_on_line: same  <span class="cm"># same | after</span></code></pre>
 
-    <h4>union.blank_line</h4>
-    <p>Controls blank lines around <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, and <code>EXCEPT</code>.</p>
-    <table>
-      <thead><tr><th>value</th><th>Effect</th></tr></thead>
+    <h4 data-i18n="layout_union_h4">union.blank_line</h4>
+    <p data-i18n="layout_union_p">Controls blank lines around <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, and <code>EXCEPT</code>.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="th_value">value</th><th data-i18n="th_effect">Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>none</code></td><td>No blank lines — set operators on same flow as surrounding SELECTs</td></tr>
-        <tr><td><code>before</code></td><td>Blank line before the set operator keyword</td></tr>
-        <tr><td><code>after</code></td><td>Blank line after the set operator keyword</td></tr>
-        <tr><td><code>both</code></td><td>Blank line before <em>and</em> after</td></tr>
+        <tr><td><code>none</code></td><td data-i18n="layout_union_none">No blank lines — set operators on same flow as surrounding SELECTs</td></tr>
+        <tr><td><code>before</code></td><td data-i18n="layout_union_before">Blank line before the set operator keyword</td></tr>
+        <tr><td><code>after</code></td><td data-i18n="layout_union_after">Blank line after the set operator keyword</td></tr>
+        <tr><td><code>both</code></td><td data-i18n="layout_union_both">Blank line before <em>and</em> after</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <h4>paren_indent</h4>
-    <p><code>mode: indent</code> re-indents content inside multi-line parenthesised blocks (subqueries, <code>IN (…)</code>) to exactly N spaces per depth level. <code>close_first_on_line: after</code> places the closing <code>)</code> on its own line at the inner indentation level.</p>
+    <h4 data-i18n="layout_paren_h4">paren_indent</h4>
+    <p data-i18n="layout_paren_p"><code>mode: indent</code> re-indents content inside multi-line parenthesised blocks (subqueries, <code>IN (…)</code>) to exactly N spaces per depth level. <code>close_first_on_line: after</code> places the closing <code>)</code> on its own line at the inner indentation level.</p>
   </section>
 
   <!-- ── CLAUSE BREAKING ── -->
   <section id="clauses">
-    <h2>Clause breaking</h2>
-    <p><code>clauses.break: auto</code> puts each SQL clause on its own line when the flat statement exceeds <code>line_length</code>. Breaking is all-or-none.</p>
-    <p>Individual clauses can override the default:</p>
+    <h2 data-i18n="clauses_h2">Clause breaking</h2>
+    <p data-i18n="clauses_p1"><code>clauses.break: auto</code> puts each SQL clause on its own line when the flat statement exceeds <code>line_length</code>. Breaking is all-or-none.</p>
+    <p data-i18n="clauses_p2">Individual clauses can override the default:</p>
     <pre><code>layout:
   clauses:
     break: auto       <span class="cm"># preserve | never | always | auto</span>
@@ -950,11 +1114,11 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
     <div class="ba-stack">
       <div>
-        <div class="ba-label">Before</div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
         <pre><code><span class="kw">SELECT</span> u.id, u.name <span class="kw">FROM</span> users u <span class="kw">INNER JOIN</span> orders o <span class="kw">ON</span> o.user_id = u.id <span class="kw">WHERE</span> u.active = <span class="kw">TRUE</span> <span class="kw">ORDER BY</span> u.name</code></pre>
       </div>
       <div>
-        <div class="ba-label">After — break: auto, line_length: 80</div>
+        <div class="ba-label" data-i18n="lbl_after_break_auto">After — break: auto, line_length: 80</div>
         <pre><code><span class="kw">SELECT</span> u.id, u.name
 <span class="kw">FROM</span> users u
 <span class="kw">INNER JOIN</span> orders o <span class="kw">ON</span> o.user_id = u.id
@@ -966,29 +1130,29 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
   <!-- ── CONTENT BREAKING ── -->
   <section id="content">
-    <h2>Content breaking</h2>
-    <p>Controls how items <em>inside</em> a clause are laid out. SELECT and RETURNING split at commas; WHERE, HAVING, and JOIN conditions split at AND/OR (the operator is placed at the start of the continuation line).</p>
+    <h2 data-i18n="content_h2">Content breaking</h2>
+    <p data-i18n="content_p">Controls how items <em>inside</em> a clause are laid out. SELECT and RETURNING split at commas; WHERE, HAVING, and JOIN conditions split at AND/OR (the operator is placed at the start of the continuation line).</p>
 
-    <h3>Break modes</h3>
-    <table>
-      <thead><tr><th>mode</th><th>Effect</th></tr></thead>
+    <h3 data-i18n="content_modes_h3">Break modes</h3>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="th_mode">mode</th><th data-i18n="th_effect">Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>preserve</code></td><td>Leave as written (default)</td></tr>
-        <tr><td><code>never</code></td><td>Always collapse to one line</td></tr>
-        <tr><td><code>always</code></td><td>Always break each item onto its own line</td></tr>
-        <tr><td><code>auto</code></td><td>Break when clause content length exceeds <code>line_length</code></td></tr>
+        <tr><td><code>preserve</code></td><td data-i18n="content_mode_preserve">Leave as written (default)</td></tr>
+        <tr><td><code>never</code></td><td data-i18n="content_mode_never">Always collapse to one line</td></tr>
+        <tr><td><code>always</code></td><td data-i18n="content_mode_always">Always break each item onto its own line</td></tr>
+        <tr><td><code>auto</code></td><td data-i18n="content_mode_auto">Break when clause content length exceeds <code>line_length</code></td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <h3>first_item</h3>
-    <p><code>first_item</code> controls where the first item goes when breaking is active. Independent of the break mode.</p>
-    <table>
-      <thead><tr><th>value</th><th>Effect</th></tr></thead>
+    <h3 data-i18n="content_firstitem_h3">first_item</h3>
+    <p data-i18n="content_firstitem_p"><code>first_item</code> controls where the first item goes when breaking is active. Independent of the break mode.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="th_value">value</th><th data-i18n="th_effect">Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>break</code></td><td>First item on a new indented line (default)</td></tr>
-        <tr><td><code>inline</code></td><td>First item stays on the same line as the clause keyword</td></tr>
+        <tr><td><code>break</code></td><td data-i18n="content_firstitem_break">First item on a new indented line (default)</td></tr>
+        <tr><td><code>inline</code></td><td data-i18n="content_firstitem_inline">First item stays on the same line as the clause keyword</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <pre><code>layout:
   content:
@@ -1011,7 +1175,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
     <h3>break: always + first_item</h3>
     <div class="ba-grid">
       <div>
-        <div class="ba-label">first_item: break (default)</div>
+        <div class="ba-label" data-i18n="lbl_firstitem_break">first_item: break (default)</div>
         <pre><code><span class="kw">SELECT</span>
    u.id,
    u.name,
@@ -1021,7 +1185,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
    <span class="kw">AND</span> u.type = <span class="str">'premium'</span></code></pre>
       </div>
       <div>
-        <div class="ba-label">first_item: inline</div>
+        <div class="ba-label" data-i18n="lbl_firstitem_inline">first_item: inline</div>
         <pre><code><span class="kw">SELECT</span> u.id,
    u.name,
    u.email
@@ -1030,11 +1194,11 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
       </div>
     </div>
 
-    <h3>INSERT column list</h3>
-    <p><code>insert_columns</code> controls the <code>(col1, col2, …)</code> list after the table name in INSERT statements. For <code>always</code> the opening paren gets its own line; for <code>first_inline</code> the first column stays on the paren line.</p>
+    <h3 data-i18n="content_insertcol_h3">INSERT column list</h3>
+    <p data-i18n="content_insertcol_p"><code>insert_columns</code> controls the <code>(col1, col2, …)</code> list after the table name in INSERT statements. For <code>always</code> the opening paren gets its own line; for <code>first_inline</code> the first column stays on the paren line.</p>
     <div class="ba-grid">
       <div>
-        <div class="ba-label">insert_columns: always</div>
+        <div class="ba-label" data-i18n="lbl_insertcol_always">insert_columns: always</div>
         <pre><code><span class="kw">INSERT INTO</span> users (
    id,
    name,
@@ -1043,7 +1207,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 <span class="kw">VALUES</span> (...)</code></pre>
       </div>
       <div>
-        <div class="ba-label">insert_columns: first_inline</div>
+        <div class="ba-label" data-i18n="lbl_insertcol_inline">insert_columns: first_inline</div>
         <pre><code><span class="kw">INSERT INTO</span> users (id,
    name,
    email
@@ -1052,11 +1216,11 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
       </div>
     </div>
 
-    <h3>WITH clause</h3>
-    <p><code>with_list: always</code> puts each CTE definition on its own indented line:</p>
+    <h3 data-i18n="content_with_h3">WITH clause</h3>
+    <p data-i18n="content_with_p"><code>with_list: always</code> puts each CTE definition on its own indented line:</p>
     <div class="ba-stack">
       <div>
-        <div class="ba-label">with_list: always</div>
+        <div class="ba-label" data-i18n="lbl_withlist_always">with_list: always</div>
         <pre><code><span class="kw">WITH</span>
    active_users <span class="kw">AS</span> (<span class="kw">SELECT</span> id, name <span class="kw">FROM</span> users <span class="kw">WHERE</span> active = <span class="kw">TRUE</span>),
    recent_orders <span class="kw">AS</span> (<span class="kw">SELECT</span> user_id, <span class="fn">count</span>(*) <span class="kw">FROM</span> orders <span class="kw">GROUP BY</span> user_id)
@@ -1067,26 +1231,26 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
   <!-- ── CASE EXPRESSIONS ── -->
   <section id="case-sql">
-    <h2>CASE expressions</h2>
-    <p>Controls SQL <code>CASE … END</code> expressions in SELECT, WHERE, and other clauses.</p>
+    <h2 data-i18n="casesql_h2">CASE expressions</h2>
+    <p data-i18n="casesql_p">Controls SQL <code>CASE … END</code> expressions in SELECT, WHERE, and other clauses.</p>
     <pre><code>layout:
   case:
     break: preserve   <span class="cm"># preserve | never | always | auto</span>
     indent: indent    <span class="cm"># preserve | none | indent</span></code></pre>
 
-    <table>
-      <thead><tr><th>break</th><th>Effect</th></tr></thead>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="th_break">break</th><th data-i18n="th_effect">Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>never</code></td><td>Collapse <code>CASE…END</code> to a single line</td></tr>
-        <tr><td><code>always</code></td><td>Each WHEN / ELSE / END on its own line</td></tr>
-        <tr><td><code>auto</code></td><td>Expand only when the flat CASE length exceeds <code>line_length</code></td></tr>
-        <tr><td><code>preserve</code></td><td>Leave as written</td></tr>
+        <tr><td><code>never</code></td><td data-i18n="casesql_never">Collapse <code>CASE…END</code> to a single line</td></tr>
+        <tr><td><code>always</code></td><td data-i18n="casesql_always">Each WHEN / ELSE / END on its own line</td></tr>
+        <tr><td><code>auto</code></td><td data-i18n="casesql_auto">Expand only when the flat CASE length exceeds <code>line_length</code></td></tr>
+        <tr><td><code>preserve</code></td><td data-i18n="casesql_preserve">Leave as written</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Before</div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
         <pre><code><span class="kw">SELECT</span>
   <span class="kw">CASE WHEN</span> status = <span class="str">'active'</span>
        <span class="kw">THEN</span> <span class="num">1</span>
@@ -1097,7 +1261,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 <span class="kw">FROM</span> t</code></pre>
       </div>
       <div>
-        <div class="ba-label">After — break: never</div>
+        <div class="ba-label" data-i18n="lbl_after_break_never">After — break: never</div>
         <pre><code><span class="kw">SELECT CASE WHEN</span> status = <span class="str">'active'</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">WHEN</span> status = <span class="str">'pending'</span> <span class="kw">THEN</span> <span class="num">0</span> <span class="kw">ELSE</span> <span class="num">-1</span> <span class="kw">END</span>
 <span class="kw">FROM</span> t</code></pre>
       </div>
@@ -1106,8 +1270,8 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
   <!-- ── PLPGSQL ── -->
   <section id="plpgsql">
-    <h2>PL/pgSQL formatting</h2>
-    <p>Dollar-quoted function and procedure bodies are formatted recursively. The <code>layout.dollar_quote.plpgsql</code> section controls block structure.</p>
+    <h2 data-i18n="plpgsql_h2">PL/pgSQL formatting</h2>
+    <p data-i18n="plpgsql_p">Dollar-quoted function and procedure bodies are formatted recursively. The <code>layout.dollar_quote.plpgsql</code> section controls block structure.</p>
     <pre><code>layout:
   dollar_quote:
     newline_after_open:   preserve  <span class="cm"># preserve | add | remove</span>
@@ -1136,7 +1300,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
   <!-- ── PLPGSQL IF ── -->
   <section id="plpgsql-if">
-    <h2>PL/pgSQL — IF blocks</h2>
+    <h2 data-i18n="plif_h2">PL/pgSQL — IF blocks</h2>
     <pre><code>layout:
   dollar_quote:
     plpgsql:
@@ -1148,7 +1312,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Before</div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
         <pre><code><span class="kw">BEGIN</span>
 <span class="kw">IF</span> x = <span class="num">1</span> <span class="kw">THEN</span>
 y := <span class="str">'a'</span>;
@@ -1160,7 +1324,7 @@ y := <span class="str">'c'</span>;
 <span class="kw">END</span></code></pre>
       </div>
       <div>
-        <div class="ba-label">After — body_indent: indent</div>
+        <div class="ba-label" data-i18n="lbl_after_bodyindent">After — body_indent: indent</div>
         <pre><code><span class="kw">BEGIN</span>
    <span class="kw">IF</span> x = <span class="num">1</span> <span class="kw">THEN</span>
       y := <span class="str">'a'</span>;
@@ -1176,8 +1340,8 @@ y := <span class="str">'c'</span>;
 
   <!-- ── PLPGSQL LOOP ── -->
   <section id="plpgsql-loop">
-    <h2>PL/pgSQL — LOOP blocks</h2>
-    <p>Covers plain <code>LOOP</code>, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code>, and <code>WHILE cond LOOP</code>. The loop header is preserved verbatim.</p>
+    <h2 data-i18n="ploop_h2">PL/pgSQL — LOOP blocks</h2>
+    <p data-i18n="ploop_p">Covers plain <code>LOOP</code>, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code>, and <code>WHILE cond LOOP</code>. The loop header is preserved verbatim.</p>
     <pre><code>layout:
   dollar_quote:
     plpgsql:
@@ -1189,7 +1353,7 @@ y := <span class="str">'c'</span>;
 
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Before</div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
         <pre><code><span class="kw">BEGIN</span>
 <span class="kw">FOR</span> i <span class="kw">IN</span> <span class="num">1</span>..<span class="num">10</span> <span class="kw">LOOP</span>
 total := total + i;
@@ -1197,7 +1361,7 @@ total := total + i;
 <span class="kw">END</span></code></pre>
       </div>
       <div>
-        <div class="ba-label">After — body_indent: indent, blank_line_after: add</div>
+        <div class="ba-label" data-i18n="lbl_after_loop">After — body_indent: indent, blank_line_after: add</div>
         <pre><code><span class="kw">BEGIN</span>
    <span class="kw">FOR</span> i <span class="kw">IN</span> <span class="num">1</span>..<span class="num">10</span> <span class="kw">LOOP</span>
 
@@ -1211,8 +1375,8 @@ total := total + i;
 
   <!-- ── PLPGSQL CASE ── -->
   <section id="plpgsql-case">
-    <h2>PL/pgSQL — CASE statements</h2>
-    <p>Two independent configs: <code>simple</code> (value switch) and <code>searched</code> (condition switch).</p>
+    <h2 data-i18n="pcase_h2">PL/pgSQL — CASE statements</h2>
+    <p data-i18n="pcase_p">Two independent configs: <code>simple</code> (value switch) and <code>searched</code> (condition switch).</p>
 
     <pre><code>layout:
   dollar_quote:
@@ -1230,21 +1394,21 @@ total := total + i;
           searched:               <span class="cm"># CASE WHEN condition THEN …</span>
             <span class="cm"># same settings as simple</span></code></pre>
 
-    <table>
-      <thead><tr><th>Setting</th><th>Values</th><th>Effect</th></tr></thead>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="th_setting">Setting</th><th data-i18n="th_values">Values</th><th data-i18n="th_effect">Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>when_indent</code></td><td><code>indent</code></td><td>WHEN/ELSE one level deeper than CASE</td></tr>
-        <tr><td><code>then_break</code></td><td><code>never</code></td><td>WHEN val THEN body stays on one line</td></tr>
-        <tr><td></td><td><code>always</code></td><td>THEN on its own line</td></tr>
-        <tr><td><code>body_break</code></td><td><code>never</code></td><td>Body starts on the THEN line</td></tr>
-        <tr><td></td><td><code>always</code></td><td>Body on new line after THEN</td></tr>
-        <tr><td></td><td><code>auto</code></td><td>Same line for single stmt, new line for multiple</td></tr>
+        <tr><td><code>when_indent</code></td><td><code>indent</code></td><td data-i18n="pcase_when_indent">WHEN/ELSE one level deeper than CASE</td></tr>
+        <tr><td><code>then_break</code></td><td><code>never</code></td><td data-i18n="pcase_then_never">WHEN val THEN body stays on one line</td></tr>
+        <tr><td></td><td><code>always</code></td><td data-i18n="pcase_then_always">THEN on its own line</td></tr>
+        <tr><td><code>body_break</code></td><td><code>never</code></td><td data-i18n="pcase_body_never">Body starts on the THEN line</td></tr>
+        <tr><td></td><td><code>always</code></td><td data-i18n="pcase_body_always">Body on new line after THEN</td></tr>
+        <tr><td></td><td><code>auto</code></td><td data-i18n="pcase_body_auto">Same line for single stmt, new line for multiple</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <div class="ba-grid">
       <div>
-        <div class="ba-label">Compact style</div>
+        <div class="ba-label" data-i18n="lbl_compact">Compact style</div>
         <pre><code><span class="kw">BEGIN</span>
    <span class="kw">CASE</span> status
       <span class="kw">WHEN</span> <span class="str">'active'</span>  <span class="kw">THEN</span> result := <span class="num">1</span>;
@@ -1254,7 +1418,7 @@ total := total + i;
 <span class="kw">END</span></code></pre>
       </div>
       <div>
-        <div class="ba-label">Expanded style</div>
+        <div class="ba-label" data-i18n="lbl_expanded">Expanded style</div>
         <pre><code><span class="kw">BEGIN</span>
    <span class="kw">CASE</span>
    <span class="kw">WHEN</span> status = <span class="str">'active'</span>
@@ -1272,13 +1436,13 @@ total := total + i;
   </section>
 
   <footer>
-    <span>pg_procrustes — MIT License</span>
+    <span data-i18n="footer_license">pg_procrustes — MIT License</span>
     <span style="display:flex;gap:1rem;flex-wrap:wrap">
       <a href="https://github.com/heptau/pg_procrustes" rel="noopener">GitHub</a>
       <a href="https://github.com/heptau/pg_procrustes/releases" rel="noopener">Releases</a>
       <a href="llms.txt">llms.txt</a>
-      <a href="sitemap.xml">Sitemap</a>
-      <a href=".well-known/security.txt">Security</a>
+      <a href="sitemap.xml" data-i18n="footer_sitemap">Sitemap</a>
+      <a href=".well-known/security.txt" data-i18n="footer_security">Security</a>
     </span>
   </footer>
 
@@ -1319,6 +1483,328 @@ total := total + i;
   overlay.addEventListener('click', closeNav);
   sidebar.querySelectorAll('a[href^="#"]').forEach(a => a.addEventListener('click', closeNav));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+</script>
+
+<script>
+(function () {
+  // ── Czech translations — only strings that differ from the English default markup ──
+  var I18N_CS = {
+    nav_logo_sub: `Formátovač SQL pro PostgreSQL`,
+    nav_sec_intro: `Úvod`,
+    nav_overview: `Přehled`,
+    nav_name: `Název`,
+    nav_sec_start: `Začínáme`,
+    nav_installation: `Instalace`,
+    nav_editor: `Integrace do editoru`,
+    nav_automation: `Automatizace &amp; CI`,
+    nav_usage: `Použití`,
+    nav_sec_config: `Konfigurace`,
+    nav_casing: `Velikost písmen klíčových slov a identifikátorů`,
+    nav_plpgsql_vars: `Proměnné &amp; klíčová slova PL/pgSQL`,
+    nav_punctuation: `Interpunkce &amp; mezery`,
+    nav_layout: `Rozvržení`,
+    nav_clauses: `Zalamování klauzulí`,
+    nav_content: `Zalamování obsahu`,
+    nav_case_sql: `Výrazy CASE`,
+    nav_plpgsql: `PL/pgSQL`,
+    nav_plpgsql_if: `Bloky IF`,
+    nav_plpgsql_loop: `Bloky LOOP`,
+    nav_plpgsql_case: `Příkazy CASE`,
+    nav_sec_tools: `Nástroje`,
+    nav_config_builder: `Konfigurátor`,
+    nav_sec_project: `Projekt`,
+    nav_llms: `Pro AI / llms.txt`,
+
+    hero_desc: `Rychlý a flexibilní formátovač PostgreSQL napsaný v Go. Využívá nativní parser PostgreSQL, takže rozumí vašemu kódu stejně jako databáze samotná.`,
+
+    name_h2: `Název`,
+    name_myth: `
+      V řecké mytologii byl Prokrústés loupežník, který provozoval železné lože u cesty do Athén.
+      Zval pocestné, aby u něj přespali — a pak se ujistil, že se do lože dokonale vejdou.
+      Pokud byl host příliš vysoký, uřezal mu nohy. Pokud byl příliš malý, natáhl ho, dokud lůžku nepadl přesně na míru.
+      Ve skutečnosti měl <em>dvě</em> lůžka: jedno malé, jedno velké — takže úpravě nikdy nikdo neunikl.
+      Ať tak, nebo tak, každý se vešel.
+    `,
+    name_p: `
+      <strong>pg_procrustes</strong> funguje stejně. Lůžko — pravidla formátování — definujete přes
+      <code>.pg_procrustes.yaml</code>. Vaše SQL se vejde. Ať se mu to líbí, nebo ne.
+    `,
+
+    install_h2: `Instalace`,
+    install_homebrew_h3: `Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS a Linux)</span>`,
+    install_binary_h3: `Stažení binárky`,
+    install_binary_p: `Stáhněte archiv pro svou platformu ze <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, rozbalte ho a binárku umístěte do <code>PATH</code>.`,
+    install_th_archive: `Archiv`,
+    install_th_platform: `Platforma`,
+    install_goinstall_h3: `go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(vyžaduje Go toolchain)</span>`,
+    install_source_h3: `Sestavení ze zdroje`,
+
+    editor_h2: `Integrace do editoru`,
+    editor_intro_p: `Tento repozitář slouží i jako plugin pro Neovim. Vyžaduje binárku <code>pg_procrustes</code> v <code>PATH</code> (viz <a href="#installation">Instalace</a> výše).`,
+    editor_neovim_lazy_p: `S <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:`,
+    editor_neovim_packer_p: `S <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:`,
+    editor_neovim_conform_p: `
+      Pokud je nainstalován <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a>, buffery <code>sql</code> automaticky získají <code>pg_procrustes</code> jako registrovaný formátovač —
+      <code>require("conform").format()</code> i format-on-save ho použijí jako kterýkoli jiný formátovač. Bez conform.nvim použijte <code>:PgProcrustesFormat</code> k přímému zformátování aktuálního bufferu.
+      Nastavení ověříte příkazem <code>:checkhealth pg_procrustes</code>, úplnou referenci pak najdete v <code>:help pg_procrustes</code>.
+    `,
+    editor_zed_p: `Zed má vestavěnou podporu pro externí formátovače — žádné rozšíření není potřeba. Přidejte toto do nastavení projektu (<code>.zed/settings.json</code>) nebo uživatelského nastavení (<code>~/.config/zed/settings.json</code>):`,
+    editor_zed_format_p: `Poté zformátujte příkazem <code>editor: format</code>, nebo nastavte <code>"format_on_save": "on"</code>.`,
+    editor_vscode_p: `
+      VS Code nemá vestavěnou možnost „externí formátovač", ale rozšíření
+      <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+      ji doplní čistě přes nastavení — žádné vlastní rozšíření není nutné. Nainstalujte ho a přidejte:
+    `,
+    editor_vscode_format_p: `Format Document (<code>Shift+Alt+F</code>) i <code>editor.formatOnSave</code> nyní spustí <code>pg_procrustes</code>.`,
+    editor_datagrip_h3: `DataGrip &amp; další IDE od JetBrains`,
+    editor_datagrip_p: `DataGrip obsahuje plugin <strong>File Watchers</strong> (pokud je vypnutý, zapněte ho v <code>Settings → Tools → File Watchers</code>). Přidejte vlastní watcher:`,
+    editor_datagrip_filetype: `Typ souboru`,
+    editor_datagrip_program: `Program`,
+    editor_datagrip_program_val: `cesta k <code>pg_procrustes</code> (nebo jen název binárky, pokud se dá vyhledat v <code>PATH</code>)`,
+    editor_datagrip_arguments: `Argumenty`,
+    editor_datagrip_output: `Cesty k obnovení výstupu`,
+    editor_datagrip_note_p: `
+      Soubor se přeformátuje na místě při každém uložení. Pro manuální spuštění na vyžádání použijte <code>Settings → Tools → External Tools</code> se stejným Program/Arguments.
+    `,
+    editor_emacs_apheleia_p: `S <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (asynchronní, zachovává pozici kurzoru):`,
+    editor_emacs_reformatter_p: `Nebo s lehčím <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:`,
+    editor_emacs_note_p: `Obojí vám dá format-on-save, aniž byste musel psát vlastní balíček.`,
+    editor_helix_p: `Přidejte do <code>~/.config/helix/languages.toml</code> (nebo lokálně pro projekt do <code>.helix/languages.toml</code>):`,
+    editor_helix_format_p: `Formátujte na vyžádání příkazem <code>:format</code>, nebo to nechte na <code>auto-format</code> při každém uložení.`,
+    editor_sublime_p: `Nainstalujte <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> přes Package Control a přidejte do jeho nastavení (<code>Preferences → Package Settings → Fmt → Settings</code>):`,
+    editor_sublime_trigger_p: `Nebo ho spusťte manuálně z command palette příkazem <strong>Fmt: Format Buffer</strong>.`,
+    editor_vim_p: `S nainstalovaným <a href="https://github.com/dense-analysis/ale">ALE</a> definujte fixer ve svém <code>.vimrc</code>:`,
+    editor_vim_ale_p: `Nebo ho spusťte na vyžádání příkazem <code>:ALEFix</code>.`,
+    editor_note_p: `
+      Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text a Vim výše jsou integrace pouze přes konfiguraci — žádný vyhrazený plugin není potřeba, i když může časem přibyt. Pokud se váš editor spouští jako GUI aplikace, a ne z terminálu, nemusí vidět <code>PATH</code> vaší shell; pokud příkaz nenajde, použijte absolutní cestu z <code>which pg_procrustes</code>.
+    `,
+
+    automation_h2: `Automatizace &amp; CI`,
+    automation_precommit_p: `
+      Přidejte lokální hook <a href="https://pre-commit.com">pre-commit</a> (vyžaduje <code>pg_procrustes</code> v <code>PATH</code> — viz <a href="#installation">Instalace</a>) do <code>.pre-commit-config.yaml</code>:
+    `,
+    automation_check_p: `
+      <code>--check</code> commit odmítne bez úpravy souborů, takže si prohlédnete diff a <code>pg_procrustes -w</code> spustíte sami. Preferujete raději autofix při commitu? Zaměňte entry za <code>pg_procrustes -w</code> — pre-commit detekuje, že soubory byly změněny, a daný běh stejně neprojde, takže si to můžete prohlédnout, znovu stage-nout a commitnout znovu.
+    `,
+    automation_gha_p: `Minimální CI úloha, která shodí pull request, pokud není naformátovaný některý sledovaný soubor <code>.sql</code>:`,
+    automation_gha_swap_p: `Pokud v CI nechcete závislost na Go toolchainu, zaměňte krok <code>go install</code> za metody <a href="#installation">Homebrew nebo stažení binárky</a>.`,
+
+    usage_h2: `Použití`,
+    usage_flags_h4: `Přepínače`,
+    usage_th_flag: `Přepínač`,
+    usage_th_desc: `Popis`,
+    usage_flag_version: `Vypíše verzi a skončí`,
+    usage_flag_c: `Cesta ke konfiguračnímu souboru (výchozí: automaticky detekuje <code>.pg_procrustes.yaml</code>)`,
+    usage_flag_w: `Zapíše výsledek zpět do zdrojových souborů (na místě)`,
+    usage_flag_backup: `Uloží originál před přepsáním (vyžaduje <code>-w</code>); výchozí přípona je <code>.bak</code>`,
+    usage_flag_outdir: `Zapíše naformátované soubory do tohoto adresáře místo na místě (nelze kombinovat s <code>-w</code>)`,
+    usage_flag_check: `Skončí s kódem 1, pokud by se nějaký soubor přeformátoval — užitečné v CI a pre-commit hookách`,
+    usage_flag_diff: `Vypíše unified diff změn bez zápisu`,
+    usage_lookup_h4: `Vyhledávání konfiguračního souboru`,
+    usage_lookup_p: `
+      pg_procrustes vyhledává <code>.pg_procrustes.yaml</code> od aktuálního adresáře směrem nahoru až ke kořeni systému souborů.
+      Pomocí <code>-c</code> můžete cestu zadat explicitně. Všechna nastavení mají výchozí hodnotu <code>preserve</code> — pokud konfigurace není nalezena, nic se nezmění.
+    `,
+
+    casing_h2: `Velikost písmen klíčových slov &amp; identifikátorů`,
+    casing_p: `Každou třídu tokenů lze nastavit na <code>upper</code>, <code>lower</code> nebo <code>preserve</code>.`,
+    casing_exceptions_h4: `Výjimky velikosti písmen`,
+    casing_exceptions_p: `Jakákoli sekce pro velikost písmen přijímá seznam <code>exceptions</code>. Slova v tomto seznamu si zachovají přesnou velikost písmen bez ohledu na nastavení <code>case</code> dané sekce.`,
+    casing_exceptions_note_p: `Výjimky se porovnávají bez ohledu na velikost písmen — hodnota v seznamu určuje přesnou velikost písmen na výstupu.`,
+    casing_forms_h4: `Formy datových typů`,
+    casing_th_form: `forma`,
+    casing_th_example: `Ukázkový výstup`,
+    casing_left_as_written: `Zachováno tak, jak je napsáno`,
+
+    plv_h2: `Proměnné &amp; klíčová slova PL/pgSQL`,
+    plv_p: `Dvě vyhrazené sekce pro tokeny, které skener PostgreSQL klasifikuje jako <code>NO_KEYWORD</code> — jsou neviditelné pro standardní pravidla <code>keywords</code> / <code>reserved_keywords</code>.`,
+    plv_vars_p: `Runtime pseudo-proměnné dostupné uvnitř těl triggerů a funkcí:`,
+    plv_keywords_p: `Klíčová slova příkazů PL/pgSQL, která skener neklasifikuje jako klíčová slova SQL:`,
+    plv_exceptions_p: `Obě sekce přijímají seznam <code>exceptions</code> — slova odpovídající výjimce si zachovají původní velikost písmen.`,
+
+    punct_h2: `Interpunkce &amp; mezery`,
+
+    layout_h2: `Rozvržení`,
+    layout_p: `Sekce <code>layout</code> ovládá zalamování řádků na úrovni klauzulí a odsazení. Všechny režimy mají výchozí hodnotu <code>preserve</code>.`,
+    layout_union_p: `Ovládá prázdné řádky kolem <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code> a <code>EXCEPT</code>.`,
+    layout_union_none: `Žádné prázdné řádky — množinové operátory na stejné úrovni jako okolní SELECTy`,
+    layout_union_before: `Prázdný řádek před klíčovým slovem množinového operátoru`,
+    layout_union_after: `Prázdný řádek za klíčovým slovem množinového operátoru`,
+    layout_union_both: `Prázdný řádek před <em>i</em> za`,
+    layout_paren_p: `<code>mode: indent</code> přeodsadí obsah uvnitř víceřádkových bloků v závorkách (podřazené dotazy, <code>IN (…)</code>) přesně na N mezer za úroveň zanoření. <code>close_first_on_line: after</code> umístí uzavírací <code>)</code> na vlastní řádek na vnitřní úrovni odsazení.`,
+
+    clauses_h2: `Zalamování klauzulí`,
+    clauses_p1: `<code>clauses.break: auto</code> umístí každou SQL klauzuli na vlastní řádek, pokud plochý příkaz přesáhne <code>line_length</code>. Zalomení je vše nebo nic.`,
+    clauses_p2: `Jednotlivé klauzule mohou výchozí nastavení přepsat:`,
+
+    content_h2: `Zalamování obsahu`,
+    content_p: `Ovládá, jak jsou rozvrženy položky <em>uvnitř</em> klauzule. SELECT a RETURNING se dělí na čárkách; podmínky WHERE, HAVING a JOIN se dělí na AND/OR (operátor je umístěn na začátek pokračujícího řádku).`,
+    content_modes_h3: `Režimy zalomení`,
+    content_mode_preserve: `Zachovat tak, jak je napsáno (výchozí)`,
+    content_mode_never: `Vždy sloučit na jeden řádek`,
+    content_mode_always: `Vždy zalomit každou položku na vlastní řádek`,
+    content_mode_auto: `Zalomit, když délka obsahu klauzule přesáhne <code>line_length</code>`,
+    content_firstitem_p: `<code>first_item</code> určuje, kam se umístí první položka, když je zalamování aktivní. Je nezávislé na režimu zalomení.`,
+    content_firstitem_break: `První položka na novém odsazeném řádku (výchozí)`,
+    content_firstitem_inline: `První položka zůstane na stejném řádku jako klíčové slovo klauzule`,
+    content_insertcol_h3: `Seznam sloupců u INSERT`,
+    content_insertcol_p: `<code>insert_columns</code> ovládá seznam <code>(col1, col2, …)</code> za názvem tabulky v příkazech INSERT. Pro <code>always</code> dostane otevírací závorka vlastní řádek; pro <code>first_inline</code> zůstane první sloupec na řádku se závorkou.`,
+    content_with_h3: `Klauzule WITH`,
+    content_with_p: `<code>with_list: always</code> umístí každou definici CTE na vlastní odsazený řádek:`,
+
+    casesql_h2: `Výrazy CASE`,
+    casesql_p: `Ovládá SQL výrazy <code>CASE … END</code> v SELECT, WHERE a dalších klauzulích.`,
+    casesql_never: `Sloučit <code>CASE…END</code> na jeden řádek`,
+    casesql_always: `Každé WHEN / ELSE / END na vlastním řádku`,
+    casesql_auto: `Rozbalit pouze když délka plochého CASE přesáhne <code>line_length</code>`,
+    casesql_preserve: `Zachovat tak, jak je napsáno`,
+
+    plpgsql_h2: `Formátování PL/pgSQL`,
+    plpgsql_p: `Těla funkcí a procedur v dollar-quoted syntaxi jsou formátována rekurzivně. Sekce <code>layout.dollar_quote.plpgsql</code> ovládá strukturu bloků.`,
+
+    plif_h2: `PL/pgSQL — bloky IF`,
+
+    ploop_h2: `PL/pgSQL — bloky LOOP`,
+    ploop_p: `Pokrývá jednoduchý <code>LOOP</code>, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code> a <code>WHILE cond LOOP</code>. Hlavička smyčky je zachována přesně tak, jak je napsána.`,
+
+    pcase_h2: `PL/pgSQL — příkazy CASE`,
+    pcase_p: `Dvě nezávislé konfigurace: <code>simple</code> (přepínač podle hodnoty) a <code>searched</code> (přepínač podle podmínky).`,
+    pcase_when_indent: `WHEN/ELSE o úroveň hlouběji než CASE`,
+    pcase_then_never: `WHEN val THEN tělo zůstane na jednom řádku`,
+    pcase_then_always: `THEN na vlastním řádku`,
+    pcase_body_never: `Tělo začíná na řádku s THEN`,
+    pcase_body_always: `Tělo na novém řádku po THEN`,
+    pcase_body_auto: `Stejný řádek pro jediný příkaz, nový řádek pro víc příkazů`,
+
+    lbl_before: `Před`,
+    lbl_after_plv: `Po — plpgsql_variables: upper`,
+    lbl_after_plk: `Po — plpgsql_keywords: upper`,
+    lbl_after_break_auto: `Po — break: auto, line_length: 80`,
+    lbl_after_break_never: `Po — break: never`,
+    lbl_after_bodyindent: `Po — body_indent: indent`,
+    lbl_after_loop: `Po — body_indent: indent, blank_line_after: add`,
+    lbl_firstitem_break: `first_item: break (výchozí)`,
+    lbl_compact: `Kompaktní styl`,
+    lbl_expanded: `Rozšířený styl`,
+
+    footer_license: `pg_procrustes — licence MIT`,
+    footer_sitemap: `Mapa webu`,
+    footer_security: `Zabezpečení`,
+
+    th_value: `hodnota`,
+    th_effect: `Efekt`,
+    th_mode: `režim`,
+    th_break: `zalomení`,
+    th_setting: `Nastavení`,
+    th_values: `Hodnoty`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Světlý`,
+    theme_dark: `Tmavý`
+  };
+
+  var LANG_KEY = 'pg_procrustes_lang';
+  var THEME_KEY = 'pg_procrustes_theme';
+
+  // capture the original (English) markup once, before any translation is applied
+  var originals = new Map();
+  document.querySelectorAll('[data-i18n]').forEach(function (el) {
+    originals.set(el, el.innerHTML);
+  });
+
+  function resolveLang(value) {
+    if (value === 'cs' || value === 'en') return value;
+    var nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+    return nav.indexOf('cs') === 0 || nav.indexOf('sk') === 0 ? 'cs' : 'en';
+  }
+
+  function applyLang(value) {
+    var resolved = resolveLang(value);
+    document.documentElement.lang = resolved;
+    originals.forEach(function (html, el) {
+      var key = el.getAttribute('data-i18n');
+      if (resolved === 'cs' && Object.prototype.hasOwnProperty.call(I18N_CS, key)) {
+        el.innerHTML = I18N_CS[key];
+      } else {
+        el.innerHTML = html;
+      }
+    });
+    document.querySelectorAll('.lang-option').forEach(function (o) {
+      o.classList.toggle('active', o.dataset.langValue === value);
+    });
+  }
+  function setLang(value) {
+    try { localStorage.setItem(LANG_KEY, value); } catch (e) {}
+    applyLang(value);
+  }
+
+  function applyTheme(value) {
+    if (value === 'light' || value === 'dark') {
+      document.documentElement.setAttribute('data-theme', value);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    document.querySelectorAll('.theme-option').forEach(function (o) {
+      o.classList.toggle('active', o.dataset.themeValue === value);
+    });
+  }
+  function setTheme(value) {
+    try { localStorage.setItem(THEME_KEY, value); } catch (e) {}
+    applyTheme(value);
+  }
+
+  var savedLang, savedTheme;
+  try { savedLang = localStorage.getItem(LANG_KEY) || 'auto'; } catch (e) { savedLang = 'auto'; }
+  try { savedTheme = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) { savedTheme = 'auto'; }
+  applyLang(savedLang);
+  applyTheme(savedTheme);
+
+  function setupDropdown(id) {
+    var dd = document.getElementById(id);
+    var trigger = dd.querySelector('button.icon-btn');
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isOpen = dd.classList.contains('open');
+      document.querySelectorAll('.lang-dropdown.open, .theme-dropdown.open').forEach(function (o) {
+        o.classList.remove('open');
+        o.querySelector('button.icon-btn').setAttribute('aria-expanded', 'false');
+      });
+      if (!isOpen) {
+        dd.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+    });
+  }
+  setupDropdown('lang-dropdown');
+  setupDropdown('theme-dropdown');
+
+  document.querySelectorAll('.lang-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setLang(btn.dataset.langValue);
+      document.getElementById('lang-dropdown').classList.remove('open');
+    });
+  });
+  document.querySelectorAll('.theme-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setTheme(btn.dataset.themeValue);
+      document.getElementById('theme-dropdown').classList.remove('open');
+    });
+  });
+
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.lang-dropdown.open, .theme-dropdown.open').forEach(function (o) {
+      o.classList.remove('open');
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.lang-dropdown.open, .theme-dropdown.open').forEach(function (o) {
+        o.classList.remove('open');
+      });
+    }
+  });
+})();
 </script>
 
 </body>

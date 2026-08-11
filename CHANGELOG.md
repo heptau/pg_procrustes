@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Language switcher (Auto / English / Čeština) and theme switcher (Auto / Light / Dark) on the documentation website — fixed top-right icon buttons (backdrop-blurred for readability over any background) with a dropdown menu, matching in position and style on both `index.html` and `config-builder.html`; the choice is persisted in `localStorage` and synced across both pages. `index.html`'s content and `config-builder.html`'s static chrome (header, buttons, nav, modal) are fully translated to Czech; the interactive option catalog on the config builder remains English-only
+- JSON-LD structured data, Open Graph/Twitter preview images, and `sitemap.xml` `lastmod` dates for `config-builder.html`, matching `index.html`
+
+### Fixed
+
+- `config-builder.html` had no mobile layout at all (fixed sidebar plus a two-column builder grid) and was unusable below ~900px; both documentation pages now collapse to an off-canvas nav with a single-column layout on narrow viewports
+- Long unbreakable content (SQL code samples, wide tables) forced the whole documentation page to scroll horizontally on narrow viewports; fixed by giving the affected flex/grid containers `min-width: 0`
+- Tables on the documentation site now scroll horizontally within their own container instead of overflowing the page on narrow viewports
+- Enlarged touch targets for the mobile navigation toggle and nav links
+
 ## [0.2.2] — 2026-08-07
 
 ### Added

@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('pg_procrustes_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>pg_procrustes — Config Builder</title>
@@ -18,6 +26,37 @@
   <link rel="apple-touch-icon" sizes="180x180"  href="apple-touch-icon.png">
   <link rel="manifest"         href="site.webmanifest">
   <meta name="theme-color"     content="#1a1d27">
+
+  <!-- OG image -->
+  <meta property="og:image"       content="https://pg_procrustes.80.cz/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta name="twitter:image"      content="https://pg_procrustes.80.cz/icon-512.png">
+  <meta name="twitter:card"       content="summary">
+
+  <!-- JSON-LD structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "pg_procrustes Config Builder",
+    "description": "Interactive visual builder for the .pg_procrustes.yaml configuration file used by the pg_procrustes PostgreSQL SQL formatter.",
+    "url": "https://pg_procrustes.80.cz/config-builder.html",
+    "applicationCategory": "DeveloperApplication",
+    "browserRequirements": "Requires JavaScript",
+    "operatingSystem": "Any",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@type": "SoftwareApplication", "name": "pg_procrustes", "url": "https://pg_procrustes.80.cz/" },
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "pg_procrustes", "item": "https://pg_procrustes.80.cz/" },
+        { "@type": "ListItem", "position": 2, "name": "Config Builder", "item": "https://pg_procrustes.80.cz/config-builder.html" }
+      ]
+    }
+  }
+  </script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -25,6 +64,7 @@
       --bg:       #0f1117;
       --surface:  #1a1d27;
       --surface2: #20243a;
+      --surface-glass: rgba(26, 29, 39, 0.55);
       --border:   #2a2d3a;
       --accent:   #5b8dee;
       --accent2:  #7c6af7;
@@ -45,6 +85,7 @@
         --bg:       #f5f6fa;
         --surface:  #ffffff;
         --surface2: #eef0f8;
+        --surface-glass: rgba(255, 255, 255, 0.55);
         --border:   #dde0ea;
         --accent:   #2563eb;
         --accent2:  #6d4ff6;
@@ -56,6 +97,40 @@
         --string:   #16803c;
         --comment:  #8a96a8;
       }
+    }
+
+    /* explicit theme override (takes precedence over prefers-color-scheme) */
+    :root[data-theme="dark"] {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #20243a;
+      --surface-glass: rgba(26, 29, 39, 0.55);
+      --border:   #2a2d3a;
+      --accent:   #5b8dee;
+      --accent2:  #7c6af7;
+      --text:     #d4d8e8;
+      --muted:    #7a7f99;
+      --code-bg:  #131620;
+      --code-bdr: #252838;
+      --keyword:  #c792ea;
+      --string:   #c3e88d;
+      --comment:  #546e7a;
+    }
+    :root[data-theme="light"] {
+      --bg:       #f5f6fa;
+      --surface:  #ffffff;
+      --surface2: #eef0f8;
+      --surface-glass: rgba(255, 255, 255, 0.55);
+      --border:   #dde0ea;
+      --accent:   #2563eb;
+      --accent2:  #6d4ff6;
+      --text:     #1e2032;
+      --muted:    #6b7094;
+      --code-bg:  #f0f1f7;
+      --code-bdr: #d8dae8;
+      --keyword:  #7c3aed;
+      --string:   #16803c;
+      --comment:  #8a96a8;
     }
 
     html { scroll-behavior: smooth; }
@@ -118,7 +193,7 @@
     }
 
     .page-header {
-      padding: 1.5rem 2rem 1.25rem;
+      padding: 1.5rem 7.5rem 1.25rem 2rem;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
       display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
@@ -354,54 +429,226 @@
     }
     .modal textarea:focus { border-color: var(--accent); }
     .modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
+
+    /* ── hamburger ── */
+    .menu-btn {
+      display: none;
+      position: fixed;
+      top: 1rem; left: 1rem;
+      z-index: 200;
+      background: var(--surface-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      border-radius: 0.625rem;
+      cursor: pointer;
+      line-height: 1;
+      font-size: 1.2rem;
+      transition: 0.2s;
+      align-items: center;
+      justify-content: center;
+    }
+    .menu-btn:hover { border-color: var(--accent); color: var(--text); background: var(--surface-glass); }
+
+    /* ── language / theme switchers ── */
+    .top-actions {
+      position: fixed;
+      top: 1rem; right: 1rem;
+      z-index: 200;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .icon-btn {
+      background: var(--surface-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      border-radius: 0.625rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.2s;
+    }
+    .icon-btn:hover { border-color: var(--accent); color: var(--text); background: var(--surface-glass); }
+    .icon-sw { width: 1.25rem; height: 1.25rem; display: block; }
+
+    .lang-dropdown, .theme-dropdown { position: relative; display: inline-block; }
+    .lang-menu, .theme-menu {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.5rem;
+      min-width: 150px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,.3), 0 8px 10px -6px rgba(0,0,0,.3);
+      display: none;
+      flex-direction: column;
+      gap: 0.25rem;
+      z-index: 210;
+      backdrop-filter: blur(8px);
+      animation: switcherSlideIn 0.2s ease-out;
+    }
+    .lang-dropdown.open .lang-menu, .theme-dropdown.open .theme-menu { display: flex; }
+    .lang-option, .theme-option {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      text-align: left;
+      transition: 0.2s;
+      width: 100%;
+      font-family: inherit;
+    }
+    .lang-option:hover, .theme-option:hover { background-color: rgba(91,141,238,.08); color: var(--accent); }
+    .lang-option.active, .theme-option.active { color: var(--accent); background-color: rgba(91,141,238,.06); }
+    .lang-option-icon, .theme-option-icon { font-size: 1.125rem; width: 1.25rem; display: flex; justify-content: center; }
+
+    @keyframes switcherSlideIn {
+      0%   { opacity: 0; transform: translateY(-10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .nav-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      z-index: 99;
+      background: rgba(0,0,0,.45);
+    }
+    .nav-overlay.open { display: block; }
+
+    /* ── responsive ── */
+    @media (max-width: 900px) {
+      .menu-btn { display: flex; }
+      nav {
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+        z-index: 100;
+        box-shadow: 4px 0 24px rgba(0,0,0,.4);
+      }
+      nav.open { transform: translateX(0); }
+      nav a { padding: 0.55rem 1.25rem; }
+
+      .page { margin-left: 0; }
+      .page-header { padding-left: 3.75rem; }
+
+      .builder { grid-template-columns: 1fr; }
+
+      .side-panel {
+        position: static;
+        height: auto;
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+      .detail-box { max-height: 320px; }
+      #yaml-output { max-height: 400px; }
+
+      select, input[type=number], input[type=text] { max-width: none; }
+    }
+
+    @media (max-width: 480px) {
+      .page-header { flex-direction: column; align-items: flex-start; padding-right: 2rem; }
+      .header-actions { margin-left: 0; width: 100%; }
+      .header-actions button { flex: 1 1 auto; }
+      .menu-btn { top: 0.7rem; left: 0.7rem; width: 2.5rem; height: 2.5rem; }
+      .icon-btn { width: 2.5rem; height: 2.5rem; }
+    }
   </style>
 </head>
 <body>
 
-<nav>
+<button class="menu-btn" id="menu-btn" aria-label="Open navigation" aria-expanded="false">☰</button>
+<div class="nav-overlay" id="nav-overlay"></div>
+
+<div class="top-actions">
+  <div class="lang-dropdown" id="lang-dropdown">
+    <button class="icon-btn lang-trigger" id="lang-trigger" aria-label="Change language" aria-haspopup="true" aria-expanded="false">
+      <svg class="icon-sw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="2" y1="12" x2="22" y2="12"></line>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+      </svg>
+    </button>
+    <div class="lang-menu" id="lang-menu">
+      <button class="lang-option" data-lang-value="auto"><span class="lang-option-icon">🌐</span><span data-i18n="lang_auto">Auto</span></button>
+      <button class="lang-option" data-lang-value="en"><span class="lang-option-icon">🇬🇧</span><span>English</span></button>
+      <button class="lang-option" data-lang-value="cs"><span class="lang-option-icon">🇨🇿</span><span>Čeština</span></button>
+    </div>
+  </div>
+  <div class="theme-dropdown" id="theme-dropdown">
+    <button class="icon-btn theme-trigger" id="theme-trigger" aria-label="Change theme" aria-haspopup="true" aria-expanded="false">
+      <svg class="icon-sw" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18V4c4.42 0 8 3.58 8 8s-3.58 8-8 8z"></path>
+      </svg>
+    </button>
+    <div class="theme-menu" id="theme-menu">
+      <button class="theme-option" data-theme-value="auto"><span class="theme-option-icon">🖥️</span><span data-i18n="theme_auto">Auto</span></button>
+      <button class="theme-option" data-theme-value="light"><span class="theme-option-icon">☀️</span><span data-i18n="theme_light">Light</span></button>
+      <button class="theme-option" data-theme-value="dark"><span class="theme-option-icon">🌙</span><span data-i18n="theme_dark">Dark</span></button>
+    </div>
+  </div>
+</div>
+
+<nav id="sidebar">
   <div class="nav-logo">
     <div class="logo-title">pg_procrustes</div>
-    <div class="logo-sub">Config Builder</div>
+    <div class="logo-sub" data-i18n="cb_logo_sub">Config Builder</div>
   </div>
-  <span class="nav-section">Builder</span>
-  <a href="#casing">Casing</a>
-  <a href="#punctuation">Punctuation &amp; Spacing</a>
-  <a href="#layout-basics">Layout — Basics</a>
-  <a href="#layout-clauses">Layout — Clauses</a>
-  <a href="#layout-content">Layout — Content</a>
-  <a href="#layout-other">Layout — Other</a>
-  <span class="nav-section">Links</span>
-  <a href="index.html">Documentation</a>
+  <span class="nav-section" data-i18n="cb_nav_builder">Builder</span>
+  <a href="#casing" data-i18n="cb_nav_casing">Casing</a>
+  <a href="#punctuation" data-i18n="cb_nav_punctuation">Punctuation &amp; Spacing</a>
+  <a href="#layout-basics" data-i18n="cb_nav_layout_basics">Layout — Basics</a>
+  <a href="#layout-clauses" data-i18n="cb_nav_layout_clauses">Layout — Clauses</a>
+  <a href="#layout-content" data-i18n="cb_nav_layout_content">Layout — Content</a>
+  <a href="#layout-other" data-i18n="cb_nav_layout_other">Layout — Other</a>
+  <span class="nav-section" data-i18n="cb_nav_links">Links</span>
+  <a href="index.html" data-i18n="cb_nav_docs">Documentation</a>
   <a href="https://github.com/heptau/pg_procrustes" target="_blank">GitHub ↗</a>
 </nav>
 
 <div class="page">
   <div class="page-header">
     <div>
-      <h1>Config Builder</h1>
-      <p>Build your <code>.pg_procrustes.yaml</code> interactively. Click any option to see details and examples.</p>
+      <h1 data-i18n="cb_h1">Config Builder</h1>
+      <p data-i18n="cb_h1_p">Build your <code>.pg_procrustes.yaml</code> interactively. Click any option to see details and examples.</p>
     </div>
     <div class="header-actions">
-      <button class="btn-ghost" onclick="resetPreserve()">No changes</button>
-      <button class="btn-ghost" onclick="resetDefaults()">pg_procrustes defaults</button>
+      <button class="btn-ghost" onclick="resetPreserve()" data-i18n="cb_btn_nochanges">No changes</button>
+      <button class="btn-ghost" onclick="resetDefaults()" data-i18n="cb_btn_defaults">pg_procrustes defaults</button>
       <button class="btn-ghost"
               title="On macOS: press ⌘⇧. in the dialog to show hidden files"
-              onclick="document.getElementById('cfg-file-input').click()">Load config file</button>
+              onclick="document.getElementById('cfg-file-input').click()" data-i18n="cb_btn_load">Load config file</button>
       <input type="file" id="cfg-file-input" accept=".yaml,.yml" style="display:none" onchange="onConfigFileLoad(event)">
-      <button class="btn-ghost" onclick="openPasteModal()">Paste YAML</button>
-      <button class="btn-primary" onclick="downloadConfig()">Download .pg_procrustes.yaml</button>
+      <button class="btn-ghost" onclick="openPasteModal()" data-i18n="cb_btn_paste">Paste YAML</button>
+      <button class="btn-primary" onclick="downloadConfig()" data-i18n="cb_btn_download">Download .pg_procrustes.yaml</button>
     </div>
   </div>
 
   <!-- paste modal -->
   <div class="modal-backdrop" id="paste-backdrop" onclick="closePasteModal(event)">
     <div class="modal">
-      <h3>Paste .pg_procrustes.yaml</h3>
-      <p>Paste your config file content below. Only recognised settings will be applied; unknown keys are ignored.</p>
+      <h3 data-i18n="cb_modal_h3">Paste .pg_procrustes.yaml</h3>
+      <p data-i18n="cb_modal_p">Paste your config file content below. Only recognised settings will be applied; unknown keys are ignored.</p>
       <textarea id="paste-area" spellcheck="false" placeholder="reserved_keywords:&#10;  case: upper&#10;&#10;layout:&#10;  clauses:&#10;    break: always&#10;  ..."></textarea>
       <div class="modal-actions">
-        <button class="btn-ghost" onclick="closePasteModal()">Cancel</button>
-        <button class="btn-primary" onclick="applyPastedYAML()">Apply</button>
+        <button class="btn-ghost" onclick="closePasteModal()" data-i18n="cb_modal_cancel">Cancel</button>
+        <button class="btn-primary" onclick="applyPastedYAML()" data-i18n="cb_modal_apply">Apply</button>
       </div>
     </div>
   </div>
@@ -413,12 +660,12 @@
 
     <div class="side-panel">
       <div class="detail-box" id="detail-box">
-        <p class="detail-empty">Click or focus any option on the left to see its description and examples here.</p>
+        <p class="detail-empty" data-i18n="cb_detail_empty">Click or focus any option on the left to see its description and examples here.</p>
       </div>
       <div class="yaml-panel">
         <div class="yaml-header">
-          <span>.pg_procrustes.yaml preview</span>
-          <button class="btn-ghost yaml-copy-btn" onclick="copyYAML()">Copy</button>
+          <span data-i18n="cb_yaml_preview">.pg_procrustes.yaml preview</span>
+          <button class="btn-ghost yaml-copy-btn" onclick="copyYAML()" data-i18n="cb_copy">Copy</button>
         </div>
         <div id="yaml-output"></div>
       </div>
@@ -1224,6 +1471,169 @@ initScrollSpy();
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('paste-backdrop').classList.remove('open');
 });
+
+// ── mobile hamburger menu ───────────────────────────────────────────────────
+(function () {
+  const sidebar = document.getElementById('sidebar');
+  const menuBtn = document.getElementById('menu-btn');
+  const overlay = document.getElementById('nav-overlay');
+
+  function openNav() {
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    menuBtn.setAttribute('aria-expanded', 'true');
+    menuBtn.textContent = '✕';
+  }
+  function closeNav() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    menuBtn.textContent = '☰';
+  }
+
+  menuBtn.addEventListener('click', () => sidebar.classList.contains('open') ? closeNav() : openNav());
+  overlay.addEventListener('click', closeNav);
+  sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+})();
+
+// ── language / theme switchers ──────────────────────────────────────────────
+(function () {
+  var I18N_CS = {
+    cb_logo_sub: `Konfigurátor`,
+    cb_nav_builder: `Konfigurátor`,
+    cb_nav_casing: `Velikost písmen`,
+    cb_nav_punctuation: `Interpunkce &amp; mezery`,
+    cb_nav_layout_basics: `Rozvržení — základy`,
+    cb_nav_layout_clauses: `Rozvržení — klauzule`,
+    cb_nav_layout_content: `Rozvržení — obsah`,
+    cb_nav_layout_other: `Rozvržení — ostatní`,
+    cb_nav_links: `Odkazy`,
+    cb_nav_docs: `Dokumentace`,
+
+    cb_h1: `Konfigurátor`,
+    cb_h1_p: `Interaktivně si sestavte <code>.pg_procrustes.yaml</code>. Kliknutím na kteroukoli volbu vlevo zobrazíte popis a příklady.`,
+    cb_btn_nochanges: `Beze změn`,
+    cb_btn_defaults: `Výchozí hodnoty pg_procrustes`,
+    cb_btn_load: `Načíst konfigurační soubor`,
+    cb_btn_paste: `Vložit YAML`,
+    cb_btn_download: `Stáhnout .pg_procrustes.yaml`,
+
+    cb_modal_h3: `Vložit .pg_procrustes.yaml`,
+    cb_modal_p: `Vložte obsah konfiguračního souboru níže. Použijí se jen rozpoznaná nastavení; neznámé klíče se ignorují.`,
+    cb_modal_cancel: `Zrušit`,
+    cb_modal_apply: `Použít`,
+
+    cb_detail_empty: `Kliknutím nebo přechodem na kteroukoli volbu vlevo zde zobrazíte její popis a příklady.`,
+    cb_yaml_preview: `náhled .pg_procrustes.yaml`,
+    cb_copy: `Kopírovat`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Světlý`,
+    theme_dark: `Tmavý`
+  };
+
+  var LANG_KEY = 'pg_procrustes_lang';
+  var THEME_KEY = 'pg_procrustes_theme';
+
+  var originals = new Map();
+  document.querySelectorAll('[data-i18n]').forEach(function (el) {
+    originals.set(el, el.innerHTML);
+  });
+
+  function resolveLang(value) {
+    if (value === 'cs' || value === 'en') return value;
+    var nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+    return nav.indexOf('cs') === 0 || nav.indexOf('sk') === 0 ? 'cs' : 'en';
+  }
+
+  function applyLang(value) {
+    var resolved = resolveLang(value);
+    document.documentElement.lang = resolved;
+    originals.forEach(function (html, el) {
+      var key = el.getAttribute('data-i18n');
+      if (resolved === 'cs' && Object.prototype.hasOwnProperty.call(I18N_CS, key)) {
+        el.innerHTML = I18N_CS[key];
+      } else {
+        el.innerHTML = html;
+      }
+    });
+    document.querySelectorAll('.lang-option').forEach(function (o) {
+      o.classList.toggle('active', o.dataset.langValue === value);
+    });
+  }
+  function setLang(value) {
+    try { localStorage.setItem(LANG_KEY, value); } catch (e) {}
+    applyLang(value);
+  }
+
+  function applyTheme(value) {
+    if (value === 'light' || value === 'dark') {
+      document.documentElement.setAttribute('data-theme', value);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    document.querySelectorAll('.theme-option').forEach(function (o) {
+      o.classList.toggle('active', o.dataset.themeValue === value);
+    });
+  }
+  function setTheme(value) {
+    try { localStorage.setItem(THEME_KEY, value); } catch (e) {}
+    applyTheme(value);
+  }
+
+  var savedLang, savedTheme;
+  try { savedLang = localStorage.getItem(LANG_KEY) || 'auto'; } catch (e) { savedLang = 'auto'; }
+  try { savedTheme = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) { savedTheme = 'auto'; }
+  applyLang(savedLang);
+  applyTheme(savedTheme);
+
+  function setupDropdown(id) {
+    var dd = document.getElementById(id);
+    var trigger = dd.querySelector('button.icon-btn');
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isOpen = dd.classList.contains('open');
+      document.querySelectorAll('.lang-dropdown.open, .theme-dropdown.open').forEach(function (o) {
+        o.classList.remove('open');
+        o.querySelector('button.icon-btn').setAttribute('aria-expanded', 'false');
+      });
+      if (!isOpen) {
+        dd.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+    });
+  }
+  setupDropdown('lang-dropdown');
+  setupDropdown('theme-dropdown');
+
+  document.querySelectorAll('.lang-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setLang(btn.dataset.langValue);
+      document.getElementById('lang-dropdown').classList.remove('open');
+    });
+  });
+  document.querySelectorAll('.theme-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setTheme(btn.dataset.themeValue);
+      document.getElementById('theme-dropdown').classList.remove('open');
+    });
+  });
+
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.lang-dropdown.open, .theme-dropdown.open').forEach(function (o) {
+      o.classList.remove('open');
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.lang-dropdown.open, .theme-dropdown.open').forEach(function (o) {
+        o.classList.remove('open');
+      });
+    }
+  });
+})();
 </script>
 </body>
 </html>

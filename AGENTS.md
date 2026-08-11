@@ -232,6 +232,14 @@ Dollar-quoted blocks are processed inside step 5: the body is extracted, `reform
 5. Update `layout.IsNoop()` if the new option lives in `LayoutConfig`.
 6. Add a golden test case in `formatter/testdata/<name>/` with `input.sql` + optional `config.yaml` + `want.sql`.
 
+## Changelog discipline
+
+Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.md` under `[Unreleased]`. When a feature or fix touches multiple turns/edits, keep it to **one bullet per logical change**, not one bullet per edit:
+
+- Before adding a new bullet, check whether `[Unreleased]` already has an entry for the same thing (same file/feature). If it does, edit that entry in place to describe the complete, final behavior instead of appending a new one.
+- A bullet should read as the net effect a user/release-note reader would care about, not a diary of intermediate edits (e.g. not "added X" followed later by "fixed X" followed later by "restyled X" as three separate lines — fold them into one bullet describing the finished feature).
+- Keep the existing Keep-a-Changelog category structure (`Added` / `Changed` / `Fixed` / `Security` / …) and match the terse, specific style of past entries (name the concrete file/option/flag, not just "improved X").
+
 ## Running tests
 
 ```bash
