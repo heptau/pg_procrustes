@@ -588,6 +588,11 @@
       <button class="lang-option" data-lang-value="auto"><span class="lang-option-icon">🌐</span><span data-i18n="lang_auto">Auto</span></button>
       <button class="lang-option" data-lang-value="en"><span class="lang-option-icon">🇬🇧</span><span>English</span></button>
       <button class="lang-option" data-lang-value="cs"><span class="lang-option-icon">🇨🇿</span><span>Čeština</span></button>
+      <button class="lang-option" data-lang-value="es"><span class="lang-option-icon">🇪🇸</span><span>Español</span></button>
+      <button class="lang-option" data-lang-value="de"><span class="lang-option-icon">🇩🇪</span><span>Deutsch</span></button>
+      <button class="lang-option" data-lang-value="fr"><span class="lang-option-icon">🇫🇷</span><span>Français</span></button>
+      <button class="lang-option" data-lang-value="pt"><span class="lang-option-icon">🇵🇹</span><span>Português</span></button>
+      <button class="lang-option" data-lang-value="it"><span class="lang-option-icon">🇮🇹</span><span>Italiano</span></button>
     </div>
   </div>
   <div class="theme-dropdown" id="theme-dropdown">
@@ -1704,6 +1709,1082 @@ total := total + i;
     theme_dark: `Tmavý`
   };
 
+  var I18N_ES = {
+  nav_logo_sub: `Formateador de SQL para PostgreSQL`,
+  nav_sec_intro: `Introducción`,
+  nav_overview: `Resumen`,
+  nav_name: `El nombre`,
+  nav_sec_start: `Primeros pasos`,
+  nav_installation: `Instalación`,
+  nav_editor: `Integración con editores`,
+  nav_automation: `Automatización &amp; CI`,
+  nav_usage: `Uso`,
+  nav_sec_config: `Configuración`,
+  nav_casing: `Mayúsculas/minúsculas de palabras clave e identificadores`,
+  nav_plpgsql_vars: `Variables &amp; palabras clave de PL/pgSQL`,
+  nav_punctuation: `Puntuación &amp; espaciado`,
+  nav_layout: `Diseño`,
+  nav_clauses: `Salto de línea de cláusulas`,
+  nav_content: `Salto de línea de contenido`,
+  nav_case_sql: `Expresiones CASE`,
+  nav_plpgsql: `PL/pgSQL`,
+  nav_plpgsql_if: `Bloques IF`,
+  nav_plpgsql_loop: `Bloques LOOP`,
+  nav_plpgsql_case: `Instrucciones CASE`,
+  nav_sec_tools: `Herramientas`,
+  nav_config_builder: `Configurador`,
+  nav_sec_project: `Proyecto`,
+  nav_llms: `Para IA / llms.txt`,
+
+  hero_desc: `Un formateador de PostgreSQL rápido y flexible, escrito en Go. Impulsado por el analizador nativo de PostgreSQL, entiende tu código igual que la propia base de datos.`,
+
+  name_h2: `El nombre`,
+  name_myth: `
+      Según la mitología griega, Procusto era un bandido que tenía un lecho de hierro en el camino a Atenas.
+      Invitaba a los viajeros a pasar la noche — y luego se aseguraba de que encajaran perfectamente en el lecho.
+      Si un huésped era demasiado alto, le cortaba las piernas. Si era demasiado bajo, lo estiraba hasta que encajara.
+      En realidad tenía <em>dos</em> lechos: uno pequeño y otro grande — así ningún huésped podía escapar del ajuste.
+      De un modo u otro, todos encajaban.
+    `,
+  name_p: `
+      <strong>pg_procrustes</strong> funciona del mismo modo. Tú defines el lecho — las reglas de formato — mediante
+      <code>.pg_procrustes.yaml</code>. Tu SQL encajará. Le guste o no.
+    `,
+
+  install_h2: `Instalación`,
+  install_homebrew_h3: `Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS y Linux)</span>`,
+  install_binary_h3: `Descarga binaria`,
+  install_binary_p: `Descarga el archivo correspondiente a tu plataforma desde <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, descomprímelo y coloca el binario en tu <code>PATH</code>.`,
+  install_th_archive: `Archivo`,
+  install_th_platform: `Plataforma`,
+  install_goinstall_h3: `go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(requiere el toolchain de Go)</span>`,
+  install_source_h3: `Compilar desde el código fuente`,
+
+  editor_h2: `Integración con editores`,
+  editor_intro_p: `Este repositorio funciona también como plugin de Neovim. Requiere que el binario <code>pg_procrustes</code> esté en tu <code>PATH</code> (consulta <a href="#installation">Instalación</a> más arriba).`,
+  editor_neovim_lazy_p: `Con <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:`,
+  editor_neovim_packer_p: `Con <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:`,
+  editor_neovim_conform_p: `
+      Si tienes instalado <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a>, los buffers <code>sql</code> registran automáticamente <code>pg_procrustes</code> como formateador —
+      tanto <code>require("conform").format()</code> como format-on-save lo usarán como cualquier otro formateador. Sin conform.nvim, usa <code>:PgProcrustesFormat</code> para formatear directamente el buffer actual.
+      Ejecuta <code>:checkhealth pg_procrustes</code> para verificar la configuración, o <code>:help pg_procrustes</code> para la referencia completa.
+    `,
+  editor_zed_p: `Zed tiene soporte integrado para formateadores externos — no se necesita ninguna extensión. Añade esto a la configuración de tu proyecto (<code>.zed/settings.json</code>) o a la configuración de usuario (<code>~/.config/zed/settings.json</code>):`,
+  editor_zed_format_p: `Luego formatea con el comando <code>editor: format</code>, o configura <code>"format_on_save": "on"</code>.`,
+  editor_vscode_p: `
+      VS Code no tiene una opción integrada de «formateador externo», pero la extensión
+      <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+      añade una únicamente mediante configuración — no necesitas crear tu propia extensión. Instálala y luego añade:
+    `,
+  editor_vscode_format_p: `Format Document (<code>Shift+Alt+F</code>) y <code>editor.formatOnSave</code> ahora ejecutarán <code>pg_procrustes</code>.`,
+  editor_datagrip_h3: `DataGrip &amp; otros IDE de JetBrains`,
+  editor_datagrip_p: `DataGrip incluye el plugin <strong>File Watchers</strong> (actívalo en <code>Settings → Tools → File Watchers</code> si está desactivado). Añade un watcher personalizado:`,
+  editor_datagrip_filetype: `Tipo de archivo`,
+  editor_datagrip_program: `Programa`,
+  editor_datagrip_program_val: `ruta a <code>pg_procrustes</code> (o solo el nombre del binario si se resuelve en el <code>PATH</code>)`,
+  editor_datagrip_arguments: `Argumentos`,
+  editor_datagrip_output: `Rutas de salida a actualizar`,
+  editor_datagrip_note_p: `
+      El archivo se reformatea in situ con cada guardado. Para activarlo manualmente en su lugar, usa <code>Settings → Tools → External Tools</code> con el mismo Program/Arguments.
+    `,
+  editor_emacs_apheleia_p: `Con <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (asíncrono, conserva la posición del cursor):`,
+  editor_emacs_reformatter_p: `O con el más ligero <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:`,
+  editor_emacs_note_p: `Cualquiera de las dos opciones te da format-on-save sin tener que escribir tu propio paquete.`,
+  editor_helix_p: `Añade esto a <code>~/.config/helix/languages.toml</code> (o a un <code>.helix/languages.toml</code> local del proyecto):`,
+  editor_helix_format_p: `Formatea a demanda con <code>:format</code>, o deja que <code>auto-format</code> lo ejecute con cada guardado.`,
+  editor_sublime_p: `Instala <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> mediante Package Control y añade esto a su configuración (<code>Preferences → Package Settings → Fmt → Settings</code>):`,
+  editor_sublime_trigger_p: `O actívalo manualmente desde la paleta de comandos con <strong>Fmt: Format Buffer</strong>.`,
+  editor_vim_p: `Con <a href="https://github.com/dense-analysis/ale">ALE</a> instalado, define un fixer en tu <code>.vimrc</code>:`,
+  editor_vim_ale_p: `O ejecútalo a demanda con <code>:ALEFix</code>.`,
+  editor_note_p: `
+      Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text y Vim, arriba, son integraciones solo por configuración — no requieren un plugin dedicado, aunque más adelante podría añadirse uno. Si tu editor se inicia como una aplicación GUI en lugar de desde una terminal, es posible que no vea el <code>PATH</code> de tu shell; usa la ruta absoluta de <code>which pg_procrustes</code> si el comando no se encuentra.
+    `,
+
+  automation_h2: `Automatización &amp; CI`,
+  automation_precommit_p: `
+      Añade un hook local de <a href="https://pre-commit.com">pre-commit</a> (requiere <code>pg_procrustes</code> en el <code>PATH</code> — consulta <a href="#installation">Instalación</a>) a <code>.pre-commit-config.yaml</code>:
+    `,
+  automation_check_p: `
+      <code>--check</code> hace fallar el commit sin modificar los archivos, para que revises el diff y ejecutes <code>pg_procrustes -w</code> tú mismo. ¿Prefieres el autofix al hacer commit? Sustituye la entrada por <code>pg_procrustes -w</code> — pre-commit detecta que los archivos se modificaron y ese intento también falla, así que puedes revisar los cambios, volver a hacer stage y confirmar de nuevo.
+    `,
+  automation_gha_p: `Un job mínimo de CI que hace fallar un pull request si algún archivo <code>.sql</code> rastreado no está formateado:`,
+  automation_gha_swap_p: `Sustituye el paso <code>go install</code> por los métodos de <a href="#installation">Homebrew o descarga binaria</a> si prefieres no depender de un toolchain de Go en la CI.`,
+
+  usage_h2: `Uso`,
+  usage_flags_h4: `Opciones`,
+  usage_th_flag: `Opción`,
+  usage_th_desc: `Descripción`,
+  usage_flag_version: `Imprime la versión y termina`,
+  usage_flag_c: `Ruta al archivo de configuración (por defecto: detecta automáticamente <code>.pg_procrustes.yaml</code>)`,
+  usage_flag_w: `Escribe el resultado en los archivos de origen (in situ)`,
+  usage_flag_backup: `Guarda el original antes de sobrescribir (requiere <code>-w</code>); la extensión por defecto es <code>.bak</code>`,
+  usage_flag_outdir: `Escribe los archivos formateados en este directorio en lugar de in situ (no se puede combinar con <code>-w</code>)`,
+  usage_flag_check: `Termina con código 1 si algún archivo se reformatearía — útil en CI y en hooks de pre-commit`,
+  usage_flag_diff: `Imprime un diff unificado de los cambios sin escribir`,
+  usage_lookup_h4: `Búsqueda del archivo de configuración`,
+  usage_lookup_p: `
+      pg_procrustes busca <code>.pg_procrustes.yaml</code> empezando en el directorio actual y subiendo hasta la raíz del sistema de archivos.
+      Usa <code>-c</code> para especificar una ruta explícitamente. Todos los ajustes tienen por defecto <code>preserve</code> — si no se encuentra ninguna configuración, nada cambia.
+    `,
+
+  casing_h2: `Mayúsculas/minúsculas de palabras clave &amp; identificadores`,
+  casing_p: `Cada clase de token se puede configurar como <code>upper</code>, <code>lower</code> o <code>preserve</code>.`,
+  casing_exceptions_h4: `Excepciones de mayúsculas/minúsculas`,
+  casing_exceptions_p: `Cualquier sección de mayúsculas/minúsculas acepta una lista <code>exceptions</code>. Las palabras de la lista conservan exactamente su capitalización, sin importar el ajuste <code>case</code> de la sección.`,
+  casing_exceptions_note_p: `Las excepciones se comparan sin distinguir mayúsculas/minúsculas — el valor en la lista define la capitalización exacta de salida.`,
+  casing_forms_h4: `Formas de los tipos de datos`,
+  casing_th_form: `forma`,
+  casing_th_example: `Ejemplo de salida`,
+  casing_left_as_written: `Se deja tal como está escrito`,
+
+  plv_h2: `Variables &amp; palabras clave de PL/pgSQL`,
+  plv_p: `Dos secciones dedicadas a los tokens que el escáner de PostgreSQL clasifica como <code>NO_KEYWORD</code> — son invisibles para las reglas estándar <code>keywords</code> / <code>reserved_keywords</code>.`,
+  plv_vars_p: `Pseudovariables en tiempo de ejecución disponibles dentro de los cuerpos de triggers y funciones:`,
+  plv_keywords_p: `Palabras clave de instrucciones PL/pgSQL que el escáner no clasifica como palabras clave SQL:`,
+  plv_exceptions_p: `Ambas secciones aceptan una lista <code>exceptions</code> — las palabras que coinciden con una excepción conservan su capitalización original.`,
+
+  punct_h2: `Puntuación &amp; espaciado`,
+
+  layout_h2: `Diseño`,
+  layout_p: `La sección <code>layout</code> controla el salto de línea a nivel de cláusula y la indentación. Todos los modos tienen por defecto <code>preserve</code>.`,
+  layout_union_p: `Controla las líneas en blanco alrededor de <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code> y <code>EXCEPT</code>.`,
+  layout_union_none: `Sin líneas en blanco — los operadores de conjunto siguen el mismo flujo que los SELECT circundantes`,
+  layout_union_before: `Línea en blanco antes de la palabra clave del operador de conjunto`,
+  layout_union_after: `Línea en blanco después de la palabra clave del operador de conjunto`,
+  layout_union_both: `Línea en blanco antes <em>y</em> después`,
+  layout_paren_p: `<code>mode: indent</code> reindenta el contenido dentro de bloques entre paréntesis de varias líneas (subconsultas, <code>IN (…)</code>) a exactamente N espacios por nivel de profundidad. <code>close_first_on_line: after</code> coloca el <code>)</code> de cierre en su propia línea, en el nivel de indentación interno.`,
+
+  clauses_h2: `Salto de línea de cláusulas`,
+  clauses_p1: `<code>clauses.break: auto</code> coloca cada cláusula SQL en su propia línea cuando la instrucción sin formato supera <code>line_length</code>. El salto de línea es todo o nada.`,
+  clauses_p2: `Cada cláusula individual puede sobrescribir el valor por defecto:`,
+
+  content_h2: `Salto de línea de contenido`,
+  content_p: `Controla cómo se disponen los elementos <em>dentro</em> de una cláusula. SELECT y RETURNING se dividen en las comas; las condiciones de WHERE, HAVING y JOIN se dividen en AND/OR (el operador se coloca al inicio de la línea de continuación).`,
+  content_modes_h3: `Modos de salto de línea`,
+  content_mode_preserve: `Se deja tal como está escrito (por defecto)`,
+  content_mode_never: `Siempre colapsa en una sola línea`,
+  content_mode_always: `Siempre coloca cada elemento en su propia línea`,
+  content_mode_auto: `Salta de línea cuando la longitud del contenido de la cláusula supera <code>line_length</code>`,
+  content_firstitem_p: `<code>first_item</code> controla dónde se coloca el primer elemento cuando el salto de línea está activo. Es independiente del modo de salto.`,
+  content_firstitem_break: `El primer elemento en una nueva línea indentada (por defecto)`,
+  content_firstitem_inline: `El primer elemento permanece en la misma línea que la palabra clave de la cláusula`,
+  content_insertcol_h3: `Lista de columnas de INSERT`,
+  content_insertcol_p: `<code>insert_columns</code> controla la lista <code>(col1, col2, …)</code> después del nombre de la tabla en las instrucciones INSERT. Con <code>always</code>, el paréntesis de apertura obtiene su propia línea; con <code>first_inline</code>, la primera columna permanece en la línea del paréntesis.`,
+  content_with_h3: `Cláusula WITH`,
+  content_with_p: `<code>with_list: always</code> coloca cada definición de CTE en su propia línea indentada:`,
+
+  casesql_h2: `Expresiones CASE`,
+  casesql_p: `Controla las expresiones SQL <code>CASE … END</code> en SELECT, WHERE y otras cláusulas.`,
+  casesql_never: `Colapsa <code>CASE…END</code> en una sola línea`,
+  casesql_always: `Cada WHEN / ELSE / END en su propia línea`,
+  casesql_auto: `Se expande solo cuando la longitud del CASE sin formato supera <code>line_length</code>`,
+  casesql_preserve: `Se deja tal como está escrito`,
+
+  plpgsql_h2: `Formateo de PL/pgSQL`,
+  plpgsql_p: `Los cuerpos de funciones y procedimientos delimitados con dollar-quoting se formatean de forma recursiva. La sección <code>layout.dollar_quote.plpgsql</code> controla la estructura de los bloques.`,
+
+  plif_h2: `PL/pgSQL — bloques IF`,
+
+  ploop_h2: `PL/pgSQL — bloques LOOP`,
+  ploop_p: `Cubre <code>LOOP</code> simple, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code> y <code>WHILE cond LOOP</code>. La cabecera del bucle se conserva literalmente.`,
+
+  pcase_h2: `PL/pgSQL — instrucciones CASE`,
+  pcase_p: `Dos configuraciones independientes: <code>simple</code> (selección por valor) y <code>searched</code> (selección por condición).`,
+  pcase_when_indent: `WHEN/ELSE un nivel más profundo que CASE`,
+  pcase_then_never: `WHEN val THEN el cuerpo permanece en una línea`,
+  pcase_then_always: `THEN en su propia línea`,
+  pcase_body_never: `El cuerpo comienza en la línea de THEN`,
+  pcase_body_always: `El cuerpo en una nueva línea después de THEN`,
+  pcase_body_auto: `Misma línea para una sola instrucción, nueva línea para varias`,
+
+  lbl_before: `Antes`,
+  lbl_after_plv: `Después — plpgsql_variables: upper`,
+  lbl_after_plk: `Después — plpgsql_keywords: upper`,
+  lbl_after_break_auto: `Después — break: auto, line_length: 80`,
+  lbl_after_break_never: `Después — break: never`,
+  lbl_after_bodyindent: `Después — body_indent: indent`,
+  lbl_after_loop: `Después — body_indent: indent, blank_line_after: add`,
+  lbl_firstitem_break: `first_item: break (por defecto)`,
+  lbl_compact: `Estilo compacto`,
+  lbl_expanded: `Estilo expandido`,
+
+  footer_license: `pg_procrustes — Licencia MIT`,
+  footer_sitemap: `Mapa del sitio`,
+  footer_security: `Seguridad`,
+
+  th_value: `valor`,
+  th_effect: `Efecto`,
+  th_mode: `modo`,
+  th_break: `salto`,
+  th_setting: `Ajuste`,
+  th_values: `Valores`,
+
+  lang_auto: `Auto`,
+  theme_auto: `Auto`,
+  theme_light: `Claro`,
+  theme_dark: `Oscuro`
+};
+  var I18N_DE = {
+    nav_logo_sub: `PostgreSQL-SQL-Formatierer`,
+    nav_sec_intro: `Einführung`,
+    nav_overview: `Überblick`,
+    nav_name: `Der Name`,
+    nav_sec_start: `Erste Schritte`,
+    nav_installation: `Installation`,
+    nav_editor: `Editor-Integration`,
+    nav_automation: `Automatisierung &amp; CI`,
+    nav_usage: `Verwendung`,
+    nav_sec_config: `Konfiguration`,
+    nav_casing: `Groß-/Kleinschreibung von Schlüsselwörtern &amp; Bezeichnern`,
+    nav_plpgsql_vars: `PL/pgSQL-Variablen &amp; Schlüsselwörter`,
+    nav_punctuation: `Zeichensetzung &amp; Abstände`,
+    nav_layout: `Layout`,
+    nav_clauses: `Klauselumbruch`,
+    nav_content: `Inhaltsumbruch`,
+    nav_case_sql: `CASE-Ausdrücke`,
+    nav_plpgsql: `PL/pgSQL`,
+    nav_plpgsql_if: `IF-Blöcke`,
+    nav_plpgsql_loop: `LOOP-Blöcke`,
+    nav_plpgsql_case: `CASE-Anweisungen`,
+    nav_sec_tools: `Werkzeuge`,
+    nav_config_builder: `Konfigurator`,
+    nav_sec_project: `Projekt`,
+    nav_llms: `Für KI / llms.txt`,
+
+    hero_desc: `Ein schneller, flexibler PostgreSQL-Formatierer in Go. Angetrieben vom nativen PostgreSQL-Parser, versteht er Ihren Code wie die Datenbank selbst.`,
+
+    name_h2: `Der Name`,
+    name_myth: `
+      In der griechischen Mythologie war Prokrustes ein Räuber, der an der Straße nach Athen ein eisernes Bett betrieb.
+      Er lud Reisende ein, die Nacht bei ihm zu verbringen — und sorgte dann dafür, dass sie perfekt in das Bett passten.
+      War ein Gast zu groß, schnitt er ihm die Beine ab. War er zu klein, streckte er ihn, bis er passte.
+      Tatsächlich besaß er <em>zwei</em> Betten: ein kleines und ein großes — sodass der Anpassung niemand je entkommen konnte.
+      Wie auch immer, am Ende passte jeder.
+    `,
+    name_p: `
+      <strong>pg_procrustes</strong> funktioniert genauso. Sie definieren das Bett — die Formatierungsregeln — über
+      <code>.pg_procrustes.yaml</code>. Ihr SQL wird passen. Ob es das mag oder nicht.
+    `,
+
+    install_h2: `Installation`,
+    install_homebrew_h3: `Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS und Linux)</span>`,
+    install_binary_h3: `Binärdatei herunterladen`,
+    install_binary_p: `Laden Sie das Archiv für Ihre Plattform von den <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a> herunter, entpacken Sie es und legen Sie die Binärdatei in Ihren <code>PATH</code>.`,
+    install_th_archive: `Archiv`,
+    install_th_platform: `Plattform`,
+    install_goinstall_h3: `go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(erfordert Go-Toolchain)</span>`,
+    install_source_h3: `Aus dem Quellcode bauen`,
+
+    editor_h2: `Editor-Integration`,
+    editor_intro_p: `Dieses Repository dient zugleich als Neovim-Plugin. Erfordert die Binärdatei <code>pg_procrustes</code> in Ihrem <code>PATH</code> (siehe <a href="#installation">Installation</a> oben).`,
+    editor_neovim_lazy_p: `Mit <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:`,
+    editor_neovim_packer_p: `Mit <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:`,
+    editor_neovim_conform_p: `
+      Ist <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a> installiert, wird <code>pg_procrustes</code> für <code>sql</code>-Buffer automatisch als Formatierer registriert —
+      <code>require("conform").format()</code> und format-on-save verwenden ihn wie jeden anderen Formatierer. Ohne conform.nvim formatieren Sie den aktuellen Buffer direkt mit <code>:PgProcrustesFormat</code>.
+      Mit <code>:checkhealth pg_procrustes</code> überprüfen Sie die Einrichtung, die vollständige Referenz finden Sie unter <code>:help pg_procrustes</code>.
+    `,
+    editor_zed_p: `Zed unterstützt externe Formatierer bereits nativ — keine Erweiterung nötig. Fügen Sie dies zu Ihren Projekteinstellungen (<code>.zed/settings.json</code>) oder Benutzereinstellungen (<code>~/.config/zed/settings.json</code>) hinzu:`,
+    editor_zed_format_p: `Formatieren Sie dann mit dem Befehl <code>editor: format</code>, oder setzen Sie <code>"format_on_save": "on"</code>.`,
+    editor_vscode_p: `
+      VS Code hat keine integrierte Option für „externe Formatierer", aber die Erweiterung
+      <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+      fügt eine rein über Einstellungen hinzu — keine eigene Erweiterung erforderlich. Installieren Sie sie und fügen Sie hinzu:
+    `,
+    editor_vscode_format_p: `Format Document (<code>Shift+Alt+F</code>) und <code>editor.formatOnSave</code> führen jetzt <code>pg_procrustes</code> aus.`,
+    editor_datagrip_h3: `DataGrip &amp; andere JetBrains-IDEs`,
+    editor_datagrip_p: `DataGrip bringt das Plugin <strong>File Watchers</strong> bereits mit (aktivieren Sie es unter <code>Settings → Tools → File Watchers</code>, falls es aus ist). Fügen Sie einen benutzerdefinierten Watcher hinzu:`,
+    editor_datagrip_filetype: `Dateityp`,
+    editor_datagrip_program: `Programm`,
+    editor_datagrip_program_val: `Pfad zu <code>pg_procrustes</code> (oder nur der Name der Binärdatei, wenn sie über <code>PATH</code> auflösbar ist)`,
+    editor_datagrip_arguments: `Argumente`,
+    editor_datagrip_output: `Zu aktualisierende Ausgabepfade`,
+    editor_datagrip_note_p: `
+      Die Datei wird bei jedem Speichern direkt neu formatiert. Für eine manuelle Auslösung nach Bedarf nutzen Sie stattdessen <code>Settings → Tools → External Tools</code> mit denselben Angaben für Program/Arguments.
+    `,
+    editor_emacs_apheleia_p: `Mit <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (asynchron, behält die Cursorposition bei):`,
+    editor_emacs_reformatter_p: `Oder mit dem leichtgewichtigeren <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:`,
+    editor_emacs_note_p: `Beide geben Ihnen format-on-save, ohne dass Sie ein eigenes Paket schreiben müssen.`,
+    editor_helix_p: `Fügen Sie dies zu <code>~/.config/helix/languages.toml</code> hinzu (oder projektlokal zu <code>.helix/languages.toml</code>):`,
+    editor_helix_format_p: `Formatieren Sie bei Bedarf mit <code>:format</code>, oder lassen Sie es über <code>auto-format</code> bei jedem Speichern automatisch laufen.`,
+    editor_sublime_p: `Installieren Sie <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> über Package Control und fügen Sie dies zu dessen Einstellungen hinzu (<code>Preferences → Package Settings → Fmt → Settings</code>):`,
+    editor_sublime_trigger_p: `Oder lösen Sie es manuell über die Command Palette mit <strong>Fmt: Format Buffer</strong> aus.`,
+    editor_vim_p: `Mit installiertem <a href="https://github.com/dense-analysis/ale">ALE</a> definieren Sie einen Fixer in Ihrer <code>.vimrc</code>:`,
+    editor_vim_ale_p: `Oder führen Sie es bei Bedarf mit <code>:ALEFix</code> aus.`,
+    editor_note_p: `
+      Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text und Vim oben sind reine Konfigurationsintegrationen — kein dediziertes Plugin nötig, auch wenn später eines folgen könnte. Wenn Ihr Editor als GUI-Anwendung statt aus dem Terminal startet, sieht er möglicherweise nicht den <code>PATH</code> Ihrer Shell; verwenden Sie in diesem Fall den absoluten Pfad aus <code>which pg_procrustes</code>, falls der Befehl nicht gefunden wird.
+    `,
+
+    automation_h2: `Automatisierung &amp; CI`,
+    automation_precommit_p: `
+      Fügen Sie einen lokalen <a href="https://pre-commit.com">pre-commit</a>-Hook (erfordert <code>pg_procrustes</code> in <code>PATH</code> — siehe <a href="#installation">Installation</a>) zu <code>.pre-commit-config.yaml</code> hinzu:
+    `,
+    automation_check_p: `
+      <code>--check</code> lässt den Commit fehlschlagen, ohne Dateien zu verändern, sodass Sie den Diff prüfen und <code>pg_procrustes -w</code> selbst ausführen. Bevorzugen Sie stattdessen Autofix-on-Commit? Tauschen Sie den Eintrag gegen <code>pg_procrustes -w</code> aus — pre-commit erkennt, dass Dateien verändert wurden, und lässt diesen Lauf trotzdem fehlschlagen, sodass Sie prüfen, erneut stagen und erneut committen können.
+    `,
+    automation_gha_p: `Ein minimaler CI-Job, der einen Pull Request fehlschlagen lässt, wenn eine verfolgte <code>.sql</code>-Datei nicht formatiert ist:`,
+    automation_gha_swap_p: `Tauschen Sie den Schritt <code>go install</code> gegen die Methoden <a href="#installation">Homebrew oder Binärdatei-Download</a> aus, wenn Sie in CI nicht von einer Go-Toolchain abhängig sein möchten.`,
+
+    usage_h2: `Verwendung`,
+    usage_flags_h4: `Flags`,
+    usage_th_flag: `Flag`,
+    usage_th_desc: `Beschreibung`,
+    usage_flag_version: `Version ausgeben und beenden`,
+    usage_flag_c: `Pfad zur Konfigurationsdatei (Standard: automatische Erkennung von <code>.pg_procrustes.yaml</code>)`,
+    usage_flag_w: `Schreibt das Ergebnis zurück in die Quelldateien (in-place)`,
+    usage_flag_backup: `Speichert das Original vor dem Überschreiben (erfordert <code>-w</code>); Standarderweiterung ist <code>.bak</code>`,
+    usage_flag_outdir: `Schreibt formatierte Dateien in dieses Verzeichnis statt in-place (kann nicht mit <code>-w</code> kombiniert werden)`,
+    usage_flag_check: `Beendet mit Code 1, falls eine Datei umformatiert würde — nützlich in CI und pre-commit-Hooks`,
+    usage_flag_diff: `Gibt einen unified diff der Änderungen aus, ohne zu schreiben`,
+    usage_lookup_h4: `Suche nach der Konfigurationsdatei`,
+    usage_lookup_p: `
+      pg_procrustes sucht nach <code>.pg_procrustes.yaml</code>, beginnend im aktuellen Verzeichnis und aufsteigend bis zur Wurzel des Dateisystems.
+      Mit <code>-c</code> können Sie einen Pfad explizit angeben. Alle Einstellungen haben standardmäßig den Wert <code>preserve</code> — wird keine Konfiguration gefunden, ändert sich nichts.
+    `,
+
+    casing_h2: `Groß-/Kleinschreibung von Schlüsselwörtern &amp; Bezeichnern`,
+    casing_p: `Jede Token-Klasse kann auf <code>upper</code>, <code>lower</code> oder <code>preserve</code> gesetzt werden.`,
+    casing_exceptions_h4: `Ausnahmen bei der Groß-/Kleinschreibung`,
+    casing_exceptions_p: `Jeder Abschnitt zur Groß-/Kleinschreibung akzeptiert eine <code>exceptions</code>-Liste. Wörter in dieser Liste behalten ihre exakte Schreibweise unabhängig von der <code>case</code>-Einstellung des jeweiligen Abschnitts.`,
+    casing_exceptions_note_p: `Ausnahmen werden ohne Berücksichtigung der Groß-/Kleinschreibung abgeglichen — der Wert in der Liste bestimmt die exakte Schreibweise der Ausgabe.`,
+    casing_forms_h4: `Formen von Datentypen`,
+    casing_th_form: `Form`,
+    casing_th_example: `Beispielausgabe`,
+    casing_left_as_written: `Bleibt wie geschrieben`,
+
+    plv_h2: `PL/pgSQL-Variablen &amp; Schlüsselwörter`,
+    plv_p: `Zwei eigene Abschnitte für Tokens, die der PostgreSQL-Scanner als <code>NO_KEYWORD</code> klassifiziert — sie sind für die Standardregeln <code>keywords</code> / <code>reserved_keywords</code> unsichtbar.`,
+    plv_vars_p: `Pseudo-Variablen zur Laufzeit, die innerhalb von Trigger- und Funktionsrümpfen verfügbar sind:`,
+    plv_keywords_p: `PL/pgSQL-Anweisungsschlüsselwörter, die der Scanner nicht als SQL-Schlüsselwörter klassifiziert:`,
+    plv_exceptions_p: `Beide Abschnitte akzeptieren eine <code>exceptions</code>-Liste — Wörter, die einer Ausnahme entsprechen, behalten ihre ursprüngliche Schreibweise.`,
+
+    punct_h2: `Zeichensetzung &amp; Abstände`,
+
+    layout_h2: `Layout`,
+    layout_p: `Der Abschnitt <code>layout</code> steuert Zeilenumbrüche auf Klauselebene und die Einrückung. Alle Modi haben standardmäßig den Wert <code>preserve</code>.`,
+    layout_union_p: `Steuert Leerzeilen um <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code> und <code>EXCEPT</code>.`,
+    layout_union_none: `Keine Leerzeilen — Mengenoperatoren im selben Fluss wie die umgebenden SELECTs`,
+    layout_union_before: `Leerzeile vor dem Schlüsselwort des Mengenoperators`,
+    layout_union_after: `Leerzeile nach dem Schlüsselwort des Mengenoperators`,
+    layout_union_both: `Leerzeile davor <em>und</em> danach`,
+    layout_paren_p: `<code>mode: indent</code> rückt den Inhalt innerhalb mehrzeiliger geklammerter Blöcke (Subqueries, <code>IN (…)</code>) auf genau N Leerzeichen pro Verschachtelungsebene ein. <code>close_first_on_line: after</code> platziert die schließende <code>)</code> auf einer eigenen Zeile in der inneren Einrückungsebene.`,
+
+    clauses_h2: `Klauselumbruch`,
+    clauses_p1: `<code>clauses.break: auto</code> setzt jede SQL-Klausel auf eine eigene Zeile, wenn die flache Anweisung <code>line_length</code> überschreitet. Der Umbruch erfolgt ganz oder gar nicht.`,
+    clauses_p2: `Einzelne Klauseln können die Standardeinstellung überschreiben:`,
+
+    content_h2: `Inhaltsumbruch`,
+    content_p: `Steuert, wie Elemente <em>innerhalb</em> einer Klausel angeordnet werden. SELECT und RETURNING werden an Kommas getrennt; Bedingungen in WHERE, HAVING und JOIN werden an AND/OR getrennt (der Operator wird an den Anfang der Folgezeile gesetzt).`,
+    content_modes_h3: `Umbruchmodi`,
+    content_mode_preserve: `Bleibt wie geschrieben (Standard)`,
+    content_mode_never: `Immer auf eine Zeile zusammenfassen`,
+    content_mode_always: `Jedes Element immer auf eine eigene Zeile umbrechen`,
+    content_mode_auto: `Umbrechen, wenn die Länge des Klauselinhalts <code>line_length</code> überschreitet`,
+    content_firstitem_p: `<code>first_item</code> legt fest, wohin das erste Element kommt, wenn der Umbruch aktiv ist. Unabhängig vom Umbruchmodus.`,
+    content_firstitem_break: `Erstes Element auf einer neuen, eingerückten Zeile (Standard)`,
+    content_firstitem_inline: `Erstes Element bleibt auf der gleichen Zeile wie das Klausel-Schlüsselwort`,
+    content_insertcol_h3: `INSERT-Spaltenliste`,
+    content_insertcol_p: `<code>insert_columns</code> steuert die Liste <code>(col1, col2, …)</code> nach dem Tabellennamen in INSERT-Anweisungen. Bei <code>always</code> erhält die öffnende Klammer eine eigene Zeile; bei <code>first_inline</code> bleibt die erste Spalte auf der Klammerzeile.`,
+    content_with_h3: `WITH-Klausel`,
+    content_with_p: `<code>with_list: always</code> setzt jede CTE-Definition auf eine eigene, eingerückte Zeile:`,
+
+    casesql_h2: `CASE-Ausdrücke`,
+    casesql_p: `Steuert SQL-<code>CASE … END</code>-Ausdrücke in SELECT, WHERE und anderen Klauseln.`,
+    casesql_never: `<code>CASE…END</code> auf eine einzige Zeile zusammenfassen`,
+    casesql_always: `Jedes WHEN / ELSE / END auf eigener Zeile`,
+    casesql_auto: `Nur erweitern, wenn die Länge des flachen CASE <code>line_length</code> überschreitet`,
+    casesql_preserve: `Bleibt wie geschrieben`,
+
+    plpgsql_h2: `PL/pgSQL-Formatierung`,
+    plpgsql_p: `Dollar-quoted Funktions- und Prozedurrümpfe werden rekursiv formatiert. Der Abschnitt <code>layout.dollar_quote.plpgsql</code> steuert die Blockstruktur.`,
+
+    plif_h2: `PL/pgSQL — IF-Blöcke`,
+
+    ploop_h2: `PL/pgSQL — LOOP-Blöcke`,
+    ploop_p: `Deckt einfaches <code>LOOP</code>, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code> und <code>WHILE cond LOOP</code> ab. Der Schleifenkopf wird unverändert übernommen.`,
+
+    pcase_h2: `PL/pgSQL — CASE-Anweisungen`,
+    pcase_p: `Zwei unabhängige Konfigurationen: <code>simple</code> (Wertauswahl) und <code>searched</code> (Bedingungsauswahl).`,
+    pcase_when_indent: `WHEN/ELSE eine Ebene tiefer als CASE`,
+    pcase_then_never: `WHEN val THEN — Rumpf bleibt auf einer Zeile`,
+    pcase_then_always: `THEN auf eigener Zeile`,
+    pcase_body_never: `Rumpf beginnt auf der THEN-Zeile`,
+    pcase_body_always: `Rumpf auf neuer Zeile nach THEN`,
+    pcase_body_auto: `Gleiche Zeile bei einer einzelnen Anweisung, neue Zeile bei mehreren`,
+
+    lbl_before: `Vorher`,
+    lbl_after_plv: `Nachher — plpgsql_variables: upper`,
+    lbl_after_plk: `Nachher — plpgsql_keywords: upper`,
+    lbl_after_break_auto: `Nachher — break: auto, line_length: 80`,
+    lbl_after_break_never: `Nachher — break: never`,
+    lbl_after_bodyindent: `Nachher — body_indent: indent`,
+    lbl_after_loop: `Nachher — body_indent: indent, blank_line_after: add`,
+    lbl_firstitem_break: `first_item: break (Standard)`,
+    lbl_compact: `Kompakter Stil`,
+    lbl_expanded: `Erweiterter Stil`,
+
+    footer_license: `pg_procrustes — MIT-Lizenz`,
+    footer_sitemap: `Sitemap`,
+    footer_security: `Sicherheit`,
+
+    th_value: `Wert`,
+    th_effect: `Effekt`,
+    th_mode: `Modus`,
+    th_break: `Umbruch`,
+    th_setting: `Einstellung`,
+    th_values: `Werte`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Hell`,
+    theme_dark: `Dunkel`
+};
+  var I18N_FR = {
+    nav_logo_sub: `Formatter SQL pour PostgreSQL`,
+    nav_sec_intro: `Introduction`,
+    nav_overview: `Aperçu`,
+    nav_name: `Le nom`,
+    nav_sec_start: `Démarrage`,
+    nav_installation: `Installation`,
+    nav_editor: `Intégration à l'éditeur`,
+    nav_automation: `Automatisation &amp; CI`,
+    nav_usage: `Utilisation`,
+    nav_sec_config: `Configuration`,
+    nav_casing: `Casse des mots-clés &amp; identifiants`,
+    nav_plpgsql_vars: `Variables &amp; mots-clés PL/pgSQL`,
+    nav_punctuation: `Ponctuation &amp; espacement`,
+    nav_layout: `Mise en page`,
+    nav_clauses: `Saut de ligne des clauses`,
+    nav_content: `Saut de ligne du contenu`,
+    nav_case_sql: `Expressions CASE`,
+    nav_plpgsql: `PL/pgSQL`,
+    nav_plpgsql_if: `Blocs IF`,
+    nav_plpgsql_loop: `Blocs LOOP`,
+    nav_plpgsql_case: `Instructions CASE`,
+    nav_sec_tools: `Outils`,
+    nav_config_builder: `Générateur de configuration`,
+    nav_sec_project: `Projet`,
+    nav_llms: `Pour l'IA / llms.txt`,
+
+    hero_desc: `Un formatter PostgreSQL rapide et flexible écrit en Go. Basé sur le parseur natif de PostgreSQL, il comprend votre code comme la base de données elle-même.`,
+
+    name_h2: `Le nom`,
+    name_myth: `
+      Dans la mythologie grecque, Procruste était un brigand qui tenait un lit de fer sur la route d'Athènes.
+      Il invitait les voyageurs à passer la nuit chez lui — puis s'assurait qu'ils correspondaient parfaitement au lit.
+      Si un invité était trop grand, il lui coupait les jambes. S'il était trop petit, il l'étirait jusqu'à ce qu'il soit à la bonne taille.
+      Il possédait en réalité <em>deux</em> lits : un petit, un grand — afin qu'aucun invité ne puisse échapper à l'ajustement.
+      Dans tous les cas, tout le monde finissait par y tenir.
+    `,
+    name_p: `
+      <strong>pg_procrustes</strong> fonctionne de la même façon. Vous définissez le lit — les règles de formatage — via
+      <code>.pg_procrustes.yaml</code>. Votre SQL s'y adaptera. Qu'il le veuille ou non.
+    `,
+
+    install_h2: `Installation`,
+    install_homebrew_h3: `Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS et Linux)</span>`,
+    install_binary_h3: `Téléchargement du binaire`,
+    install_binary_p: `Téléchargez l'archive correspondant à votre plateforme depuis <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, extrayez-la, puis placez le binaire dans votre <code>PATH</code>.`,
+    install_th_archive: `Archive`,
+    install_th_platform: `Plateforme`,
+    install_goinstall_h3: `go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(nécessite la chaîne d'outils Go)</span>`,
+    install_source_h3: `Compilation depuis les sources`,
+
+    editor_h2: `Intégration à l'éditeur`,
+    editor_intro_p: `Ce dépôt fait également office de plugin Neovim. Nécessite le binaire <code>pg_procrustes</code> dans votre <code>PATH</code> (voir <a href="#installation">Installation</a> ci-dessus).`,
+    editor_neovim_lazy_p: `Avec <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a> :`,
+    editor_neovim_packer_p: `Avec <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a> :`,
+    editor_neovim_conform_p: `
+      Si <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a> est installé, les buffers <code>sql</code> obtiennent automatiquement <code>pg_procrustes</code> comme formatter enregistré —
+      <code>require("conform").format()</code> et le format-on-save le prennent en charge comme n'importe quel autre formatter. Sans conform.nvim, utilisez <code>:PgProcrustesFormat</code> pour formater directement le buffer courant.
+      Exécutez <code>:checkhealth pg_procrustes</code> pour vérifier la configuration, ou <code>:help pg_procrustes</code> pour la référence complète.
+    `,
+    editor_zed_p: `Zed prend en charge nativement les formatters externes — aucune extension nécessaire. Ajoutez ceci à vos paramètres de projet (<code>.zed/settings.json</code>) ou à vos paramètres utilisateur (<code>~/.config/zed/settings.json</code>) :`,
+    editor_zed_format_p: `Formatez ensuite avec la commande <code>editor: format</code>, ou définissez <code>"format_on_save": "on"</code>.`,
+    editor_vscode_p: `
+      VS Code n'a pas d'option native de « formatter externe », mais l'extension
+      <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+      en ajoute une purement via les paramètres — aucune extension personnalisée n'est nécessaire. Installez-la, puis ajoutez :
+    `,
+    editor_vscode_format_p: `Format Document (<code>Shift+Alt+F</code>) et <code>editor.formatOnSave</code> exécuteront désormais <code>pg_procrustes</code>.`,
+    editor_datagrip_h3: `DataGrip &amp; autres IDE JetBrains`,
+    editor_datagrip_p: `DataGrip inclut le plugin <strong>File Watchers</strong> (activez-le dans <code>Settings → Tools → File Watchers</code> s'il est désactivé). Ajoutez un watcher personnalisé :`,
+    editor_datagrip_filetype: `Type de fichier`,
+    editor_datagrip_program: `Programme`,
+    editor_datagrip_program_val: `chemin vers <code>pg_procrustes</code> (ou simplement le nom du binaire s'il est résolu via <code>PATH</code>)`,
+    editor_datagrip_arguments: `Arguments`,
+    editor_datagrip_output: `Chemins de sortie à actualiser`,
+    editor_datagrip_note_p: `
+      Le fichier est reformaté sur place à chaque sauvegarde. Pour un déclenchement manuel à la demande, utilisez plutôt <code>Settings → Tools → External Tools</code> avec le même Program/Arguments.
+    `,
+    editor_emacs_apheleia_p: `Avec <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (asynchrone, conserve la position du curseur) :`,
+    editor_emacs_reformatter_p: `Ou avec le plus léger <a href="https://github.com/purcell/reformatter.el">reformatter.el</a> :`,
+    editor_emacs_note_p: `Les deux vous offrent le format-on-save sans avoir à écrire votre propre package.`,
+    editor_helix_p: `Ajoutez à <code>~/.config/helix/languages.toml</code> (ou à un fichier local au projet <code>.helix/languages.toml</code>) :`,
+    editor_helix_format_p: `Formatez à la demande avec <code>:format</code>, ou laissez <code>auto-format</code> s'en charger à chaque sauvegarde.`,
+    editor_sublime_p: `Installez <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> via Package Control, puis ajoutez à ses paramètres (<code>Preferences → Package Settings → Fmt → Settings</code>) :`,
+    editor_sublime_trigger_p: `Ou déclenchez-le manuellement depuis la palette de commandes avec <strong>Fmt: Format Buffer</strong>.`,
+    editor_vim_p: `Avec <a href="https://github.com/dense-analysis/ale">ALE</a> installé, définissez un fixer dans votre <code>.vimrc</code> :`,
+    editor_vim_ale_p: `Ou exécutez-le à la demande avec <code>:ALEFix</code>.`,
+    editor_note_p: `
+      Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text et Vim ci-dessus sont des intégrations reposant uniquement sur la configuration — aucun plugin dédié n'est requis, même si l'un pourrait arriver plus tard. Si votre éditeur se lance comme une application graphique plutôt que depuis un terminal, il risque de ne pas voir le <code>PATH</code> de votre shell ; utilisez le chemin absolu renvoyé par <code>which pg_procrustes</code> si la commande n'est pas trouvée.
+    `,
+
+    automation_h2: `Automatisation &amp; CI`,
+    automation_precommit_p: `
+      Ajoutez un hook local <a href="https://pre-commit.com">pre-commit</a> (nécessite <code>pg_procrustes</code> dans <code>PATH</code> — voir <a href="#installation">Installation</a>) à <code>.pre-commit-config.yaml</code> :
+    `,
+    automation_check_p: `
+      <code>--check</code> fait échouer le commit sans toucher aux fichiers, ce qui vous permet d'examiner le diff puis d'exécuter <code>pg_procrustes -w</code> vous-même. Vous préférez plutôt l'autofix au moment du commit ? Remplacez entry par <code>pg_procrustes -w</code> — pre-commit détecte que des fichiers ont été modifiés et fait quand même échouer cette exécution, afin que vous puissiez vérifier, remettre les fichiers en stage, puis committer à nouveau.
+    `,
+    automation_gha_p: `Une tâche CI minimale qui fait échouer une pull request si un fichier <code>.sql</code> suivi n'est pas formaté :`,
+    automation_gha_swap_p: `Remplacez l'étape <code>go install</code> par les méthodes <a href="#installation">Homebrew ou téléchargement du binaire</a> si vous préférez ne pas dépendre d'une chaîne d'outils Go en CI.`,
+
+    usage_h2: `Utilisation`,
+    usage_flags_h4: `Options`,
+    usage_th_flag: `Option`,
+    usage_th_desc: `Description`,
+    usage_flag_version: `Affiche la version et quitte`,
+    usage_flag_c: `Chemin vers le fichier de configuration (par défaut : détection automatique de <code>.pg_procrustes.yaml</code>)`,
+    usage_flag_w: `Réécrit le résultat dans les fichiers source (sur place)`,
+    usage_flag_backup: `Sauvegarde l'original avant l'écrasement (nécessite <code>-w</code>) ; l'extension par défaut est <code>.bak</code>`,
+    usage_flag_outdir: `Écrit les fichiers formatés dans ce répertoire au lieu de les modifier sur place (ne peut pas être combiné avec <code>-w</code>)`,
+    usage_flag_check: `Quitte avec le code 1 si un fichier devait être reformaté — utile en CI et dans les hooks pre-commit`,
+    usage_flag_diff: `Affiche un diff unifié des changements sans écrire`,
+    usage_lookup_h4: `Recherche du fichier de configuration`,
+    usage_lookup_p: `
+      pg_procrustes recherche <code>.pg_procrustes.yaml</code> en partant du répertoire courant et en remontant jusqu'à la racine du système de fichiers.
+      Utilisez <code>-c</code> pour indiquer un chemin explicitement. Tous les réglages ont pour valeur par défaut <code>preserve</code> — si aucune configuration n'est trouvée, rien ne change.
+    `,
+
+    casing_h2: `Casse des mots-clés &amp; identifiants`,
+    casing_p: `Chaque classe de token peut être définie sur <code>upper</code>, <code>lower</code>, ou <code>preserve</code>.`,
+    casing_exceptions_h4: `Exceptions de casse`,
+    casing_exceptions_p: `Toute section de casse accepte une liste <code>exceptions</code>. Les mots de cette liste conservent leur capitalisation exacte, quel que soit le réglage <code>case</code> de la section.`,
+    casing_exceptions_note_p: `Les exceptions sont comparées sans distinction de casse — la valeur indiquée dans la liste définit la casse exacte en sortie.`,
+    casing_forms_h4: `Formes des types de données`,
+    casing_th_form: `forme`,
+    casing_th_example: `Exemple de sortie`,
+    casing_left_as_written: `Laissé tel qu'écrit`,
+
+    plv_h2: `Variables &amp; mots-clés PL/pgSQL`,
+    plv_p: `Deux sections dédiées aux tokens que le scanner PostgreSQL classe comme <code>NO_KEYWORD</code> — ils sont invisibles pour les règles standard <code>keywords</code> / <code>reserved_keywords</code>.`,
+    plv_vars_p: `Pseudo-variables d'exécution disponibles à l'intérieur des corps de triggers et de fonctions :`,
+    plv_keywords_p: `Mots-clés d'instructions PL/pgSQL non classés comme mots-clés SQL par le scanner :`,
+    plv_exceptions_p: `Les deux sections acceptent une liste <code>exceptions</code> — les mots correspondant à une exception conservent leur capitalisation d'origine.`,
+
+    punct_h2: `Ponctuation &amp; espacement`,
+
+    layout_h2: `Mise en page`,
+    layout_p: `La section <code>layout</code> contrôle le saut de ligne au niveau des clauses et l'indentation. Tous les modes ont pour valeur par défaut <code>preserve</code>.`,
+    layout_union_p: `Contrôle les lignes vides autour de <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, et <code>EXCEPT</code>.`,
+    layout_union_none: `Aucune ligne vide — les opérateurs ensemblistes suivent le même enchaînement que les SELECT environnants`,
+    layout_union_before: `Ligne vide avant le mot-clé de l'opérateur ensembliste`,
+    layout_union_after: `Ligne vide après le mot-clé de l'opérateur ensembliste`,
+    layout_union_both: `Ligne vide avant <em>et</em> après`,
+    layout_paren_p: `<code>mode: indent</code> réindente le contenu à l'intérieur des blocs entre parenthèses multi-lignes (sous-requêtes, <code>IN (…)</code>) à exactement N espaces par niveau de profondeur. <code>close_first_on_line: after</code> place la parenthèse fermante <code>)</code> sur sa propre ligne, au niveau d'indentation interne.`,
+
+    clauses_h2: `Saut de ligne des clauses`,
+    clauses_p1: `<code>clauses.break: auto</code> place chaque clause SQL sur sa propre ligne lorsque l'instruction à plat dépasse <code>line_length</code>. Le saut de ligne est tout-ou-rien.`,
+    clauses_p2: `Les clauses individuelles peuvent surcharger la valeur par défaut :`,
+
+    content_h2: `Saut de ligne du contenu`,
+    content_p: `Contrôle la disposition des éléments <em>à l'intérieur</em> d'une clause. SELECT et RETURNING se découpent aux virgules ; les conditions WHERE, HAVING et JOIN se découpent sur AND/OR (l'opérateur est placé au début de la ligne de continuation).`,
+    content_modes_h3: `Modes de saut de ligne`,
+    content_mode_preserve: `Laisser tel qu'écrit (par défaut)`,
+    content_mode_never: `Toujours fusionner sur une seule ligne`,
+    content_mode_always: `Toujours faire sauter chaque élément sur sa propre ligne`,
+    content_mode_auto: `Sauter la ligne lorsque la longueur du contenu de la clause dépasse <code>line_length</code>`,
+    content_firstitem_p: `<code>first_item</code> contrôle où va le premier élément lorsque le saut de ligne est actif. Indépendant du mode de saut de ligne.`,
+    content_firstitem_break: `Premier élément sur une nouvelle ligne indentée (par défaut)`,
+    content_firstitem_inline: `Le premier élément reste sur la même ligne que le mot-clé de la clause`,
+    content_insertcol_h3: `Liste de colonnes INSERT`,
+    content_insertcol_p: `<code>insert_columns</code> contrôle la liste <code>(col1, col2, …)</code> après le nom de la table dans les instructions INSERT. Pour <code>always</code>, la parenthèse ouvrante obtient sa propre ligne ; pour <code>first_inline</code>, la première colonne reste sur la ligne de la parenthèse.`,
+    content_with_h3: `Clause WITH`,
+    content_with_p: `<code>with_list: always</code> place chaque définition de CTE sur sa propre ligne indentée :`,
+
+    casesql_h2: `Expressions CASE`,
+    casesql_p: `Contrôle les expressions SQL <code>CASE … END</code> dans SELECT, WHERE et d'autres clauses.`,
+    casesql_never: `Fusionner <code>CASE…END</code> sur une seule ligne`,
+    casesql_always: `Chaque WHEN / ELSE / END sur sa propre ligne`,
+    casesql_auto: `Développer uniquement lorsque la longueur du CASE à plat dépasse <code>line_length</code>`,
+    casesql_preserve: `Laisser tel qu'écrit`,
+
+    plpgsql_h2: `Formatage PL/pgSQL`,
+    plpgsql_p: `Les corps de fonctions et procédures entre guillemets dollar sont formatés de manière récursive. La section <code>layout.dollar_quote.plpgsql</code> contrôle la structure des blocs.`,
+
+    plif_h2: `PL/pgSQL — blocs IF`,
+
+    ploop_h2: `PL/pgSQL — blocs LOOP`,
+    ploop_p: `Couvre les <code>LOOP</code> simples, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code>, et <code>WHILE cond LOOP</code>. L'en-tête de la boucle est conservé tel quel.`,
+
+    pcase_h2: `PL/pgSQL — instructions CASE`,
+    pcase_p: `Deux configurations indépendantes : <code>simple</code> (aiguillage par valeur) et <code>searched</code> (aiguillage par condition).`,
+    pcase_when_indent: `WHEN/ELSE un niveau plus profond que CASE`,
+    pcase_then_never: `WHEN val THEN le corps reste sur une seule ligne`,
+    pcase_then_always: `THEN sur sa propre ligne`,
+    pcase_body_never: `Le corps commence sur la ligne du THEN`,
+    pcase_body_always: `Corps sur une nouvelle ligne après THEN`,
+    pcase_body_auto: `Même ligne pour une seule instruction, nouvelle ligne pour plusieurs`,
+
+    lbl_before: `Avant`,
+    lbl_after_plv: `Après — plpgsql_variables: upper`,
+    lbl_after_plk: `Après — plpgsql_keywords: upper`,
+    lbl_after_break_auto: `Après — break: auto, line_length: 80`,
+    lbl_after_break_never: `Après — break: never`,
+    lbl_after_bodyindent: `Après — body_indent: indent`,
+    lbl_after_loop: `Après — body_indent: indent, blank_line_after: add`,
+    lbl_firstitem_break: `first_item: break (par défaut)`,
+    lbl_compact: `Style compact`,
+    lbl_expanded: `Style développé`,
+
+    footer_license: `pg_procrustes — licence MIT`,
+    footer_sitemap: `Plan du site`,
+    footer_security: `Sécurité`,
+
+    th_value: `valeur`,
+    th_effect: `Effet`,
+    th_mode: `mode`,
+    th_break: `rupture`,
+    th_setting: `Réglage`,
+    th_values: `Valeurs`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Clair`,
+    theme_dark: `Sombre`
+};
+  var I18N_PT = {
+    nav_logo_sub: `Formatador de SQL para PostgreSQL`,
+    nav_sec_intro: `Introdução`,
+    nav_overview: `Visão geral`,
+    nav_name: `O nome`,
+    nav_sec_start: `Primeiros passos`,
+    nav_installation: `Instalação`,
+    nav_editor: `Integração com editores`,
+    nav_automation: `Automação &amp; CI`,
+    nav_usage: `Utilização`,
+    nav_sec_config: `Configuração`,
+    nav_casing: `Capitalização de palavras-chave e identificadores`,
+    nav_plpgsql_vars: `Variáveis &amp; palavras-chave do PL/pgSQL`,
+    nav_punctuation: `Pontuação &amp; espaçamento`,
+    nav_layout: `Layout`,
+    nav_clauses: `Quebra de cláusulas`,
+    nav_content: `Quebra de conteúdo`,
+    nav_case_sql: `Expressões CASE`,
+    nav_plpgsql: `PL/pgSQL`,
+    nav_plpgsql_if: `Blocos IF`,
+    nav_plpgsql_loop: `Blocos LOOP`,
+    nav_plpgsql_case: `Instruções CASE`,
+    nav_sec_tools: `Ferramentas`,
+    nav_config_builder: `Construtor de configuração`,
+    nav_sec_project: `Projeto`,
+    nav_llms: `Para IA / llms.txt`,
+
+    hero_desc: `Um formatador de PostgreSQL rápido e flexível, escrito em Go. Baseado no parser nativo do PostgreSQL, compreende o seu código como a própria base de dados.`,
+
+    name_h2: `O nome`,
+    name_myth: `
+      Na mitologia grega, Procrusto era um bandido que mantinha uma cama de ferro na estrada para Atenas.
+      Convidava os viajantes a passar a noite — e depois garantia que se ajustassem perfeitamente à cama.
+      Se um hóspede fosse muito alto, cortava-lhe as pernas. Se fosse muito baixo, esticava-o até caber.
+      Na verdade, tinha <em>duas</em> camas: uma pequena, uma grande — assim nenhum hóspede escapava ao ajuste.
+      De uma forma ou de outra, todos cabiam.
+    `,
+    name_p: `
+      <strong>pg_procrustes</strong> funciona da mesma forma. Defina a cama — as regras de formatação — através do
+      <code>.pg_procrustes.yaml</code>. O seu SQL vai ajustar-se. Querendo ou não.
+    `,
+
+    install_h2: `Instalação`,
+    install_homebrew_h3: `Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS e Linux)</span>`,
+    install_binary_h3: `Download do binário`,
+    install_binary_p: `Faça o download do arquivo para a sua plataforma a partir do <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, extraia-o e coloque o binário no seu <code>PATH</code>.`,
+    install_th_archive: `Arquivo`,
+    install_th_platform: `Plataforma`,
+    install_goinstall_h3: `go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(requer o toolchain do Go)</span>`,
+    install_source_h3: `Compilar a partir do código-fonte`,
+
+    editor_h2: `Integração com editores`,
+    editor_intro_p: `Este repositório também funciona como um plugin para o Neovim. Requer o binário <code>pg_procrustes</code> no seu <code>PATH</code> (veja <a href="#installation">Instalação</a> acima).`,
+    editor_neovim_lazy_p: `Com o <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:`,
+    editor_neovim_packer_p: `Com o <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:`,
+    editor_neovim_conform_p: `
+      Se o <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a> estiver instalado, os buffers <code>sql</code> recebem automaticamente o <code>pg_procrustes</code> registado como formatador —
+      <code>require("conform").format()</code> e o format-on-save utilizam-no como qualquer outro formatador. Sem o conform.nvim, use <code>:PgProcrustesFormat</code> para formatar diretamente o buffer atual.
+      Execute <code>:checkhealth pg_procrustes</code> para verificar a configuração, ou <code>:help pg_procrustes</code> para a referência completa.
+    `,
+    editor_zed_p: `O Zed tem suporte nativo para formatadores externos — não é necessária nenhuma extensão. Adicione isto às configurações do projeto (<code>.zed/settings.json</code>) ou às configurações do utilizador (<code>~/.config/zed/settings.json</code>):`,
+    editor_zed_format_p: `Depois formate com o comando <code>editor: format</code>, ou defina <code>"format_on_save": "on"</code>.`,
+    editor_vscode_p: `
+      O VS Code não tem uma opção nativa de «formatador externo», mas a extensão
+      <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+      adiciona uma apenas através de configurações — sem necessidade de extensão própria. Instale-a e depois adicione:
+    `,
+    editor_vscode_format_p: `O Format Document (<code>Shift+Alt+F</code>) e o <code>editor.formatOnSave</code> vão agora executar o <code>pg_procrustes</code>.`,
+    editor_datagrip_h3: `DataGrip &amp; outros IDEs da JetBrains`,
+    editor_datagrip_p: `O DataGrip inclui o plugin <strong>File Watchers</strong> (ative-o em <code>Settings → Tools → File Watchers</code> se estiver desativado). Adicione um watcher personalizado:`,
+    editor_datagrip_filetype: `Tipo de arquivo`,
+    editor_datagrip_program: `Programa`,
+    editor_datagrip_program_val: `caminho para o <code>pg_procrustes</code> (ou apenas o nome do binário, se este for encontrado no <code>PATH</code>)`,
+    editor_datagrip_arguments: `Argumentos`,
+    editor_datagrip_output: `Caminhos de saída a atualizar`,
+    editor_datagrip_note_p: `
+      O arquivo é reformatado no local a cada gravação. Para um acionamento manual, sob demanda, use <code>Settings → Tools → External Tools</code> com o mesmo Program/Arguments.
+    `,
+    editor_emacs_apheleia_p: `Com o <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (assíncrono, mantém a posição do cursor):`,
+    editor_emacs_reformatter_p: `Ou com o mais leve <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:`,
+    editor_emacs_note_p: `Qualquer um dos dois oferece format-on-save sem precisar escrever um pacote próprio.`,
+    editor_helix_p: `Adicione a <code>~/.config/helix/languages.toml</code> (ou, localmente no projeto, a <code>.helix/languages.toml</code>):`,
+    editor_helix_format_p: `Formate sob demanda com <code>:format</code>, ou deixe o <code>auto-format</code> executá-lo a cada gravação.`,
+    editor_sublime_p: `Instale o <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> pelo Package Control e depois adicione às suas configurações (<code>Preferences → Package Settings → Fmt → Settings</code>):`,
+    editor_sublime_trigger_p: `Ou acione-o manualmente na paleta de comandos com <strong>Fmt: Format Buffer</strong>.`,
+    editor_vim_p: `Com o <a href="https://github.com/dense-analysis/ale">ALE</a> instalado, defina um fixer no seu <code>.vimrc</code>:`,
+    editor_vim_ale_p: `Ou execute-o sob demanda com <code>:ALEFix</code>.`,
+    editor_note_p: `
+      O Zed, o VS Code, o DataGrip, o Emacs, o Helix, o Sublime Text e o Vim acima são integrações apenas por configuração — não é necessário nenhum plugin dedicado, embora um possa surgir mais tarde. Se o seu editor for iniciado como uma aplicação gráfica em vez de a partir de um terminal, ele pode não ver o <code>PATH</code> da sua shell; use o caminho absoluto obtido em <code>which pg_procrustes</code> se o comando não for encontrado.
+    `,
+
+    automation_h2: `Automação &amp; CI`,
+    automation_precommit_p: `
+      Adicione um hook local do <a href="https://pre-commit.com">pre-commit</a> (requer o <code>pg_procrustes</code> no <code>PATH</code> — veja <a href="#installation">Instalação</a>) ao <code>.pre-commit-config.yaml</code>:
+    `,
+    automation_check_p: `
+      O <code>--check</code> reprova o commit sem alterar os arquivos, permitindo revisar o diff e executar o <code>pg_procrustes -w</code> manualmente. Prefere-se o autofix no commit? Substitua a entrada por <code>pg_procrustes -w</code> — o pre-commit deteta que os arquivos foram modificados e ainda assim reprova essa execução, para que seja possível revisar, preparar novamente (stage) e fazer o commit de novo.
+    `,
+    automation_gha_p: `Uma tarefa de CI mínima que reprova um pull request se algum arquivo <code>.sql</code> rastreado não estiver formatado:`,
+    automation_gha_swap_p: `Substitua a etapa <code>go install</code> pelos métodos <a href="#installation">Homebrew ou download do binário</a> se preferir não depender de um toolchain Go no CI.`,
+
+    usage_h2: `Utilização`,
+    usage_flags_h4: `Opções`,
+    usage_th_flag: `Opção`,
+    usage_th_desc: `Descrição`,
+    usage_flag_version: `Exibe a versão e termina`,
+    usage_flag_c: `Caminho para o arquivo de configuração (padrão: detecta automaticamente o <code>.pg_procrustes.yaml</code>)`,
+    usage_flag_w: `Grava o resultado de volta nos arquivos de origem (no local)`,
+    usage_flag_backup: `Guarda o original antes de sobrescrever (requer <code>-w</code>); a extensão padrão é <code>.bak</code>`,
+    usage_flag_outdir: `Grava os arquivos formatados neste diretório em vez de no local (não pode ser combinado com <code>-w</code>)`,
+    usage_flag_check: `Termina com o código 1 se algum arquivo for reformatado — útil em CI e em hooks de pre-commit`,
+    usage_flag_diff: `Exibe um diff unificado das alterações sem gravar`,
+    usage_lookup_h4: `Localização do arquivo de configuração`,
+    usage_lookup_p: `
+      O pg_procrustes procura o <code>.pg_procrustes.yaml</code> a partir do diretório atual, subindo até a raiz do sistema de arquivos.
+      Use <code>-c</code> para especificar um caminho explicitamente. Todas as configurações têm como padrão <code>preserve</code> — se nenhuma configuração for encontrada, nada é alterado.
+    `,
+
+    casing_h2: `Capitalização de palavras-chave &amp; identificadores`,
+    casing_p: `Cada classe de token pode ser definida como <code>upper</code>, <code>lower</code> ou <code>preserve</code>.`,
+    casing_exceptions_h4: `Exceções de capitalização`,
+    casing_exceptions_p: `Qualquer seção de capitalização aceita uma lista <code>exceptions</code>. As palavras dessa lista mantêm exatamente a capitalização indicada, independentemente da configuração <code>case</code> da seção.`,
+    casing_exceptions_note_p: `As exceções são comparadas sem diferenciar maiúsculas de minúsculas — o valor na lista define a capitalização exata na saída.`,
+    casing_forms_h4: `Formas dos tipos de dados`,
+    casing_th_form: `forma`,
+    casing_th_example: `Exemplo de saída`,
+    casing_left_as_written: `Mantido como escrito`,
+
+    plv_h2: `Variáveis &amp; palavras-chave do PL/pgSQL`,
+    plv_p: `Duas seções dedicadas a tokens que o scanner do PostgreSQL classifica como <code>NO_KEYWORD</code> — são invisíveis para as regras padrão <code>keywords</code> / <code>reserved_keywords</code>.`,
+    plv_vars_p: `Pseudovariáveis de runtime disponíveis dentro de corpos de triggers e funções:`,
+    plv_keywords_p: `Palavras-chave de instruções PL/pgSQL não classificadas como palavras-chave SQL pelo scanner:`,
+    plv_exceptions_p: `Ambas as seções aceitam uma lista <code>exceptions</code> — as palavras que corresponderem a uma exceção mantêm a sua capitalização original.`,
+
+    punct_h2: `Pontuação &amp; espaçamento`,
+
+    layout_h2: `Layout`,
+    layout_p: `A seção <code>layout</code> controla a quebra de linhas e a indentação em nível de cláusula. Todos os modos têm como padrão <code>preserve</code>.`,
+    layout_union_p: `Controla as linhas em branco em torno de <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code> e <code>EXCEPT</code>.`,
+    layout_union_none: `Sem linhas em branco — operadores de conjunto no mesmo fluxo dos SELECTs ao redor`,
+    layout_union_before: `Linha em branco antes da palavra-chave do operador de conjunto`,
+    layout_union_after: `Linha em branco depois da palavra-chave do operador de conjunto`,
+    layout_union_both: `Linha em branco antes <em>e</em> depois`,
+    layout_paren_p: `<code>mode: indent</code> reindenta o conteúdo dentro de blocos entre parênteses de várias linhas (subconsultas, <code>IN (…)</code>) para exatamente N espaços por nível de profundidade. <code>close_first_on_line: after</code> coloca o <code>)</code> de fecho em sua própria linha, no nível de indentação interno.`,
+
+    clauses_h2: `Quebra de cláusulas`,
+    clauses_p1: `<code>clauses.break: auto</code> coloca cada cláusula SQL em sua própria linha quando a instrução completa ultrapassa <code>line_length</code>. A quebra é tudo ou nada.`,
+    clauses_p2: `Cláusulas individuais podem substituir o padrão:`,
+
+    content_h2: `Quebra de conteúdo`,
+    content_p: `Controla como os itens <em>dentro</em> de uma cláusula são organizados. SELECT e RETURNING dividem nas vírgulas; as condições de WHERE, HAVING e JOIN dividem em AND/OR (o operador é colocado no início da linha de continuação).`,
+    content_modes_h3: `Modos de quebra`,
+    content_mode_preserve: `Mantém como está escrito (padrão)`,
+    content_mode_never: `Sempre junta numa única linha`,
+    content_mode_always: `Sempre quebra cada item em sua própria linha`,
+    content_mode_auto: `Quebra quando o comprimento do conteúdo da cláusula ultrapassa <code>line_length</code>`,
+    content_firstitem_p: `<code>first_item</code> controla onde vai o primeiro item quando a quebra está ativa. É independente do modo de quebra.`,
+    content_firstitem_break: `Primeiro item numa nova linha indentada (padrão)`,
+    content_firstitem_inline: `O primeiro item permanece na mesma linha que a palavra-chave da cláusula`,
+    content_insertcol_h3: `Lista de colunas do INSERT`,
+    content_insertcol_p: `<code>insert_columns</code> controla a lista <code>(col1, col2, …)</code> depois do nome da tabela em instruções INSERT. Para <code>always</code>, o parêntese de abertura fica em sua própria linha; para <code>first_inline</code>, a primeira coluna permanece na linha do parêntese.`,
+    content_with_h3: `Cláusula WITH`,
+    content_with_p: `<code>with_list: always</code> coloca cada definição de CTE em sua própria linha indentada:`,
+
+    casesql_h2: `Expressões CASE`,
+    casesql_p: `Controla as expressões SQL <code>CASE … END</code> em SELECT, WHERE e outras cláusulas.`,
+    casesql_never: `Junta o <code>CASE…END</code> numa única linha`,
+    casesql_always: `Cada WHEN / ELSE / END em sua própria linha`,
+    casesql_auto: `Expande apenas quando o comprimento do CASE completo ultrapassa <code>line_length</code>`,
+    casesql_preserve: `Mantém como está escrito`,
+
+    plpgsql_h2: `Formatação de PL/pgSQL`,
+    plpgsql_p: `Os corpos de funções e procedimentos delimitados por dollar-quote são formatados recursivamente. A seção <code>layout.dollar_quote.plpgsql</code> controla a estrutura dos blocos.`,
+
+    plif_h2: `PL/pgSQL — blocos IF`,
+
+    ploop_h2: `PL/pgSQL — blocos LOOP`,
+    ploop_p: `Abrange o <code>LOOP</code> simples, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code> e <code>WHILE cond LOOP</code>. O cabeçalho do loop é mantido exatamente como está.`,
+
+    pcase_h2: `PL/pgSQL — instruções CASE`,
+    pcase_p: `Duas configurações independentes: <code>simple</code> (seleção por valor) e <code>searched</code> (seleção por condição).`,
+    pcase_when_indent: `WHEN/ELSE um nível mais profundo que o CASE`,
+    pcase_then_never: `WHEN val THEN o corpo permanece numa única linha`,
+    pcase_then_always: `THEN em sua própria linha`,
+    pcase_body_never: `O corpo começa na linha do THEN`,
+    pcase_body_always: `O corpo em nova linha depois do THEN`,
+    pcase_body_auto: `Mesma linha para uma única instrução, nova linha para várias`,
+
+    lbl_before: `Antes`,
+    lbl_after_plv: `Depois — plpgsql_variables: upper`,
+    lbl_after_plk: `Depois — plpgsql_keywords: upper`,
+    lbl_after_break_auto: `Depois — break: auto, line_length: 80`,
+    lbl_after_break_never: `Depois — break: never`,
+    lbl_after_bodyindent: `Depois — body_indent: indent`,
+    lbl_after_loop: `Depois — body_indent: indent, blank_line_after: add`,
+    lbl_firstitem_break: `first_item: break (padrão)`,
+    lbl_compact: `Estilo compacto`,
+    lbl_expanded: `Estilo expandido`,
+
+    footer_license: `pg_procrustes — Licença MIT`,
+    footer_sitemap: `Mapa do site`,
+    footer_security: `Segurança`,
+
+    th_value: `valor`,
+    th_effect: `Efeito`,
+    th_mode: `modo`,
+    th_break: `quebra`,
+    th_setting: `Configuração`,
+    th_values: `Valores`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Claro`,
+    theme_dark: `Escuro`
+};
+  var I18N_IT = {
+  nav_logo_sub: `Formattatore SQL per PostgreSQL`,
+  nav_sec_intro: `Introduzione`,
+  nav_overview: `Panoramica`,
+  nav_name: `Il nome`,
+  nav_sec_start: `Per iniziare`,
+  nav_installation: `Installazione`,
+  nav_editor: `Integrazione con l'editor`,
+  nav_automation: `Automazione &amp; CI`,
+  nav_usage: `Utilizzo`,
+  nav_sec_config: `Configurazione`,
+  nav_casing: `Maiuscole/minuscole di parole chiave &amp; identificatori`,
+  nav_plpgsql_vars: `Variabili &amp; parole chiave PL/pgSQL`,
+  nav_punctuation: `Punteggiatura &amp; spaziatura`,
+  nav_layout: `Layout`,
+  nav_clauses: `Interruzione delle clausole`,
+  nav_content: `Interruzione del contenuto`,
+  nav_case_sql: `Espressioni CASE`,
+  nav_plpgsql: `PL/pgSQL`,
+  nav_plpgsql_if: `Blocchi IF`,
+  nav_plpgsql_loop: `Blocchi LOOP`,
+  nav_plpgsql_case: `Istruzioni CASE`,
+  nav_sec_tools: `Strumenti`,
+  nav_config_builder: `Configuratore`,
+  nav_sec_project: `Progetto`,
+  nav_llms: `Per l'IA / llms.txt`,
+
+  hero_desc: `Un formattatore PostgreSQL rapido e flessibile scritto in Go. Basato sul parser nativo di PostgreSQL, comprende il tuo codice come farebbe il database stesso.`,
+
+  name_h2: `Il nome`,
+  name_myth: `
+    Nella mitologia greca, Procuste era un bandito che possedeva un letto di ferro sulla strada per Atene.
+    Invitava i viandanti a passare la notte da lui — per poi assicurarsi che si adattassero perfettamente al letto.
+    Se un ospite era troppo alto, gli tagliava le gambe. Se era troppo basso, lo allungava finché non aveva la misura giusta.
+    In realtà possedeva <em>due</em> letti: uno piccolo e uno grande — così nessun ospite poteva mai scampare all'adattamento.
+    In un modo o nell'altro, tutti si adattavano.
+  `,
+  name_p: `
+    <strong>pg_procrustes</strong> funziona allo stesso modo. Tu definisci il letto — le regole di formattazione — tramite
+    <code>.pg_procrustes.yaml</code>. Il tuo SQL si adatterà. Che gli piaccia o no.
+  `,
+
+  install_h2: `Installazione`,
+  install_homebrew_h3: `Homebrew <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(macOS e Linux)</span>`,
+  install_binary_h3: `Download del binario`,
+  install_binary_p: `Scarica l'archivio per la tua piattaforma da <a href="https://github.com/heptau/pg_procrustes/releases">GitHub Releases</a>, estrailo e posiziona il binario nel tuo <code>PATH</code>.`,
+  install_th_archive: `Archivio`,
+  install_th_platform: `Piattaforma`,
+  install_goinstall_h3: `go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(richiede la toolchain Go)</span>`,
+  install_source_h3: `Compilazione dal codice sorgente`,
+
+  editor_h2: `Integrazione con l'editor`,
+  editor_intro_p: `Questo repository funge anche da plugin per Neovim. Richiede il binario <code>pg_procrustes</code> nel tuo <code>PATH</code> (vedi <a href="#installation">Installazione</a> sopra).`,
+  editor_neovim_lazy_p: `Con <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a>:`,
+  editor_neovim_packer_p: `Con <a href="https://github.com/wbthomason/packer.nvim">packer.nvim</a>:`,
+  editor_neovim_conform_p: `
+    Se è installato <a href="https://github.com/stevearc/conform.nvim">conform.nvim</a>, i buffer <code>sql</code> ottengono automaticamente <code>pg_procrustes</code> registrato come formattatore —
+    <code>require("conform").format()</code> e il format-on-save lo useranno come qualsiasi altro formattatore. Senza conform.nvim, usa <code>:PgProcrustesFormat</code> per formattare direttamente il buffer corrente.
+    Esegui <code>:checkhealth pg_procrustes</code> per verificare la configurazione, oppure <code>:help pg_procrustes</code> per il riferimento completo.
+  `,
+  editor_zed_p: `Zed ha supporto integrato per formattatori esterni — non serve alcuna estensione. Aggiungi questo alle impostazioni del progetto (<code>.zed/settings.json</code>) o alle impostazioni utente (<code>~/.config/zed/settings.json</code>):`,
+  editor_zed_format_p: `Poi formatta con il comando <code>editor: format</code>, oppure imposta <code>"format_on_save": "on"</code>.`,
+  editor_vscode_p: `
+    VS Code non dispone di un'opzione integrata per un «formattatore esterno», ma l'estensione
+    <a href="https://marketplace.visualstudio.com/items?itemName=jkillian.custom-local-formatters">Custom Local Formatters</a>
+    ne aggiunge una esclusivamente tramite le impostazioni — non è richiesta alcuna estensione personalizzata. Installala e poi aggiungi:
+  `,
+  editor_vscode_format_p: `Format Document (<code>Shift+Alt+F</code>) ed <code>editor.formatOnSave</code> ora eseguiranno <code>pg_procrustes</code>.`,
+  editor_datagrip_h3: `DataGrip &amp; altri IDE JetBrains`,
+  editor_datagrip_p: `DataGrip include il plugin <strong>File Watchers</strong> (abilitalo in <code>Settings → Tools → File Watchers</code> se è disattivato). Aggiungi un watcher personalizzato:`,
+  editor_datagrip_filetype: `Tipo di file`,
+  editor_datagrip_program: `Programma`,
+  editor_datagrip_program_val: `percorso di <code>pg_procrustes</code> (oppure solo il nome del binario, se risolvibile nel <code>PATH</code>)`,
+  editor_datagrip_arguments: `Argomenti`,
+  editor_datagrip_output: `Percorsi di output da aggiornare`,
+  editor_datagrip_note_p: `
+    Il file viene riformattato sul posto a ogni salvataggio. Per un'attivazione manuale, su richiesta, usa invece <code>Settings → Tools → External Tools</code> con lo stesso Program/Arguments.
+  `,
+  editor_emacs_apheleia_p: `Con <a href="https://github.com/radian-software/apheleia">apheleia.el</a> (asincrono, mantiene la posizione del cursore):`,
+  editor_emacs_reformatter_p: `Oppure con il più leggero <a href="https://github.com/purcell/reformatter.el">reformatter.el</a>:`,
+  editor_emacs_note_p: `Entrambi offrono format-on-save senza dover scrivere un proprio package.`,
+  editor_helix_p: `Aggiungi a <code>~/.config/helix/languages.toml</code> (oppure a un <code>.helix/languages.toml</code> locale al progetto):`,
+  editor_helix_format_p: `Formatta su richiesta con <code>:format</code>, oppure lascia che <code>auto-format</code> lo esegua a ogni salvataggio.`,
+  editor_sublime_p: `Installa <a href="https://packagecontrol.io/packages/Fmt">Fmt</a> tramite Package Control, poi aggiungi alle sue impostazioni (<code>Preferences → Package Settings → Fmt → Settings</code>):`,
+  editor_sublime_trigger_p: `Oppure avvialo manualmente dalla command palette con <strong>Fmt: Format Buffer</strong>.`,
+  editor_vim_p: `Con <a href="https://github.com/dense-analysis/ale">ALE</a> installato, definisci un fixer nel tuo <code>.vimrc</code>:`,
+  editor_vim_ale_p: `Oppure eseguilo su richiesta con <code>:ALEFix</code>.`,
+  editor_note_p: `
+    Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text e Vim sopra sono integrazioni basate solo su configurazione — non è richiesto alcun plugin dedicato, anche se potrebbe arrivarne uno in futuro. Se il tuo editor si avvia come app GUI e non da terminale, potrebbe non vedere il <code>PATH</code> della tua shell; usa il percorso assoluto ottenuto da <code>which pg_procrustes</code> se il comando non viene trovato.
+  `,
+
+  automation_h2: `Automazione &amp; CI`,
+  automation_precommit_p: `
+    Aggiungi un hook locale <a href="https://pre-commit.com">pre-commit</a> (richiede <code>pg_procrustes</code> nel <code>PATH</code> — vedi <a href="#installation">Installazione</a>) a <code>.pre-commit-config.yaml</code>:
+  `,
+  automation_check_p: `
+    <code>--check</code> fa fallire il commit senza toccare i file, così puoi rivedere il diff ed eseguire tu stesso <code>pg_procrustes -w</code>. Preferisci invece l'autofix al commit? Sostituisci l'entry con <code>pg_procrustes -w</code> — pre-commit rileva che i file sono stati modificati e fa comunque fallire quell'esecuzione, così puoi rivedere, rifare lo stage e fare di nuovo il commit.
+  `,
+  automation_gha_p: `Un job CI minimale che fa fallire una pull request se un qualsiasi file <code>.sql</code> tracciato non è formattato:`,
+  automation_gha_swap_p: `Sostituisci il passaggio <code>go install</code> con i metodi <a href="#installation">Homebrew o download del binario</a> se preferisci non dipendere da una toolchain Go in CI.`,
+
+  usage_h2: `Utilizzo`,
+  usage_flags_h4: `Flag`,
+  usage_th_flag: `Flag`,
+  usage_th_desc: `Descrizione`,
+  usage_flag_version: `Stampa la versione ed esce`,
+  usage_flag_c: `Percorso del file di configurazione (predefinito: rilevamento automatico di <code>.pg_procrustes.yaml</code>)`,
+  usage_flag_w: `Scrive il risultato nei file di origine (sul posto)`,
+  usage_flag_backup: `Salva l'originale prima di sovrascrivere (richiede <code>-w</code>); l'estensione predefinita è <code>.bak</code>`,
+  usage_flag_outdir: `Scrive i file formattati in questa directory invece che sul posto (non può essere combinato con <code>-w</code>)`,
+  usage_flag_check: `Esce con codice 1 se un qualsiasi file verrebbe riformattato — utile in CI e negli hook pre-commit`,
+  usage_flag_diff: `Stampa un diff unificato delle modifiche senza scrivere`,
+  usage_lookup_h4: `Ricerca del file di configurazione`,
+  usage_lookup_p: `
+    pg_procrustes cerca <code>.pg_procrustes.yaml</code> a partire dalla directory corrente risalendo fino alla radice del filesystem.
+    Usa <code>-c</code> per specificare un percorso esplicitamente. Tutte le impostazioni hanno come valore predefinito <code>preserve</code> — se non viene trovata alcuna configurazione, non cambia nulla.
+  `,
+
+  casing_h2: `Maiuscole/minuscole di parole chiave &amp; identificatori`,
+  casing_p: `Ogni classe di token può essere impostata su <code>upper</code>, <code>lower</code> o <code>preserve</code>.`,
+  casing_exceptions_h4: `Eccezioni di maiuscole/minuscole`,
+  casing_exceptions_p: `Ogni sezione relativa alle maiuscole/minuscole accetta un elenco <code>exceptions</code>. Le parole in questo elenco mantengono la loro esatta capitalizzazione indipendentemente dall'impostazione <code>case</code> della sezione.`,
+  casing_exceptions_note_p: `Le eccezioni vengono confrontate senza distinzione tra maiuscole e minuscole — il valore nell'elenco definisce l'esatta capitalizzazione in output.`,
+  casing_forms_h4: `Forme dei tipi di dato`,
+  casing_th_form: `forma`,
+  casing_th_example: `Esempio di output`,
+  casing_left_as_written: `Lasciato come scritto`,
+
+  plv_h2: `Variabili &amp; parole chiave PL/pgSQL`,
+  plv_p: `Due sezioni dedicate ai token che lo scanner di PostgreSQL classifica come <code>NO_KEYWORD</code> — sono invisibili alle regole standard <code>keywords</code> / <code>reserved_keywords</code>.`,
+  plv_vars_p: `Pseudo-variabili di runtime disponibili all'interno dei corpi di trigger e funzioni:`,
+  plv_keywords_p: `Parole chiave delle istruzioni PL/pgSQL non classificate come parole chiave SQL dallo scanner:`,
+  plv_exceptions_p: `Entrambe le sezioni accettano un elenco <code>exceptions</code> — le parole che corrispondono a un'eccezione mantengono la loro capitalizzazione originale.`,
+
+  punct_h2: `Punteggiatura &amp; spaziatura`,
+
+  layout_h2: `Layout`,
+  layout_p: `La sezione <code>layout</code> controlla l'interruzione di riga a livello di clausola e l'indentazione. Tutte le modalità hanno come valore predefinito <code>preserve</code>.`,
+  layout_union_p: `Controlla le righe vuote attorno a <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code> ed <code>EXCEPT</code>.`,
+  layout_union_none: `Nessuna riga vuota — gli operatori d'insieme seguono lo stesso flusso dei SELECT circostanti`,
+  layout_union_before: `Riga vuota prima della parola chiave dell'operatore d'insieme`,
+  layout_union_after: `Riga vuota dopo la parola chiave dell'operatore d'insieme`,
+  layout_union_both: `Riga vuota prima <em>e</em> dopo`,
+  layout_paren_p: `<code>mode: indent</code> reindenta il contenuto all'interno di blocchi tra parentesi multi-riga (sottoquery, <code>IN (…)</code>) a esattamente N spazi per livello di profondità. <code>close_first_on_line: after</code> posiziona la parentesi di chiusura <code>)</code> su una riga propria al livello di indentazione interno.`,
+
+  clauses_h2: `Interruzione delle clausole`,
+  clauses_p1: `<code>clauses.break: auto</code> pone ogni clausola SQL su una riga propria quando l'istruzione appiattita supera <code>line_length</code>. L'interruzione è tutto o niente.`,
+  clauses_p2: `Le singole clausole possono sovrascrivere il valore predefinito:`,
+
+  content_h2: `Interruzione del contenuto`,
+  content_p: `Controlla come vengono disposti gli elementi <em>all'interno</em> di una clausola. SELECT e RETURNING si dividono sulle virgole; le condizioni WHERE, HAVING e JOIN si dividono su AND/OR (l'operatore viene posizionato all'inizio della riga di continuazione).`,
+  content_modes_h3: `Modalità di interruzione`,
+  content_mode_preserve: `Lascia come scritto (predefinito)`,
+  content_mode_never: `Comprimi sempre su una riga`,
+  content_mode_always: `Interrompi sempre ogni elemento sulla propria riga`,
+  content_mode_auto: `Interrompi quando la lunghezza del contenuto della clausola supera <code>line_length</code>`,
+  content_firstitem_p: `<code>first_item</code> controlla dove va il primo elemento quando l'interruzione è attiva. È indipendente dalla modalità di interruzione.`,
+  content_firstitem_break: `Primo elemento su una nuova riga indentata (predefinito)`,
+  content_firstitem_inline: `Il primo elemento resta sulla stessa riga della parola chiave della clausola`,
+  content_insertcol_h3: `Elenco colonne INSERT`,
+  content_insertcol_p: `<code>insert_columns</code> controlla l'elenco <code>(col1, col2, …)</code> dopo il nome della tabella nelle istruzioni INSERT. Per <code>always</code> la parentesi di apertura ottiene una riga propria; per <code>first_inline</code> la prima colonna resta sulla riga della parentesi.`,
+  content_with_h3: `Clausola WITH`,
+  content_with_p: `<code>with_list: always</code> pone ogni definizione CTE sulla propria riga indentata:`,
+
+  casesql_h2: `Espressioni CASE`,
+  casesql_p: `Controlla le espressioni SQL <code>CASE … END</code> in SELECT, WHERE e altre clausole.`,
+  casesql_never: `Comprimi <code>CASE…END</code> su una singola riga`,
+  casesql_always: `Ogni WHEN / ELSE / END sulla propria riga`,
+  casesql_auto: `Espandi solo quando la lunghezza del CASE appiattito supera <code>line_length</code>`,
+  casesql_preserve: `Lascia come scritto`,
+
+  plpgsql_h2: `Formattazione PL/pgSQL`,
+  plpgsql_p: `I corpi di funzioni e procedure con dollar-quoting vengono formattati in modo ricorsivo. La sezione <code>layout.dollar_quote.plpgsql</code> controlla la struttura dei blocchi.`,
+
+  plif_h2: `PL/pgSQL — blocchi IF`,
+
+  ploop_h2: `PL/pgSQL — blocchi LOOP`,
+  ploop_p: `Copre i semplici <code>LOOP</code>, <code>FOR i IN … LOOP</code>, <code>FOR rec IN SELECT … LOOP</code> e <code>WHILE cond LOOP</code>. L'intestazione del ciclo viene preservata testualmente.`,
+
+  pcase_h2: `PL/pgSQL — istruzioni CASE`,
+  pcase_p: `Due configurazioni indipendenti: <code>simple</code> (switch su valore) e <code>searched</code> (switch su condizione).`,
+  pcase_when_indent: `WHEN/ELSE un livello più in profondità rispetto a CASE`,
+  pcase_then_never: `WHEN val THEN il corpo resta su una riga`,
+  pcase_then_always: `THEN sulla propria riga`,
+  pcase_body_never: `Il corpo inizia sulla riga di THEN`,
+  pcase_body_always: `Corpo su nuova riga dopo THEN`,
+  pcase_body_auto: `Stessa riga per una singola istruzione, nuova riga per più istruzioni`,
+
+  lbl_before: `Prima`,
+  lbl_after_plv: `Dopo — plpgsql_variables: upper`,
+  lbl_after_plk: `Dopo — plpgsql_keywords: upper`,
+  lbl_after_break_auto: `Dopo — break: auto, line_length: 80`,
+  lbl_after_break_never: `Dopo — break: never`,
+  lbl_after_bodyindent: `Dopo — body_indent: indent`,
+  lbl_after_loop: `Dopo — body_indent: indent, blank_line_after: add`,
+  lbl_firstitem_break: `first_item: break (predefinito)`,
+  lbl_compact: `Stile compatto`,
+  lbl_expanded: `Stile espanso`,
+
+  footer_license: `pg_procrustes — Licenza MIT`,
+  footer_sitemap: `Mappa del sito`,
+  footer_security: `Sicurezza`,
+
+  th_value: `valore`,
+  th_effect: `Effetto`,
+  th_mode: `modalità`,
+  th_break: `interruzione`,
+  th_setting: `Impostazione`,
+  th_values: `Valori`,
+
+  lang_auto: `Auto`,
+  theme_auto: `Auto`,
+  theme_light: `Chiaro`,
+  theme_dark: `Scuro`
+};
+
   var LANG_KEY = 'pg_procrustes_lang';
   var THEME_KEY = 'pg_procrustes_theme';
 
@@ -1713,19 +2794,27 @@ total := total + i;
     originals.set(el, el.innerHTML);
   });
 
+  var I18N = { cs: I18N_CS, es: I18N_ES, de: I18N_DE, fr: I18N_FR, pt: I18N_PT, it: I18N_IT };
+  var SUPPORTED_LANGS = ['en', 'cs', 'es', 'de', 'fr', 'pt', 'it'];
+
   function resolveLang(value) {
-    if (value === 'cs' || value === 'en') return value;
+    if (SUPPORTED_LANGS.indexOf(value) !== -1) return value;
     var nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
-    return nav.indexOf('cs') === 0 || nav.indexOf('sk') === 0 ? 'cs' : 'en';
+    if (nav.indexOf('cs') === 0 || nav.indexOf('sk') === 0) return 'cs';
+    for (var i = 0; i < SUPPORTED_LANGS.length; i++) {
+      if (nav.indexOf(SUPPORTED_LANGS[i]) === 0) return SUPPORTED_LANGS[i];
+    }
+    return 'en';
   }
 
   function applyLang(value) {
     var resolved = resolveLang(value);
+    var dict = I18N[resolved];
     document.documentElement.lang = resolved;
     originals.forEach(function (html, el) {
       var key = el.getAttribute('data-i18n');
-      if (resolved === 'cs' && Object.prototype.hasOwnProperty.call(I18N_CS, key)) {
-        el.innerHTML = I18N_CS[key];
+      if (dict && Object.prototype.hasOwnProperty.call(dict, key)) {
+        el.innerHTML = dict[key];
       } else {
         el.innerHTML = html;
       }

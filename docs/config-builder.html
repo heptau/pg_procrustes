@@ -589,6 +589,11 @@
       <button class="lang-option" data-lang-value="auto"><span class="lang-option-icon">🌐</span><span data-i18n="lang_auto">Auto</span></button>
       <button class="lang-option" data-lang-value="en"><span class="lang-option-icon">🇬🇧</span><span>English</span></button>
       <button class="lang-option" data-lang-value="cs"><span class="lang-option-icon">🇨🇿</span><span>Čeština</span></button>
+      <button class="lang-option" data-lang-value="es"><span class="lang-option-icon">🇪🇸</span><span>Español</span></button>
+      <button class="lang-option" data-lang-value="de"><span class="lang-option-icon">🇩🇪</span><span>Deutsch</span></button>
+      <button class="lang-option" data-lang-value="fr"><span class="lang-option-icon">🇫🇷</span><span>Français</span></button>
+      <button class="lang-option" data-lang-value="pt"><span class="lang-option-icon">🇵🇹</span><span>Português</span></button>
+      <button class="lang-option" data-lang-value="it"><span class="lang-option-icon">🇮🇹</span><span>Italiano</span></button>
     </div>
   </div>
   <div class="theme-dropdown" id="theme-dropdown">
@@ -1534,6 +1539,177 @@ document.addEventListener('keydown', (e) => {
     theme_dark: `Tmavý`
   };
 
+  var I18N_ES = {
+  cb_logo_sub: `Configurador`,
+  cb_nav_builder: `Configurador`,
+  cb_nav_casing: `Mayúsculas/minúsculas`,
+  cb_nav_punctuation: `Puntuación &amp; espaciado`,
+  cb_nav_layout_basics: `Diseño — Básicos`,
+  cb_nav_layout_clauses: `Diseño — Cláusulas`,
+  cb_nav_layout_content: `Diseño — Contenido`,
+  cb_nav_layout_other: `Diseño — Otros`,
+  cb_nav_links: `Enlaces`,
+  cb_nav_docs: `Documentación`,
+
+  cb_h1: `Configurador`,
+  cb_h1_p: `Construye tu <code>.pg_procrustes.yaml</code> de forma interactiva. Haz clic en cualquier opción para ver detalles y ejemplos.`,
+  cb_btn_nochanges: `Sin cambios`,
+  cb_btn_defaults: `Valores por defecto de pg_procrustes`,
+  cb_btn_load: `Cargar archivo de configuración`,
+  cb_btn_paste: `Pegar YAML`,
+  cb_btn_download: `Descargar .pg_procrustes.yaml`,
+
+  cb_modal_h3: `Pegar .pg_procrustes.yaml`,
+  cb_modal_p: `Pega abajo el contenido de tu archivo de configuración. Solo se aplicarán los ajustes reconocidos; las claves desconocidas se ignoran.`,
+  cb_modal_cancel: `Cancelar`,
+  cb_modal_apply: `Aplicar`,
+
+  cb_detail_empty: `Haz clic o navega a cualquier opción de la izquierda para ver aquí su descripción y ejemplos.`,
+  cb_yaml_preview: `vista previa de .pg_procrustes.yaml`,
+  cb_copy: `Copiar`,
+
+  lang_auto: `Auto`,
+  theme_auto: `Auto`,
+  theme_light: `Claro`,
+  theme_dark: `Oscuro`
+};
+  var I18N_DE = {
+    cb_logo_sub: `Konfigurator`,
+    cb_nav_builder: `Konfigurator`,
+    cb_nav_casing: `Groß-/Kleinschreibung`,
+    cb_nav_punctuation: `Zeichensetzung &amp; Abstände`,
+    cb_nav_layout_basics: `Layout — Grundlagen`,
+    cb_nav_layout_clauses: `Layout — Klauseln`,
+    cb_nav_layout_content: `Layout — Inhalt`,
+    cb_nav_layout_other: `Layout — Sonstiges`,
+    cb_nav_links: `Links`,
+    cb_nav_docs: `Dokumentation`,
+
+    cb_h1: `Konfigurator`,
+    cb_h1_p: `Erstellen Sie Ihre <code>.pg_procrustes.yaml</code> interaktiv. Klicken Sie auf eine beliebige Option, um Details und Beispiele zu sehen.`,
+    cb_btn_nochanges: `Keine Änderungen`,
+    cb_btn_defaults: `pg_procrustes-Standardwerte`,
+    cb_btn_load: `Konfigurationsdatei laden`,
+    cb_btn_paste: `YAML einfügen`,
+    cb_btn_download: `.pg_procrustes.yaml herunterladen`,
+
+    cb_modal_h3: `.pg_procrustes.yaml einfügen`,
+    cb_modal_p: `Fügen Sie den Inhalt Ihrer Konfigurationsdatei unten ein. Es werden nur erkannte Einstellungen angewendet; unbekannte Schlüssel werden ignoriert.`,
+    cb_modal_cancel: `Abbrechen`,
+    cb_modal_apply: `Anwenden`,
+
+    cb_detail_empty: `Klicken Sie auf eine Option links oder fokussieren Sie sie, um hier ihre Beschreibung und Beispiele zu sehen.`,
+    cb_yaml_preview: `Vorschau von .pg_procrustes.yaml`,
+    cb_copy: `Kopieren`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Hell`,
+    theme_dark: `Dunkel`
+};
+  var I18N_FR = {
+    cb_logo_sub: `Générateur de configuration`,
+    cb_nav_builder: `Générateur`,
+    cb_nav_casing: `Casse`,
+    cb_nav_punctuation: `Ponctuation &amp; espacement`,
+    cb_nav_layout_basics: `Mise en page — bases`,
+    cb_nav_layout_clauses: `Mise en page — clauses`,
+    cb_nav_layout_content: `Mise en page — contenu`,
+    cb_nav_layout_other: `Mise en page — autres`,
+    cb_nav_links: `Liens`,
+    cb_nav_docs: `Documentation`,
+
+    cb_h1: `Générateur de configuration`,
+    cb_h1_p: `Construisez votre <code>.pg_procrustes.yaml</code> de manière interactive. Cliquez sur une option pour voir sa description et des exemples.`,
+    cb_btn_nochanges: `Aucun changement`,
+    cb_btn_defaults: `Valeurs par défaut de pg_procrustes`,
+    cb_btn_load: `Charger un fichier de configuration`,
+    cb_btn_paste: `Coller du YAML`,
+    cb_btn_download: `Télécharger .pg_procrustes.yaml`,
+
+    cb_modal_h3: `Coller .pg_procrustes.yaml`,
+    cb_modal_p: `Collez ci-dessous le contenu de votre fichier de configuration. Seuls les réglages reconnus seront appliqués ; les clés inconnues sont ignorées.`,
+    cb_modal_cancel: `Annuler`,
+    cb_modal_apply: `Appliquer`,
+
+    cb_detail_empty: `Cliquez sur une option à gauche, ou donnez-lui le focus, pour afficher ici sa description et ses exemples.`,
+    cb_yaml_preview: `aperçu de .pg_procrustes.yaml`,
+    cb_copy: `Copier`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Clair`,
+    theme_dark: `Sombre`
+};
+  var I18N_PT = {
+    cb_logo_sub: `Construtor de configuração`,
+    cb_nav_builder: `Construtor`,
+    cb_nav_casing: `Capitalização`,
+    cb_nav_punctuation: `Pontuação &amp; espaçamento`,
+    cb_nav_layout_basics: `Layout — básico`,
+    cb_nav_layout_clauses: `Layout — cláusulas`,
+    cb_nav_layout_content: `Layout — conteúdo`,
+    cb_nav_layout_other: `Layout — outros`,
+    cb_nav_links: `Links`,
+    cb_nav_docs: `Documentação`,
+
+    cb_h1: `Construtor de configuração`,
+    cb_h1_p: `Monte o seu <code>.pg_procrustes.yaml</code> de forma interativa. Clique em qualquer opção para ver detalhes e exemplos.`,
+    cb_btn_nochanges: `Sem alterações`,
+    cb_btn_defaults: `Padrões do pg_procrustes`,
+    cb_btn_load: `Carregar arquivo de configuração`,
+    cb_btn_paste: `Colar YAML`,
+    cb_btn_download: `Download do .pg_procrustes.yaml`,
+
+    cb_modal_h3: `Colar .pg_procrustes.yaml`,
+    cb_modal_p: `Cole abaixo o conteúdo do seu arquivo de configuração. Apenas as configurações reconhecidas serão aplicadas; chaves desconhecidas são ignoradas.`,
+    cb_modal_cancel: `Cancelar`,
+    cb_modal_apply: `Aplicar`,
+
+    cb_detail_empty: `Clique ou navegue até qualquer opção à esquerda para ver aqui a sua descrição e exemplos.`,
+    cb_yaml_preview: `pré-visualização do .pg_procrustes.yaml`,
+    cb_copy: `Copiar`,
+
+    lang_auto: `Auto`,
+    theme_auto: `Auto`,
+    theme_light: `Claro`,
+    theme_dark: `Escuro`
+};
+  var I18N_IT = {
+  cb_logo_sub: `Configuratore`,
+  cb_nav_builder: `Configuratore`,
+  cb_nav_casing: `Maiuscole/minuscole`,
+  cb_nav_punctuation: `Punteggiatura &amp; spaziatura`,
+  cb_nav_layout_basics: `Layout — Fondamenti`,
+  cb_nav_layout_clauses: `Layout — Clausole`,
+  cb_nav_layout_content: `Layout — Contenuto`,
+  cb_nav_layout_other: `Layout — Altro`,
+  cb_nav_links: `Collegamenti`,
+  cb_nav_docs: `Documentazione`,
+
+  cb_h1: `Configuratore`,
+  cb_h1_p: `Crea il tuo <code>.pg_procrustes.yaml</code> in modo interattivo. Clicca su qualsiasi opzione per vedere dettagli ed esempi.`,
+  cb_btn_nochanges: `Nessuna modifica`,
+  cb_btn_defaults: `Valori predefiniti di pg_procrustes`,
+  cb_btn_load: `Carica file di configurazione`,
+  cb_btn_paste: `Incolla YAML`,
+  cb_btn_download: `Scarica .pg_procrustes.yaml`,
+
+  cb_modal_h3: `Incolla .pg_procrustes.yaml`,
+  cb_modal_p: `Incolla qui sotto il contenuto del tuo file di configurazione. Verranno applicate solo le impostazioni riconosciute; le chiavi sconosciute vengono ignorate.`,
+  cb_modal_cancel: `Annulla`,
+  cb_modal_apply: `Applica`,
+
+  cb_detail_empty: `Clicca o seleziona qualsiasi opzione a sinistra per vedere qui la sua descrizione e i suoi esempi.`,
+  cb_yaml_preview: `anteprima .pg_procrustes.yaml`,
+  cb_copy: `Copia`,
+
+  lang_auto: `Auto`,
+  theme_auto: `Auto`,
+  theme_light: `Chiaro`,
+  theme_dark: `Scuro`
+};
+
   var LANG_KEY = 'pg_procrustes_lang';
   var THEME_KEY = 'pg_procrustes_theme';
 
@@ -1542,19 +1718,27 @@ document.addEventListener('keydown', (e) => {
     originals.set(el, el.innerHTML);
   });
 
+  var I18N = { cs: I18N_CS, es: I18N_ES, de: I18N_DE, fr: I18N_FR, pt: I18N_PT, it: I18N_IT };
+  var SUPPORTED_LANGS = ['en', 'cs', 'es', 'de', 'fr', 'pt', 'it'];
+
   function resolveLang(value) {
-    if (value === 'cs' || value === 'en') return value;
+    if (SUPPORTED_LANGS.indexOf(value) !== -1) return value;
     var nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
-    return nav.indexOf('cs') === 0 || nav.indexOf('sk') === 0 ? 'cs' : 'en';
+    if (nav.indexOf('cs') === 0 || nav.indexOf('sk') === 0) return 'cs';
+    for (var i = 0; i < SUPPORTED_LANGS.length; i++) {
+      if (nav.indexOf(SUPPORTED_LANGS[i]) === 0) return SUPPORTED_LANGS[i];
+    }
+    return 'en';
   }
 
   function applyLang(value) {
     var resolved = resolveLang(value);
+    var dict = I18N[resolved];
     document.documentElement.lang = resolved;
     originals.forEach(function (html, el) {
       var key = el.getAttribute('data-i18n');
-      if (resolved === 'cs' && Object.prototype.hasOwnProperty.call(I18N_CS, key)) {
-        el.innerHTML = I18N_CS[key];
+      if (dict && Object.prototype.hasOwnProperty.call(dict, key)) {
+        el.innerHTML = dict[key];
       } else {
         el.innerHTML = html;
       }
