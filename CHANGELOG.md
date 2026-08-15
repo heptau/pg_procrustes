@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Language switcher (Auto / English / Čeština) and theme switcher (Auto / Light / Dark) on the documentation website — fixed top-right icon buttons (backdrop-blurred for readability over any background) with a dropdown menu, matching in position and style on both `index.html` and `config-builder.html`; the choice is persisted in `localStorage` and synced across both pages. `index.html`'s content and `config-builder.html`'s static chrome (header, buttons, nav, modal) are fully translated to Czech; the interactive option catalog on the config builder remains English-only
+- Language switcher (Auto / English / Čeština / Español / Deutsch / Français / Português / Italiano) and theme switcher (Auto / Light / Dark) on the documentation website — fixed top-right icon buttons (backdrop-blurred for readability over any background) with a dropdown menu, matching in position and style on both `index.html` and `config-builder.html`; the choice is persisted in `localStorage` and synced across both pages. `index.html`'s content and `config-builder.html`'s static chrome (header, buttons, nav, modal) are fully translated to Czech, Spanish, German, French, Portuguese, and Italian; the interactive option catalog on the config builder remains English-only
 - JSON-LD structured data, Open Graph/Twitter preview images, and `sitemap.xml` `lastmod` dates for `config-builder.html`, matching `index.html`
 
 ### Fixed
@@ -16,6 +16,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Long unbreakable content (SQL code samples, wide tables) forced the whole documentation page to scroll horizontally on narrow viewports; fixed by giving the affected flex/grid containers `min-width: 0`
 - Tables on the documentation site now scroll horizontally within their own container instead of overflowing the page on narrow viewports
 - Enlarged touch targets for the mobile navigation toggle and nav links
+
+### Security
+
+- `config-builder.html`'s YAML preview (`renderYAML()`) inserted values from a loaded or pasted `.pg_procrustes.yaml` file into `innerHTML` without escaping, allowing a crafted config file (e.g. `reserved_keywords: { case: "<img src=x onerror=...>" }`) to execute arbitrary JavaScript in the visitor's browser when loaded via "Load config file" or "Paste YAML" (DOM-based XSS). Values are now HTML-escaped before rendering
 
 ## [0.2.2] — 2026-08-07
 

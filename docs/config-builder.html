@@ -1301,19 +1301,20 @@ function renderYAML() {
     return;
   }
   // Syntax highlight: lines ending with : are keys, others key: value
+  // Values can come from a loaded/pasted YAML file, so they're untrusted — escape before innerHTML.
   const html = yaml.split('\n').map(line => {
     if (line.trimEnd().endsWith(':')) {
       // section header
       const m = line.match(/^(\s*)(\S+):(\s*)$/);
-      if (m) return `${m[1]}<span class="y-key">${m[2]}</span>:${m[3]}`;
+      if (m) return `${m[1]}<span class="y-key">${escHtml(m[2])}</span>:${m[3]}`;
     }
     const m = line.match(/^(\s*)([^:]+):\s*(.+)$/);
     if (m) {
       const numVal = parseFloat(m[3]);
       const isNum = !isNaN(numVal) && String(numVal) === m[3].trim();
-      return `${m[1]}<span class="y-key">${m[2]}</span>: <span class="${isNum ? 'y-num' : 'y-val'}">${m[3]}</span>`;
+      return `${m[1]}<span class="y-key">${escHtml(m[2])}</span>: <span class="${isNum ? 'y-num' : 'y-val'}">${escHtml(m[3])}</span>`;
     }
-    return line;
+    return escHtml(line);
   }).join('\n');
   out.innerHTML = html;
 }
