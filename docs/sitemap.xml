@@ -14,7 +14,13 @@
   </url>
   <url>
     <loc>https://pg_procrustes.80.cz/llms.txt</loc>
-    <lastmod>2026-08-11</lastmod>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://pg_procrustes.80.cz/llms-full.txt</loc>
+    <lastmod>2026-09-24</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>

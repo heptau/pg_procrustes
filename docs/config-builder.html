@@ -193,7 +193,7 @@
     }
 
     .page-header {
-      padding: 1.5rem 7.5rem 1.25rem 2rem;
+      padding: 1.5rem 14rem 1.25rem 2rem;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
       display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
@@ -479,6 +479,9 @@
       transition: 0.2s;
     }
     .icon-btn:hover { border-color: var(--accent); color: var(--text); background: var(--surface-glass); }
+    a.icon-btn { text-decoration: none; }
+    .icon-btn.icon-heart:hover { border-color: #ff6ba7; color: #ff6ba7; }
+    .icon-btn.icon-star:hover  { border-color: #f59e0b; color: #f59e0b; }
     .icon-sw { width: 1.25rem; height: 1.25rem; display: block; }
 
     .lang-dropdown, .theme-dropdown { position: relative; display: inline-block; }
@@ -563,7 +566,7 @@
     }
 
     @media (max-width: 480px) {
-      .page-header { flex-direction: column; align-items: flex-start; padding-right: 2rem; }
+      .page-header { flex-direction: column; align-items: flex-start; padding: 4rem 1.25rem 1.25rem; }
       .header-actions { margin-left: 0; width: 100%; }
       .header-actions button { flex: 1 1 auto; }
       .menu-btn { top: 0.7rem; left: 0.7rem; width: 2.5rem; height: 2.5rem; }
@@ -577,6 +580,12 @@
 <div class="nav-overlay" id="nav-overlay"></div>
 
 <div class="top-actions">
+  <a class="icon-btn icon-heart" href="https://github.com/sponsors/heptau" target="_blank" rel="noopener noreferrer" aria-label="Sponsor" title="Sponsor" data-i18n-title="hdr_sponsor">
+    <svg class="icon-sw" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-.87-.6-2.02-1.44C6.1 16.9 2 13.5 2 9.5c0-2.8 2.2-5 5-5 1.6 0 3.15.75 4.13 1.94L12 7.5l.87-1.06C13.85 5.25 15.4 4.5 17 4.5c2.8 0 5 2.2 5 5 0 4-4.1 7.4-7.98 10.06C12.87 20.4 12 21 12 21z"></path></svg>
+  </a>
+  <a class="icon-btn icon-star" href="https://github.com/heptau/pg_procrustes" target="_blank" rel="noopener noreferrer" aria-label="Star on GitHub" title="Star on GitHub" data-i18n-title="hdr_star">
+    <svg class="icon-sw" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+  </a>
   <div class="lang-dropdown" id="lang-dropdown">
     <button class="icon-btn lang-trigger" id="lang-trigger" aria-label="Change language" aria-haspopup="true" aria-expanded="false">
       <svg class="icon-sw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -624,7 +633,6 @@
   <a href="#layout-other" data-i18n="cb_nav_layout_other">Layout — Other</a>
   <span class="nav-section" data-i18n="cb_nav_links">Links</span>
   <a href="index.html" data-i18n="cb_nav_docs">Documentation</a>
-  <a href="https://github.com/heptau/pg_procrustes" target="_blank">GitHub ↗</a>
 </nav>
 
 <div class="page">
@@ -1537,7 +1545,9 @@ document.addEventListener('keydown', (e) => {
     lang_auto: `Auto`,
     theme_auto: `Auto`,
     theme_light: `Světlý`,
-    theme_dark: `Tmavý`
+    theme_dark: `Tmavý`,
+    hdr_sponsor: `Podpořit`,
+    hdr_star: `Dát hvězdičku na GitHubu`
   };
 
   var I18N_ES = {
@@ -1572,7 +1582,9 @@ document.addEventListener('keydown', (e) => {
   lang_auto: `Auto`,
   theme_auto: `Auto`,
   theme_light: `Claro`,
-  theme_dark: `Oscuro`
+  theme_dark: `Oscuro`,
+  hdr_sponsor: `Patrocinar`,
+  hdr_star: `Dar una estrella en GitHub`
 };
   var I18N_DE = {
     cb_logo_sub: `Konfigurator`,
@@ -1606,7 +1618,9 @@ document.addEventListener('keydown', (e) => {
     lang_auto: `Auto`,
     theme_auto: `Auto`,
     theme_light: `Hell`,
-    theme_dark: `Dunkel`
+    theme_dark: `Dunkel`,
+    hdr_sponsor: `Sponsern`,
+    hdr_star: `Auf GitHub mit Stern markieren`
 };
   var I18N_FR = {
     cb_logo_sub: `Générateur de configuration`,
@@ -1640,7 +1654,9 @@ document.addEventListener('keydown', (e) => {
     lang_auto: `Auto`,
     theme_auto: `Auto`,
     theme_light: `Clair`,
-    theme_dark: `Sombre`
+    theme_dark: `Sombre`,
+    hdr_sponsor: `Sponsoriser`,
+    hdr_star: `Mettre une étoile sur GitHub`
 };
   var I18N_PT = {
     cb_logo_sub: `Construtor de configuração`,
@@ -1674,7 +1690,9 @@ document.addEventListener('keydown', (e) => {
     lang_auto: `Auto`,
     theme_auto: `Auto`,
     theme_light: `Claro`,
-    theme_dark: `Escuro`
+    theme_dark: `Escuro`,
+    hdr_sponsor: `Patrocinar`,
+    hdr_star: `Dar uma estrela no GitHub`
 };
   var I18N_IT = {
   cb_logo_sub: `Configuratore`,
@@ -1708,7 +1726,9 @@ document.addEventListener('keydown', (e) => {
   lang_auto: `Auto`,
   theme_auto: `Auto`,
   theme_light: `Chiaro`,
-  theme_dark: `Scuro`
+  theme_dark: `Scuro`,
+  hdr_sponsor: `Sponsorizza`,
+  hdr_star: `Metti una stella su GitHub`
 };
 
   var LANG_KEY = 'pg_procrustes_lang';
@@ -1717,6 +1737,11 @@ document.addEventListener('keydown', (e) => {
   var originals = new Map();
   document.querySelectorAll('[data-i18n]').forEach(function (el) {
     originals.set(el, el.innerHTML);
+  });
+
+  var originalTitles = new Map();
+  document.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+    originalTitles.set(el, el.getAttribute('title'));
   });
 
   var I18N = { cs: I18N_CS, es: I18N_ES, de: I18N_DE, fr: I18N_FR, pt: I18N_PT, it: I18N_IT };
@@ -1743,6 +1768,12 @@ document.addEventListener('keydown', (e) => {
       } else {
         el.innerHTML = html;
       }
+    });
+    originalTitles.forEach(function (title, el) {
+      var key = el.getAttribute('data-i18n-title');
+      var t = (dict && Object.prototype.hasOwnProperty.call(dict, key)) ? dict[key] : title;
+      el.setAttribute('title', t);
+      el.setAttribute('aria-label', t);
     });
     document.querySelectorAll('.lang-option').forEach(function (o) {
       o.classList.toggle('active', o.dataset.langValue === value);

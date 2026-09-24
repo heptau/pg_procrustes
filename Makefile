@@ -12,7 +12,7 @@ LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
         build-darwin-arm64 build-darwin-amd64 \
         build-linux-amd64 build-linux-arm64 \
         build-windows-amd64 build-windows-arm64 \
-        build-all release-local prepare-release release
+        build-all release-local prepare-release release llms
 
 help: ## Show this help
 	@echo "pg_procrustes — PostgreSQL SQL formatter"
@@ -87,6 +87,9 @@ release-local: ## Test, build current platform archive, verify — no git, no pu
 
 release: clean prepare-release ## Bump, build all platforms locally, tag, publish GitHub release, update tap
 	@VERSION=$(VERSION) scripts/release.sh
+
+llms: ## Regenerate docs/llms-full.txt from README.md and .pg_procrustes.yaml
+	@scripts/gen_llms_full.sh
 
 # ── cleanup ───────────────────────────────────────────────────────────────────
 
