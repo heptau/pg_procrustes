@@ -50,6 +50,11 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 			return false
 		}
 	}
+	for _, b := range []config.BreakMode{cfg.DDL.CreateTable.Break, cfg.DDL.AlterTable.Break} {
+		if b != "" && b != config.BreakPreserve {
+			return false
+		}
+	}
 	return clauseBreak == config.BreakPreserve &&
 		unionBL == config.UnionBlankLinePreserve &&
 		contentBreak == config.BreakPreserve &&
@@ -93,25 +98,14 @@ func Apply(sql string, cfg *config.LayoutConfig) (string, error) {
 	leadingGap := sql[:firstTokStart]
 
 	lastStmt := stmts[len(stmts)-1]
-	lastTokEnd := firstTokStart
-	if lastStmt.semiIdx >= 0 {
-		lastTokEnd = tokens[lastStmt.semiIdx].end
-	} else if len(lastStmt.clauses) > 0 {
-		lastTokEnd = tokens[lastStmt.clauses[len(lastStmt.clauses)-1].conEnd-1].end
-	}
+	lastTokEnd := stmtEndOffset(tokens, lastStmt, firstTokStart)
 	trailingGap := sql[lastTokEnd:]
 
 	var parts []string
 	for i, stmt := range stmts {
 		// Preserve inter-statement gap (between end of previous stmt and start of this one).
 		if i > 0 {
-			prevStmt := stmts[i-1]
-			var prevEnd int
-			if prevStmt.semiIdx >= 0 {
-				prevEnd = tokens[prevStmt.semiIdx].end
-			} else if len(prevStmt.clauses) > 0 {
-				prevEnd = tokens[prevStmt.clauses[len(prevStmt.clauses)-1].conEnd-1].end
-			}
+			prevEnd := stmtEndOffset(tokens, stmts[i-1], 0)
 			curStart := tokens[stmt.startTok].start
 			parts = append(parts, sql[prevEnd:curStart])
 		}
@@ -179,6 +173,7 @@ type stmtClause struct {
 
 type statement struct {
 	startTok int
+	endTok   int // exclusive end of the statement's tokens, before the ';'
 	clauses  []stmtClause
 	semiIdx  int
 }
@@ -211,6 +206,7 @@ func parseStatements(tokens []rawTok) []statement {
 			}
 			if tok.text == ";" && depth == 0 {
 				stmt.semiIdx = i
+				stmt.endTok = i
 				i++
 				break
 			}
@@ -247,7 +243,10 @@ func parseStatements(tokens []rawTok) []statement {
 				last.conEnd = end
 			}
 		}
-		if len(stmt.clauses) > 0 || stmt.semiIdx >= 0 {
+		if stmt.semiIdx < 0 {
+			stmt.endTok = i
+		}
+		if len(stmt.clauses) > 0 || stmt.semiIdx >= 0 || isDDLStart(tokens, stmt.startTok, stmt.endTok) {
 			stmts = append(stmts, stmt)
 		}
 	}
@@ -536,11 +535,11 @@ func inlineContent(sql string, tokens []rawTok, from, to int, parenMode config.P
 
 func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutConfig, indentUnit string, depth int) string {
 	if len(stmt.clauses) == 0 {
-		start := tokens[stmt.startTok].start
-		end := tokens[stmt.startTok].end
-		if stmt.semiIdx >= 0 {
-			end = tokens[stmt.semiIdx].end
+		if out, ok := rebuildDDL(sql, tokens, stmt, cfg, indentUnit, depth); ok {
+			return out
 		}
+		start := tokens[stmt.startTok].start
+		end := stmtEndOffset(tokens, stmt, tokens[stmt.startTok].end)
 		if start > len(sql) {
 			start = len(sql)
 		}
@@ -2011,4 +2010,16 @@ func writeLeadingComments(sb *strings.Builder, item, indent string) string {
 		sb.WriteString(strings.TrimSpace(ln))
 	}
 	return item[cut:]
+}
+
+// stmtEndOffset returns the byte offset just past the statement (including its ';').
+// fallback is returned for a statement without tokens.
+func stmtEndOffset(tokens []rawTok, stmt statement, fallback int) int {
+	if stmt.semiIdx >= 0 {
+		return tokens[stmt.semiIdx].end
+	}
+	if stmt.endTok > stmt.startTok && stmt.endTok <= len(tokens) {
+		return tokens[stmt.endTok-1].end
+	}
+	return fallback
 }

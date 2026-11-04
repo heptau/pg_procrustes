@@ -425,3 +425,119 @@ func TestOperatorPositionEndMovesCommentWithOperator(t *testing.T) {
 		t.Fatalf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
 	}
 }
+
+func ddlCfg(create config.BreakMode, align config.ColumnAlignMode, alter config.BreakMode) *config.LayoutConfig {
+	cfg := mkCfg(config.BreakPreserve, config.BreakPreserve, 128)
+	cfg.Indent.Size = 3
+	cfg.DDL.CreateTable = config.CreateTableCfg{Break: create, Align: align}
+	cfg.DDL.AlterTable = config.AlterTableCfg{Break: alter}
+	return cfg
+}
+
+func assertIdempotent(t *testing.T, cfg *config.LayoutConfig, got string) {
+	t.Helper()
+	if again, err := layout.Apply(got, cfg); err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
+	}
+}
+
+func TestCreateTableBreakAndAlign(t *testing.T) {
+	sql := "CREATE TABLE IF NOT EXISTS public.t (id bigint NOT NULL, code character varying(64) NOT NULL DEFAULT 'x', note text, CONSTRAINT pk PRIMARY KEY (id)) WITH (fillfactor = 70);"
+	for _, tc := range []struct {
+		align config.ColumnAlignMode
+		want  string
+	}{
+		{config.ColumnAlignPreserve, "CREATE TABLE IF NOT EXISTS public.t (\n   id bigint NOT NULL,\n   code character varying(64) NOT NULL DEFAULT 'x',\n   note text,\n   CONSTRAINT pk PRIMARY KEY (id)\n) WITH (fillfactor = 70);"},
+		{config.ColumnAlignTypes, "CREATE TABLE IF NOT EXISTS public.t (\n   id   bigint NOT NULL,\n   code character varying(64) NOT NULL DEFAULT 'x',\n   note text,\n   CONSTRAINT pk PRIMARY KEY (id)\n) WITH (fillfactor = 70);"},
+		{config.ColumnAlignAll, "CREATE TABLE IF NOT EXISTS public.t (\n   id   bigint                NOT NULL,\n   code character varying(64) NOT NULL DEFAULT 'x',\n   note text,\n   CONSTRAINT pk PRIMARY KEY (id)\n) WITH (fillfactor = 70);"},
+	} {
+		cfg := ddlCfg(config.BreakAlways, tc.align, config.BreakPreserve)
+		got, err := layout.Apply(sql, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != tc.want {
+			t.Errorf("align %s:\ngot:\n%s\nwant:\n%s", tc.align, got, tc.want)
+		}
+		assertIdempotent(t, cfg, got)
+	}
+}
+
+func TestCreateTableCommaStartCommentsAndNoSemicolon(t *testing.T) {
+	cfg := ddlCfg(config.BreakAlways, config.ColumnAlignTypes, config.BreakPreserve)
+	cfg.Content.CommaPosition = config.CommaStart
+	sql := "create table x (a int, -- first\n bb text, ccc date)"
+	got, err := layout.Apply(sql, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "create table x (\n   a   int -- first\n , bb  text\n , ccc date\n)"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	assertIdempotent(t, cfg, got)
+}
+
+func TestCreateTableNeverAndAutoAndPreserve(t *testing.T) {
+	sql := "CREATE TABLE t (\n   a int,\n   b text\n);"
+	got, err := layout.Apply(sql, ddlCfg(config.BreakNever, config.ColumnAlignPreserve, config.BreakPreserve))
+	if err != nil || got != "CREATE TABLE t (a int, b text);" {
+		t.Fatalf("never: %q %v", got, err)
+	}
+	long := "CREATE TABLE t (a int, b text);"
+	cfg := ddlCfg(config.BreakAuto, config.ColumnAlignPreserve, config.BreakPreserve)
+	if got, _ := layout.Apply(long, cfg); got != long {
+		t.Fatalf("auto must keep a short statement: %q", got)
+	}
+	cfg.LineLength = 10
+	if got, _ := layout.Apply(long, cfg); !strings.Contains(got, "\n   a int,\n   b text\n);") {
+		t.Fatalf("auto must break a long statement: %q", got)
+	}
+	// preserve: untouched.
+	if got, _ := layout.Apply(long, ddlCfg(config.BreakPreserve, config.ColumnAlignAll, config.BreakPreserve)); got != long {
+		t.Fatalf("preserve changed the statement: %q", got)
+	}
+	// A line comment makes "never" back off instead of commenting out the rest.
+	withComment := "CREATE TABLE t (a int, -- c\n b text);"
+	if got, _ := layout.Apply(withComment, ddlCfg(config.BreakNever, config.ColumnAlignPreserve, config.BreakPreserve)); got != withComment {
+		t.Fatalf("never must not collapse a statement with a line comment: %q", got)
+	}
+}
+
+func TestAlterTableBreak(t *testing.T) {
+	multi := "ALTER TABLE public.t ADD COLUMN a int, DROP COLUMN b, ALTER COLUMN c SET NOT NULL;"
+	single := "ALTER TABLE t RENAME TO u;"
+	cfg := ddlCfg(config.BreakPreserve, config.ColumnAlignPreserve, config.BreakAuto)
+	got, err := layout.Apply(multi, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "ALTER TABLE public.t\n   ADD COLUMN a int,\n   DROP COLUMN b,\n   ALTER COLUMN c SET NOT NULL;"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	assertIdempotent(t, cfg, got)
+	if got, _ := layout.Apply(single, cfg); got != single {
+		t.Fatalf("auto must keep a single short action on one line: %q", got)
+	}
+	cfg.DDL.AlterTable.Break = config.BreakAlways
+	if got, _ := layout.Apply(single, cfg); got != "ALTER TABLE t\n   RENAME TO u;" {
+		t.Fatalf("always must break even a single action: %q", got)
+	}
+	// ALTER TABLE ALL IN TABLESPACE is not an action list.
+	all := "ALTER TABLE ALL IN TABLESPACE a SET TABLESPACE b;"
+	if got, _ := layout.Apply(all, cfg); got != all {
+		t.Fatalf("ALL IN TABLESPACE changed: %q", got)
+	}
+}
+
+func TestDDLOptionsAreNotNoop(t *testing.T) {
+	cfg := mkCfg(config.BreakPreserve, config.BreakPreserve, 128)
+	if !layout.IsNoop(cfg) {
+		t.Fatal("defaults must be a no-op")
+	}
+	cfg.DDL.CreateTable.Break = config.BreakAlways
+	if layout.IsNoop(cfg) {
+		t.Fatal("ddl.create_table.break must not be a no-op")
+	}
+}

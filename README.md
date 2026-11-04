@@ -441,6 +441,28 @@ layout:
   union:
     blank_line: preserve     # preserve | none | before | after | both
 
+  ddl:
+    create_table:
+      break: preserve          # preserve | never | always | auto
+                               #   always: one column / constraint per line, ")" on its own line
+                               #           CREATE TABLE t (
+                               #              id bigint NOT NULL,
+                               #              note text
+                               #           ) WITH (fillfactor = 70);
+                               #   never:  collapse to one line (not with a -- comment inside)
+                               #   auto:   break when the statement is longer than line_length
+      align: preserve          # preserve | none | types | all   (only when the list is broken)
+                               #   none:  one space between name, type and constraints
+                               #   types: pad names so the types line up
+                               #   all:   pad names and types so the constraints line up too
+                               #          Table constraints (CONSTRAINT …, PRIMARY KEY (…), …) are not aligned.
+    alter_table:
+      break: preserve          # preserve | never | always | auto
+                               #   always: one action per line below ALTER TABLE name
+                               #   auto:   break when there is more than one action or the statement
+                               #           is longer than line_length
+                               #   (comma_position and indent size apply to both)
+
   case:
     break: preserve          # preserve | never | always | auto
                              #   never:   collapse CASE…END to single line

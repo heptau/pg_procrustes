@@ -104,6 +104,39 @@ var matrixVariants = []matrixVariant{
 		c.Layout.Content.JoinOnPosition = config.JoinOnNewline
 		c.Layout.Indent.Type = config.IndentTypeTab
 	}},
+	{"ddl_create_always_align_all", func(c *config.Config) {
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignAll}
+		c.Layout.DDL.AlterTable.Break = config.BreakAlways
+	}},
+	{"ddl_create_always_align_types", func(c *config.Config) {
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignTypes}
+		c.Layout.DDL.AlterTable.Break = config.BreakAuto
+	}},
+	{"ddl_create_always_align_none", func(c *config.Config) {
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignNone}
+	}},
+	{"ddl_never", func(c *config.Config) {
+		c.Layout.DDL.CreateTable.Break = config.BreakNever
+		c.Layout.DDL.AlterTable.Break = config.BreakNever
+	}},
+	{"ddl_auto_short", func(c *config.Config) {
+		c.Layout.LineLength = 30
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAuto, Align: config.ColumnAlignTypes}
+		c.Layout.DDL.AlterTable.Break = config.BreakAuto
+	}},
+	{"ddl_comma_start_tabs", func(c *config.Config) {
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignAll}
+		c.Layout.DDL.AlterTable.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Indent.Type = config.IndentTypeTab
+	}},
+	{"ddl_with_everything", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignAll}
+		c.Layout.DDL.AlterTable.Break = config.BreakAlways
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+	}},
 	{"capitalize_all", func(c *config.Config) {
 		for _, sec := range []*config.Section{
 			&c.ReservedKeywords, &c.Keywords, &c.Literals, &c.Operators, &c.Schemas, &c.Tables,
@@ -331,6 +364,15 @@ end $$;`,
 	"insert into t (a, b, c) values (1, 2, 3), (4, 5, 6) returning a, b;",
 	"update t set a = 1, b = 2 where c = 3 and d = 4 returning a, b;",
 	"with x as (select 1 as a), y as (select 2 as b) select * from x, y;",
+	"create table t (id int primary key, name varchar(20) not null default 'x', note text);",
+	"create table if not exists public.accounts (id bigint not null generated always as identity, code character varying(64) not null default 'x', balance numeric(18, 4) not null default 0, created_at timestamp with time zone not null default now(), constraint pk primary key (id), constraint fk foreign key (code) references public.codes (code) on delete cascade) with (fillfactor = 70);",
+	"create temp table if not exists tmp (a int, -- first\n b text /* inline */, c int[] default '{}', \"Mixed Case\" boolean not null, check (a > 0 and\n b <> ''));",
+	"create unlogged table u (like t including all, extra int);\ncreate table p (id int, d date) partition by range (d);\ncreate table p1 partition of p for values from ('2020-01-01') to ('2021-01-01');",
+	"create table x (a int, b int)",
+	"alter table public.accounts add column notes text, drop column old_col, alter column code set not null, add constraint c check (a > 0 and b < 5);",
+	"alter table only t alter column a type numeric(10, 2) using a::numeric, alter column b set default 1; alter table if exists t rename column a to b; alter table t rename to u; alter table all in tablespace x set tablespace y;",
+	"alter table t add column a int, -- one\n add column b int /* two */",
+	"-- lead\ncreate table c1 (a int); /* between */ create table c2 (b int, c int);",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 

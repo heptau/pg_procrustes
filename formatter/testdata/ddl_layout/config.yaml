@@ -1,0 +1,8 @@
+layout:
+  ddl:
+    create_table:
+      break: auto
+      align: all
+    alter_table:
+      break: auto
+  line_length: 60

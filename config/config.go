@@ -387,6 +387,33 @@ const (
 	JoinOnNewline JoinOnPosition = "newline" // ON a = b on its own indented line below JOIN t
 )
 
+// ColumnAlignMode controls how column definitions of a broken CREATE TABLE are aligned.
+type ColumnAlignMode string
+
+const (
+	ColumnAlignPreserve ColumnAlignMode = "preserve" // leave the spacing inside each definition as written (default)
+	ColumnAlignNone     ColumnAlignMode = "none"     // single spaces, no alignment
+	ColumnAlignTypes    ColumnAlignMode = "types"    // pad names so the types line up
+	ColumnAlignAll      ColumnAlignMode = "all"      // pad names and types so the constraints line up too
+)
+
+// CreateTableCfg configures CREATE TABLE (…) column lists.
+type CreateTableCfg struct {
+	Break BreakMode       `yaml:"break"` // preserve | never | always | auto — one definition per line
+	Align ColumnAlignMode `yaml:"align"` // preserve | none | types | all
+}
+
+// AlterTableCfg configures ALTER TABLE action lists.
+type AlterTableCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — one action per line
+}
+
+// DDLConfig configures the layout of DDL statements.
+type DDLConfig struct {
+	CreateTable CreateTableCfg `yaml:"create_table"`
+	AlterTable  AlterTableCfg  `yaml:"alter_table"`
+}
+
 type UnionCfg struct {
 	BlankLine UnionBlankLine `yaml:"blank_line"`
 }
@@ -530,6 +557,7 @@ type LayoutConfig struct {
 	Case        SQLCaseCfg     `yaml:"case"`
 	DollarQuote DollarQuoteCfg `yaml:"dollar_quote"`
 	ParenIndent ParenIndentCfg `yaml:"paren_indent"`
+	DDL         DDLConfig      `yaml:"ddl"`
 
 	// ParenSpacing mirrors the top-level paren_spacing option. It is not read from
 	// YAML: the formatter fills it in so layout joins lines next to ( and ) the same
@@ -564,6 +592,10 @@ func defaultLayout() LayoutConfig {
 		Case: SQLCaseCfg{
 			Break:  BreakPreserve,
 			Indent: BodyIndentIndent,
+		},
+		DDL: DDLConfig{
+			CreateTable: CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
+			AlterTable:  AlterTableCfg{Break: BreakPreserve},
 		},
 		DollarQuote: DollarQuoteCfg{
 			NewlineAfterOpen:   BlankLinePreserve,
@@ -950,6 +982,21 @@ func validate(cfg *Config) error {
 	case JoinOnInline, JoinOnNewline, "":
 	default:
 		return fmt.Errorf("layout.content.join_on_position must be inline|newline, got %q", cfg.Layout.Content.JoinOnPosition)
+	}
+	for name, b := range map[string]BreakMode{
+		"layout.ddl.create_table.break": cfg.Layout.DDL.CreateTable.Break,
+		"layout.ddl.alter_table.break":  cfg.Layout.DDL.AlterTable.Break,
+	} {
+		switch b {
+		case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
+		default:
+			return fmt.Errorf("%s must be preserve|never|always|auto, got %q", name, b)
+		}
+	}
+	switch cfg.Layout.DDL.CreateTable.Align {
+	case ColumnAlignPreserve, ColumnAlignNone, ColumnAlignTypes, ColumnAlignAll, "":
+	default:
+		return fmt.Errorf("layout.ddl.create_table.align must be preserve|none|types|all, got %q", cfg.Layout.DDL.CreateTable.Align)
 	}
 	switch cfg.Layout.Union.BlankLine {
 	case UnionBlankLinePreserve, UnionBlankLineNone, UnionBlankLineBefore, UnionBlankLineAfter, UnionBlankLineBoth, "":

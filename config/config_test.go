@@ -36,3 +36,21 @@ func TestValidateRejectsBadPositions(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateRejectsBadDDLSettings(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Layout.DDL.CreateTable.Break = "sometimes"
+	if Validate(cfg) == nil {
+		t.Error("expected an error for layout.ddl.create_table.break")
+	}
+	cfg = defaultConfig()
+	cfg.Layout.DDL.CreateTable.Align = "columns"
+	if Validate(cfg) == nil {
+		t.Error("expected an error for layout.ddl.create_table.align")
+	}
+	cfg = defaultConfig()
+	cfg.Layout.DDL.AlterTable.Break = "x"
+	if Validate(cfg) == nil {
+		t.Error("expected an error for layout.ddl.alter_table.break")
+	}
+}
