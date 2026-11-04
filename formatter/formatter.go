@@ -284,6 +284,7 @@ type astPositions struct {
 	aliases              map[int]bool
 	columns              map[int]bool
 	pendingAliases       []pendingAlias
+	subselectAliases     map[string]bool // lower-cased aliases of derived tables (FROM (SELECT …) x)
 	sortByDefaultLocs    []int
 	castFuncLocs         []int
 	sql                  string
@@ -298,6 +299,7 @@ func newASTPositions() *astPositions {
 		systemFunctions:      make(map[int]bool),
 		aliases:              make(map[int]bool),
 		columns:              make(map[int]bool),
+		subselectAliases:     make(map[string]bool),
 	}
 }
 
@@ -575,7 +577,7 @@ func normalizeType(tokens []rawToken, i int, skip map[int]bool, form config.Type
 // space on each side should be enforced when operator_spacing = normalize.
 func isSymbolicOp(text string) bool {
 	switch text {
-	case "=", "!=", "<>", "<", ">", "<=", ">=", "||":
+	case "=", "!=", "<>", "<", ">", "<=", ">=", "||", ":=", "=>":
 		return true
 	}
 	return false
@@ -814,6 +816,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 
 	pos := collectASTPositions(sql)
 	pos.resolveAliases(tokens)
+	resolveSubselectAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
@@ -1557,6 +1560,9 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 	case *pg_query.Node_RangeSubselect:
 		rs := n.RangeSubselect
 		walkNode(rs.Subquery, pos)
+		if rs.Alias != nil && rs.Alias.Aliasname != "" {
+			pos.subselectAliases[strings.ToLower(rs.Alias.Aliasname)] = true
+		}
 
 	case *pg_query.Node_SubLink:
 		walkNode(n.SubLink.Subselect, pos)
@@ -1875,6 +1881,13 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 
 	// Apply dollar boundary (newline_after_open, newline_before_close).
 	resultBody = applyDollarBoundary(resultBody, dqCfg.NewlineAfterOpen, dqCfg.NewlineBeforeClose)
+
+	// Keep a single-line trailing gap before the closing delimiter (`end $$`),
+	// which Format() trims; otherwise the last keyword is glued to it (`END$$`).
+	if trimmed := strings.TrimRight(body, " \t"); trimmed != body && !strings.HasSuffix(strings.TrimRight(body, " \t"), "\n") &&
+		resultBody != "" && !strings.ContainsAny(resultBody[len(resultBody)-1:], " \t\n") {
+		resultBody += " "
+	}
 
 	return delimiter + resultBody + delimiter, nil
 }
@@ -3059,4 +3072,51 @@ func SyntaxError(sql string) error {
 	}
 	_, err := pg_query.Parse(sql)
 	return err
+}
+
+// resolveSubselectAliases registers the alias token that follows a derived table
+// — FROM/JOIN/LATERAL ( SELECT … ) alias — in pos.aliases. RangeSubselect nodes
+// carry no location, so the alias is found by matching the closing paren of a
+// "( SELECT|WITH|VALUES" group against the alias names reported by the AST.
+func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
+	if len(pos.subselectAliases) == 0 {
+		return
+	}
+	for i := 0; i+1 < len(tokens); i++ {
+		if tokens[i].text != "(" {
+			continue
+		}
+		switch strings.ToLower(tokens[i+1].text) {
+		case "select", "with", "values":
+		default:
+			continue
+		}
+		if i > 0 {
+			switch strings.ToLower(tokens[i-1].text) {
+			case "from", "join", "lateral", ",":
+			default:
+				continue
+			}
+		}
+		depth := 0
+		for j := i; j < len(tokens); j++ {
+			switch tokens[j].text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+			}
+			if depth != 0 {
+				continue
+			}
+			k := j + 1
+			if k < len(tokens) && strings.EqualFold(tokens[k].text, "as") {
+				k++
+			}
+			if k < len(tokens) && pos.subselectAliases[strings.ToLower(tokens[k].text)] {
+				pos.aliases[tokens[k].start] = true
+			}
+			break
+		}
+	}
 }

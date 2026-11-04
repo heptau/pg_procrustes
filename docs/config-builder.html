@@ -826,7 +826,7 @@ const GROUPS = [
       { key: 'operator_spacing', label: 'Operator spacing', type: 'select',
         values: [['', '(default)'], ['preserve','preserve'], ['normalize','normalize — one space each side'], ['compact','compact — no spaces around operators']],
         def: 'normalize',
-        desc: 'Controls spaces around symbolic comparison and concatenation operators: =, !=, <>, <, >, <=, >=, ||. Arithmetic operators (+, -, *, /) are not affected (asterisk also means SELECT *).',
+        desc: 'Controls spaces around symbolic comparison and concatenation operators: =, !=, <>, <, >, <=, >=, ||, plus := and =>. Arithmetic operators (+, -, *, /) are not affected (asterisk also means SELECT *).',
         example: `-- normalize (default)\nWHERE salary > 50000 AND name != 'bot'\nSELECT first_name || ' ' || last_name\n\n-- compact\nWHERE salary>50000 AND name!='bot'\nSELECT first_name||' '||last_name\n\n-- preserve — leaves whatever spacing the input has` },
       { key: 'blank_lines', label: 'Blank lines between statements', type: 'select',
         values: [['', '(default)'], ['preserve','preserve'], ['max_1','max_1 — at most 1 blank line'], ['max_2','max_2 — at most 2'], ['max_3','max_3 — at most 3']],

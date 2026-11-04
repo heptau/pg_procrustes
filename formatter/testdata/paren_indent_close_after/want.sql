@@ -7,7 +7,7 @@ FROM (
    FROM orders
    WHERE status = 'paid'
    GROUP BY id
-   ) s
+   ) AS s
 WHERE s.total > 100;
 
 -- 2. IN with subquery

@@ -78,8 +78,8 @@ join_form: preserve          # preserve | short | long
                              #   long:    INNER JOIN, LEFT OUTER JOIN, RIGHT OUTER JOIN, FULL OUTER JOIN
 
 operator_spacing: normalize  # preserve | normalize | compact
-                             #   normalize: exactly one space on each side of =, !=, <>, <, >, <=, >=, ||
-                             #   compact:   no spaces around =, !=, <>, <, >, <=, >=, ||
+                             #   normalize: exactly one space on each side of =, !=, <>, <, >, <=, >=, ||, :=, =>
+                             #   compact:   no spaces around =, !=, <>, <, >, <=, >=, ||, :=, =>
 
 comma_spacing: normalize     # preserve | normalize | compact
                              #   normalize: one space after comma, none before

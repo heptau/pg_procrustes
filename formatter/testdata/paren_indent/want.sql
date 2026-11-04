@@ -8,7 +8,7 @@ FROM (
    FROM orders
    WHERE status = 'paid'
    GROUP BY id
-) s
+) AS s
 WHERE s.total > 100;
 
 -- JOIN with subquery.
@@ -20,7 +20,7 @@ JOIN (
    WHERE created_at > now() - interval '30 days'
    GROUP BY user_id
    HAVING count(*) > 5
-) sub ON sub.user_id = u.id;
+) AS sub ON sub.user_id = u.id;
 
 -- IN with subquery.
 DELETE FROM sessions

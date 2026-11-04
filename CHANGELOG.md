@@ -20,6 +20,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Layout (`internal/layout/layout.go`): with `clauses.break: always` and the default `union.blank_line: preserve`, `UNION`/`INTERSECT`/`EXCEPT` was glued to the preceding token (`uUNION`, `1UNION ALL`), producing invalid SQL; the source gap is now kept and the operator stays on its own line
+- Formatter: `operator_spacing` now also normalizes `:=` and `=>` (PL/pgSQL assignment, named arguments); arithmetic operators remain untouched by design
+- Formatter: derived-table aliases (`FROM (SELECT …) x`, `LATERAL`, `JOIN (SELECT …) y`) now honor `aliases.as` (add/remove) and `aliases.case`
+- Formatter: a single-line gap before the closing dollar-quote delimiter is kept (`END $$` no longer becomes `END$$`)
 - Layout: a trailing `-- comment` on a comma-separated item no longer swallows the separating comma (`a -- first,` turned `a, b` into `a b`, an alias); the comma is placed before the comment, and a comment on the same line as the comma stays with its item (stable across passes, also in `INSERT` column lists)
 - Formatter: `trigger` is keyword-cased in `CREATE/DROP/ALTER ... TRIGGER` (it stays a lowercase pseudo-type after `RETURNS`)
 - CLI: prints a `syntax error` warning to stderr when the input does not parse (formatting still falls back to token-level, exit status unchanged); new `formatter.SyntaxError()`

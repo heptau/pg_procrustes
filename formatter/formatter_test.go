@@ -997,3 +997,30 @@ func TestTriggerKeywordVsPseudoType(t *testing.T) {
 		}
 	}
 }
+
+func TestSubselectAliasAndAssignmentSpacing(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmtOnce(t, "select f(a=>1, b:=2) from t, lateral (select 1) x join (select 2) Y on true;", c)
+	for _, want := range []string{"a => 1", "b := 2", "(SELECT 1) AS x", "(SELECT 2) AS y"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if again := fmtOnce(t, got, c); again != got {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+func TestDollarQuoteKeepsGapBeforeClose(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmtOnce(t, "create function g() returns int language plpgsql as $$ begin return 1; end $$;", c)
+	if !strings.Contains(got, "END $$") {
+		t.Fatalf("END glued to closing delimiter:\n%s", got)
+	}
+}

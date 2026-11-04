@@ -9,9 +9,9 @@ FROM (
 		SELECT uid AS id, full_name AS name
 		FROM users
 		WHERE active = TRUE
-	) inner_q
+	) AS inner_q
 	WHERE name LIKE 'A%'
-) outer_q;
+) AS outer_q;
 
 -- PL/pgSQL function body with multi-line SQL statements inside.
 CREATE OR REPLACE FUNCTION normalize_test()
