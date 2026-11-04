@@ -575,6 +575,19 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteString(strings.TrimSpace(contentText))
 				}
 			default:
+				// Preserve the source gap before the set operator; without it the
+				// keyword is glued to the previous token ("uUNION"). When earlier
+				// clauses were broken onto separate lines, keep the operator on its own line.
+				if ci > 0 && stmt.clauses[ci-1].conEnd > 0 {
+					gap := gapBetween(sql, tokens, stmt.clauses[ci-1].conEnd-1, kwStart)
+					if !strings.Contains(gap, "\n") && strings.Contains(sb.String(), "\n") {
+						gap = "\n" + baseIndent
+					}
+					if gap == "" {
+						gap = " "
+					}
+					sb.WriteString(gap)
+				}
 				sb.WriteString(originalText(sql, tokens, kwStart, conEnd))
 			}
 			continue

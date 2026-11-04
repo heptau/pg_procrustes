@@ -1,6 +1,7 @@
 package layout_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/heptau/pg_procrustes/config"
@@ -160,5 +161,34 @@ func TestWhitespaceOnlySQL(t *testing.T) {
 	}
 	if result != "   \n  " {
 		t.Errorf("whitespace-only sql should return unchanged, got %q", result)
+	}
+}
+
+func TestUnionPreserveWithClauseBreakAlways(t *testing.T) {
+	cfg := &config.LayoutConfig{
+		LineLength: 128,
+		Indent:     config.IndentCfg{Size: 3, Type: config.IndentTypeSpaces},
+		Clauses:    config.ClausesCfg{Break: config.BreakAlways},
+		Union:      config.UnionCfg{BlankLine: config.UnionBlankLinePreserve},
+		Content:    config.ContentCfg{Break: config.BreakPreserve},
+	}
+	for _, sql := range []string{
+		"SELECT a FROM u UNION SELECT b FROM v;",
+		"SELECT a FROM u WHERE x = 1 UNION ALL SELECT 1;",
+	} {
+		got, err := layout.Apply(sql, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got, "uUNION") || strings.Contains(got, "1UNION") {
+			t.Fatalf("UNION glued to previous token:\n%s", got)
+		}
+		again, err := layout.Apply(got, cfg)
+		if err != nil {
+			t.Fatalf("second pass failed: %v\n%s", err, got)
+		}
+		if again != got {
+			t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+		}
 	}
 }

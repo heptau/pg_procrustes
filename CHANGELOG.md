@@ -19,6 +19,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Layout (`internal/layout/layout.go`): with `clauses.break: always` and the default `union.blank_line: preserve`, `UNION`/`INTERSECT`/`EXCEPT` was glued to the preceding token (`uUNION`, `1UNION ALL`), producing invalid SQL; the source gap is now kept and the operator stays on its own line
+- Formatter: quoted identifiers (`"User"`, `"My Alias"`) are no longer re-cased, which changed their meaning in PostgreSQL and made output non-idempotent (`applyCase` in `formatter/formatter.go`)
 - `go install` instructions in the README, on the website, and in the CI example pointed at the module root (`github.com/heptau/pg_procrustes@latest`), which has no `main` package and fails; they now use `github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest`
 - `config-builder.html` had no mobile layout at all (fixed sidebar plus a two-column builder grid) and was unusable below ~900px; both documentation pages now collapse to an off-canvas nav with a single-column layout on narrow viewports
 - Long unbreakable content (SQL code samples, wide tables) forced the whole documentation page to scroll horizontally on narrow viewports; fixed by giving the affected flex/grid containers `min-width: 0`

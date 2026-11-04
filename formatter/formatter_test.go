@@ -958,3 +958,29 @@ func assertFormat(t *testing.T, got, want string, err error) {
 		t.Errorf("\ngot:  %q\nwant: %q", got, want)
 	}
 }
+
+func TestQuotedIdentifiersKeepCase(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml") // defaults
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := `CREATE TABLE "User" ("Id" integer); SELECT "Id" AS "My Alias" FROM "User" u WHERE u."Id" = 1;`
+	got := fmtOnce(t, in, c)
+	for _, want := range []string{`"User"`, `"Id"`, `"My Alias"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("quoted identifier %s changed:\n%s", want, got)
+		}
+	}
+	if again := fmtOnce(t, got, c); again != got {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+func fmtOnce(t *testing.T, sql string, c *config.Config) string {
+	t.Helper()
+	out, err := formatter.Format(sql, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}

@@ -454,6 +454,10 @@ func classify(kind pg_query.KeywordKind, tokenText string) tokenClass {
 }
 
 func applyCase(s string, rule config.CaseRule) string {
+	// Quoted identifiers are case-sensitive in PostgreSQL: never change their case.
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s
+	}
 	switch rule {
 	case config.CaseUpper:
 		return strings.ToUpper(s)
