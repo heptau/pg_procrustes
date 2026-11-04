@@ -55,6 +55,9 @@ func rebuildDDL(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutC
 	}
 	switch w(first) {
 	case "create":
+		if open := createFunctionOpenParen(tokens, stmt, first); open >= 0 {
+			return rebuildCreateFunction(sql, tokens, stmt, open, cfg, indentUnit, depth)
+		}
 		if idx := createIndexToken(tokens, stmt, first); idx >= 0 {
 			return rebuildCreateIndex(sql, tokens, stmt, idx, cfg, indentUnit, depth)
 		}
@@ -609,6 +612,153 @@ func rebuildCreateIndex(sql string, tokens []rawTok, stmt statement, idx int, cf
 		sb.WriteByte('\n')
 		sb.WriteString(indent)
 		sb.WriteString(inlineContent(sql, tokens, s, end, parenMode))
+	}
+	finishDDL(&sb, tokens, stmt)
+	return sb.String(), true
+}
+
+// createFunctionOpenParen returns the index of the "(" opening the parameter list of
+// CREATE [OR REPLACE] FUNCTION | PROCEDURE name (, or -1.
+func createFunctionOpenParen(tokens []rawTok, stmt statement, first int) int {
+	lower := func(i int) string {
+		if i >= stmt.endTok {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	i := first + 1
+	if lower(i) == "or" && lower(i+1) == "replace" {
+		i += 2
+	}
+	if w := lower(i); w != "function" && w != "procedure" {
+		return -1
+	}
+	i = skipQualifiedName(tokens, i+1, stmt.endTok)
+	if i >= 0 && i < stmt.endTok && tokens[i].text == "(" {
+		return i
+	}
+	return -1
+}
+
+// functionOptionStarts returns the indexes of the tokens in (from, end) that begin a
+// function option (RETURNS, LANGUAGE, IMMUTABLE, SECURITY DEFINER, SET …, AS body, …).
+func functionOptionStarts(tokens []rawTok, from, end int) []int {
+	lw := func(i int) string {
+		if i < 0 || i >= end {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	var starts []int
+	depth := 0
+	for i := from; i < end; i++ {
+		switch tokens[i].text {
+		case "(", "[":
+			depth++
+			continue
+		case ")", "]":
+			depth--
+			continue
+		}
+		if depth != 0 {
+			continue
+		}
+		switch lw(i) {
+		case "returns", "language", "window", "immutable", "stable", "volatile", "leakproof",
+			"strict", "external", "parallel", "cost", "rows", "support", "set", "transform", "as", "called":
+			starts = append(starts, i)
+		case "security":
+			if lw(i-1) != "external" {
+				starts = append(starts, i)
+			}
+		case "not":
+			if lw(i+1) == "leakproof" {
+				starts = append(starts, i)
+			}
+		}
+	}
+	return starts
+}
+
+// rebuildCreateFunction lays out the header of CREATE FUNCTION / PROCEDURE: the parameter
+// list one parameter per line and/or every option (RETURNS, LANGUAGE, …) on its own line.
+func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
+	pm, om := cfg.DDL.CreateFunction.Params, cfg.DDL.CreateFunction.Options
+	isSet := func(m config.BreakMode) bool { return m != "" && m != config.BreakPreserve }
+	if !isSet(pm) && !isSet(om) {
+		return "", false
+	}
+	closeIdx := matchParenTok(tokens, open, stmt.endTok)
+	if closeIdx < 0 {
+		return "", false
+	}
+	for i := stmt.startTok; i < stmt.endTok; i++ {
+		// BEGIN ATOMIC bodies and comments in the header are left to the generic code.
+		if strings.HasPrefix(tokens[i].text, "--") || strings.EqualFold(tokens[i].text, "begin") {
+			return "", false
+		}
+	}
+	starts := functionOptionStarts(tokens, closeIdx+1, stmt.endTok)
+	if closeIdx+1 < stmt.endTok && (len(starts) == 0 || starts[0] != closeIdx+1) {
+		return "", false // something unexpected follows the parameter list
+	}
+	// Flat length of the header, up to the body (a string / dollar-quoted token).
+	headEnd := stmt.endTok
+	for i := closeIdx + 1; i < stmt.endTok; i++ {
+		if t := tokens[i].text; strings.HasPrefix(t, "$") || strings.HasPrefix(t, "'") || strings.HasPrefix(t, "E'") {
+			headEnd = i
+			break
+		}
+	}
+	flat := flatLength(sql, tokens, stmt.startTok, headEnd)
+	baseIndent := strings.Repeat(indentUnit, depth)
+
+	var sb strings.Builder
+	sb.WriteString(ddlHead(sql, tokens, stmt, open))
+	// Parameters.
+	if closeIdx > open+1 {
+		items := splitAtComma(sql, tokens, open+1, closeIdx)
+		switch {
+		case !isSet(pm):
+			sb.WriteString(originalText(sql, tokens, open+1, closeIdx))
+		case shouldBreak(flat, pm, cfg.LineLength):
+			emitDDLItems(&sb, items, cfg, baseIndent+indentUnit)
+			sb.WriteByte('\n')
+			sb.WriteString(baseIndent)
+		default:
+			if pm != config.BreakNever {
+				sb.WriteString(originalText(sql, tokens, open+1, closeIdx))
+				break
+			}
+			for i, it := range items {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(collapseGaps(it, 0, len(it)))
+			}
+		}
+	}
+	sb.WriteByte(')')
+	// Options.
+	if len(starts) > 0 {
+		switch {
+		case !isSet(om) || (!shouldBreak(flat, om, cfg.LineLength) && om != config.BreakNever):
+			sb.WriteString(originalText(sql, tokens, closeIdx+1, stmt.endTok))
+		default:
+			for k, s := range starts {
+				end := stmt.endTok
+				if k+1 < len(starts) {
+					end = starts[k+1]
+				}
+				if shouldBreak(flat, om, cfg.LineLength) {
+					sb.WriteByte('\n')
+					sb.WriteString(baseIndent)
+				} else {
+					sb.WriteByte(' ')
+				}
+				sb.WriteString(inlineContent(sql, tokens, s, end, cfg.ParenSpacing))
+			}
+		}
 	}
 	finishDDL(&sb, tokens, stmt)
 	return sb.String(), true

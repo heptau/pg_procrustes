@@ -1,0 +1,6 @@
+layout:
+  ddl:
+    create_function:
+      params: auto
+      options: always
+  line_length: 70

@@ -244,6 +244,16 @@ layout:
                                #   auto:   break when there is more than one action or the statement
                                #           is longer than line_length
                                #   (comma_position and indent size apply to both)
+    create_function:
+      params: preserve         # preserve | never | always | auto   (CREATE FUNCTION / PROCEDURE parameter list)
+                               #   always: one parameter per line, ")" on its own line
+                               #           CREATE FUNCTION f(
+                               #              a integer,
+                               #              b text
+                               #           )
+                               #   auto:   break when the header is longer than line_length
+      options: preserve        # preserve | never | always | auto   (RETURNS, LANGUAGE, STABLE, SECURITY DEFINER,
+                               #   SET …, AS body each on its own line; never: all on one line)
     create_index:
       break: preserve          # preserve | never | always | auto
                                #   always: ON, USING, INCLUDE, WITH (…), TABLESPACE and WHERE each on an indented line

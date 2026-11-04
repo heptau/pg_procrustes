@@ -50,7 +50,7 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 			return false
 		}
 	}
-	for _, b := range []config.BreakMode{cfg.DDL.CreateTable.Break, cfg.DDL.AlterTable.Break, cfg.DDL.CreateIndex.Break} {
+	for _, b := range []config.BreakMode{cfg.DDL.CreateTable.Break, cfg.DDL.AlterTable.Break, cfg.DDL.CreateIndex.Break, cfg.DDL.CreateFunction.Params, cfg.DDL.CreateFunction.Options} {
 		if b != "" && b != config.BreakPreserve {
 			return false
 		}

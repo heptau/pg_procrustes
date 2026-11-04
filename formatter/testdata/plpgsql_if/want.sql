@@ -1,6 +1,6 @@
 -- PL/pgSQL: IF/ELSIF/ELSE with body_indent=indent and blank lines around blocks.
 
-CREATE OR REPLACE FUNCTION classify(val integer, LABEL text DEFAULT 'x') RETURNS text
+CREATE OR REPLACE FUNCTION classify(val integer, label text DEFAULT 'x') RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE
   result text;

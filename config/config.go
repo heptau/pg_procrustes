@@ -460,11 +460,18 @@ type CreateIndexCfg struct {
 	Break BreakMode `yaml:"break"` // preserve | never | always | auto — ON, USING, INCLUDE, WITH, WHERE each on a line
 }
 
+// CreateFunctionCfg configures the header of CREATE FUNCTION / PROCEDURE.
+type CreateFunctionCfg struct {
+	Params  BreakMode `yaml:"params"`  // preserve | never | always | auto — one parameter per line
+	Options BreakMode `yaml:"options"` // preserve | never | always | auto — RETURNS, LANGUAGE, … each on a line
+}
+
 // DDLConfig configures the layout of DDL statements.
 type DDLConfig struct {
-	CreateIndex CreateIndexCfg `yaml:"create_index"`
-	CreateTable CreateTableCfg `yaml:"create_table"`
-	AlterTable  AlterTableCfg  `yaml:"alter_table"`
+	CreateFunction CreateFunctionCfg `yaml:"create_function"`
+	CreateIndex    CreateIndexCfg    `yaml:"create_index"`
+	CreateTable    CreateTableCfg    `yaml:"create_table"`
+	AlterTable     AlterTableCfg     `yaml:"alter_table"`
 }
 
 type UnionCfg struct {
@@ -649,9 +656,10 @@ func defaultLayout() LayoutConfig {
 			Indent: BodyIndentIndent,
 		},
 		DDL: DDLConfig{
-			CreateTable: CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
-			AlterTable:  AlterTableCfg{Break: BreakPreserve},
-			CreateIndex: CreateIndexCfg{Break: BreakPreserve},
+			CreateTable:    CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
+			AlterTable:     AlterTableCfg{Break: BreakPreserve},
+			CreateIndex:    CreateIndexCfg{Break: BreakPreserve},
+			CreateFunction: CreateFunctionCfg{Params: BreakPreserve, Options: BreakPreserve},
 		},
 		DollarQuote: DollarQuoteCfg{
 			NewlineAfterOpen:   BlankLinePreserve,
@@ -1089,9 +1097,11 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("layout.content.join_on_position must be inline|newline, got %q", cfg.Layout.Content.JoinOnPosition)
 	}
 	for name, b := range map[string]BreakMode{
-		"layout.ddl.create_table.break": cfg.Layout.DDL.CreateTable.Break,
-		"layout.ddl.alter_table.break":  cfg.Layout.DDL.AlterTable.Break,
-		"layout.ddl.create_index.break": cfg.Layout.DDL.CreateIndex.Break,
+		"layout.ddl.create_table.break":      cfg.Layout.DDL.CreateTable.Break,
+		"layout.ddl.alter_table.break":       cfg.Layout.DDL.AlterTable.Break,
+		"layout.ddl.create_index.break":      cfg.Layout.DDL.CreateIndex.Break,
+		"layout.ddl.create_function.params":  cfg.Layout.DDL.CreateFunction.Params,
+		"layout.ddl.create_function.options": cfg.Layout.DDL.CreateFunction.Options,
 	} {
 		switch b {
 		case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":

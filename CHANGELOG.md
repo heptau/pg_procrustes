@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- DDL layout: `layout.ddl.create_function.params` and `.options` (`preserve | never | always | auto`) put every `CREATE FUNCTION` / `PROCEDURE` parameter on its own line (closing `)` on its own line) and every option (`RETURNS`, `LANGUAGE`, `STABLE`, `SECURITY DEFINER`, `SET …`, `AS` body) on its own line; headers with a `--` comment or a `BEGIN ATOMIC` body are left alone.
 - DDL layout: `layout.ddl.create_index.break: preserve | never | always | auto` puts the `ON`, `USING`, `INCLUDE`, `NULLS [NOT] DISTINCT`, `WITH (…)`, `TABLESPACE` and `WHERE` parts of `CREATE INDEX` on their own indented lines (or collapses them to one line).
 - Layout: `layout.content.align_aliases: preserve | align` pads the expressions of a broken SELECT list so every `AS` lines up, and `layout.content.align_set: preserve | align` does the same for the `=` of an `UPDATE … SET` list; items spanning several lines, with comments or `CASE` are left alone.
 - `builtin_functions.case` (default empty = same as `functions`) casing for PostgreSQL built-in functions (`count`, `sum`, `date_trunc`, …) separately from user functions, with `exceptions`; `call_paren_spacing: preserve | add | remove` controls the space between a function name and `(` (`count (*)` vs `count(*)`) for function calls only.
@@ -31,6 +32,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Formatter: function parameter names that are also keywords (`name`, `type`, `event`, `label`) in `CREATE FUNCTION f(name text) RETURNS TABLE(name text)` are no longer upper-cased; this changes the output of existing files that use such names.
 - Layout: the `WITH [NO] DATA` / `WITH [CASCADED | LOCAL] CHECK OPTION` trailer of `CREATE [MATERIALIZED] VIEW` and `CREATE TABLE AS` is its own clause instead of being glued to the last `WHERE` condition.
 - Formatter: plain column names in `CREATE INDEX … (name) INCLUDE (name)` and CTE names such as `WITH data AS` are no longer upper-cased as keywords.
 - PL/pgSQL: `RAISE EXCEPTION` is no longer mistaken for the `EXCEPTION` section when `dollar_quote.plpgsql` restructuring is active (a statement wrapped as `RAISE` / `EXCEPTION '…'` was fused into `raiseexception`); trailing whitespace left behind by the blank-line and DECLARE/BEGIN settings inside dollar-quoted bodies is stripped, so those settings are idempotent

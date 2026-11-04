@@ -290,6 +290,7 @@ type astPositions struct {
 	subselectAliases     map[string]bool // lower-cased aliases of derived tables (FROM (SELECT …) x)
 	sortByDefaultLocs    []int
 	castFuncLocs         []int
+	funcParams           map[string]bool // lower-cased parameter names of CREATE FUNCTION / PROCEDURE
 	sql                  string
 }
 
@@ -415,6 +416,67 @@ func resolveOnConflictCols(tokens []rawToken, pos *astPositions) {
 			}
 		}
 	nextConflict:
+	}
+}
+
+// resolveFunctionParams registers the names of CREATE FUNCTION / PROCEDURE parameters
+// (and of the RETURNS TABLE (…) columns) as columns: FunctionParameter has no
+// Location, so name, type or event would otherwise be upper-cased as keywords.
+func resolveFunctionParams(tokens []rawToken, pos *astPositions) {
+	if len(pos.funcParams) == 0 {
+		return
+	}
+	lw := func(i int) string {
+		if i < 0 || i >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	list := func(open int) int { // registers the names of the list opening at open; returns the index after it
+		depth, item, k := 1, 0, open+1
+		for ; k < len(tokens) && depth > 0; k++ {
+			t := tokens[k].text
+			switch {
+			case t == "(" || t == "[":
+				depth++
+			case t == ")" || t == "]":
+				depth--
+			case t == "," && depth == 1:
+				item = 0
+				continue
+			}
+			if depth == 1 && t != ")" && t != "]" && t != "," {
+				item++
+				name := strings.ToLower(t)
+				if q := unquoteIdent(t); q != "" {
+					name = strings.ToLower(q)
+				}
+				if item <= 2 && pos.funcParams[name] {
+					// A name is followed by its type; a lone token is an unnamed type.
+					if k+1 < len(tokens) && tokens[k+1].text != "," && tokens[k+1].text != ")" && tokens[k+1].text != "[" {
+						pos.columns[tokens[k].start] = true
+						item = 3
+					}
+				}
+			}
+		}
+		return k
+	}
+	for i := range tokens {
+		if w := lw(i); (w != "function" && w != "procedure") || (lw(i-1) != "create" && lw(i-1) != "replace") {
+			continue
+		}
+		k := i + 1
+		for k < len(tokens) && tokens[k].text != "(" && tokens[k].text != ";" {
+			k++
+		}
+		if k >= len(tokens) || tokens[k].text != "(" {
+			continue
+		}
+		k = list(k)
+		if lw(k) == "returns" && lw(k+1) == "table" && lw(k+2) == "(" {
+			list(k + 2)
+		}
 	}
 }
 
@@ -898,6 +960,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	resolveSubselectAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
 	resolveIndexCols(tokens, pos)
+	resolveFunctionParams(tokens, pos)
 	resolveDDLColumns(tokens, pos)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
@@ -1601,6 +1664,14 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 
 	case *pg_query.Node_CreateFunctionStmt:
 		cf := n.CreateFunctionStmt
+		for _, p := range cf.Parameters {
+			if fp := p.GetFunctionParameter(); fp != nil && fp.Name != "" {
+				if pos.funcParams == nil {
+					pos.funcParams = map[string]bool{}
+				}
+				pos.funcParams[strings.ToLower(fp.Name)] = true
+			}
+		}
 		many(cf.Parameters)
 		many(cf.Options)
 
