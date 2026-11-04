@@ -36,12 +36,11 @@ func FuzzFormat(f *testing.F) {
 			t.Skip() // only parseable SQL has a defined semantic to preserve
 		}
 		if strings.Contains(src, "$") {
-			// Dollar-quoted bodies are not validated by the syntax check; fragments such as
-			// `AS $$update= ;$$` have no defined formatting, so require a valid body.
-			if _, err := pg_query.ParsePlPgSqlToJSON(src); err != nil {
-				t.Skip()
-			}
+			// Dollar-quoted bodies are not validated by the syntax check and random bodies
+			// (or language names) have no defined formatting; the matrix covers them.
+			t.Skip()
 		}
+
 		base, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
 		baseOut, err := formatter.Format(src, base)
 		if err != nil {

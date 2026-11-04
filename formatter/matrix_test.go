@@ -137,6 +137,25 @@ var matrixVariants = []matrixVariant{
 		c.Layout.DDL.AlterTable.Break = config.BreakAlways
 		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
 	}},
+	{"comments_both", func(c *config.Config) {
+		c.Comments = config.CommentsCfg{SpaceAfterMarker: config.CommentSpaceAdd, AlignTrailing: config.CommentAlignAlign}
+	}},
+	{"comments_with_layout", func(c *config.Config) {
+		c.Comments = config.CommentsCfg{SpaceAfterMarker: config.CommentSpaceAdd, AlignTrailing: config.CommentAlignAlign}
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignAll}
+	}},
+	{"separation_0", func(c *config.Config) { c.BlankLinesBetweenStatements = "0" }},
+	{"separation_2_trailing_newline", func(c *config.Config) {
+		c.BlankLinesBetweenStatements = "2"
+		c.TrailingNewline = config.TrailingNewlineAdd
+	}},
+	{"line_endings_crlf", func(c *config.Config) { c.LineEndings = config.LineEndingCRLF }},
+	{"line_endings_lf_with_layout", func(c *config.Config) {
+		c.LineEndings = config.LineEndingLF
+		c.Layout.Clauses.Break = config.BreakAlways
+	}},
 	{"capitalize_all", func(c *config.Config) {
 		for _, sec := range []*config.Section{
 			&c.ReservedKeywords, &c.Keywords, &c.Literals, &c.Operators, &c.Schemas, &c.Tables,
@@ -373,6 +392,10 @@ end $$;`,
 	"alter table only t alter column a type numeric(10, 2) using a::numeric, alter column b set default 1; alter table if exists t rename column a to b; alter table t rename to u; alter table all in tablespace x set tablespace y;",
 	"alter table t add column a int, -- one\n add column b int /* two */",
 	"-- lead\ncreate table c1 (a int); /* between */ create table c2 (b int, c int);",
+	"select a, --first\n  bb, -- second\n  ccc --third\nfrom t; -- tail\n-- standalone\n--- banner ---\nselect 1;   -- one\nselect 2;     -- two\nselect 3;",
+	"select 1;\n\n\n\nselect 2; -- c\n-- lead\nselect 3;select 4;\n\n-- end\n",
+	"select a,\r\n  b -- c\r\nfrom t\r\nwhere x = 1;\r\n\r\nselect 2;\r\n",
+	"create function f() returns int language plpgsql as $$\nbegin\n  return 1; --one\n  -- two\nend $$;\nselect 1;",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 

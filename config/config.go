@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -129,6 +131,37 @@ const (
 	QuotedIdentPreserve   QuotedIdentMode = "preserve"
 	QuotedIdentRemoveSafe QuotedIdentMode = "remove_safe" // remove when safe (no spaces, all lowercase, not a reserved keyword)
 )
+
+// LineEndingMode controls the line endings of the output.
+type LineEndingMode string
+
+const (
+	LineEndingPreserve LineEndingMode = "preserve" // keep the input's style (CRLF if it is mostly CRLF)
+	LineEndingLF       LineEndingMode = "lf"       // \n
+	LineEndingCRLF     LineEndingMode = "crlf"     // \r\n
+)
+
+// CommentSpaceMode controls the space after the -- of line comments.
+type CommentSpaceMode string
+
+const (
+	CommentSpacePreserve CommentSpaceMode = "preserve"
+	CommentSpaceAdd      CommentSpaceMode = "add" // --note → -- note
+)
+
+// CommentAlignMode controls the alignment of trailing line comments.
+type CommentAlignMode string
+
+const (
+	CommentAlignPreserve CommentAlignMode = "preserve"
+	CommentAlignAlign    CommentAlignMode = "align" // trailing -- comments of consecutive lines start in one column
+)
+
+// CommentsCfg configures line comments.
+type CommentsCfg struct {
+	SpaceAfterMarker CommentSpaceMode `yaml:"space_after_marker"` // preserve | add
+	AlignTrailing    CommentAlignMode `yaml:"align_trailing"`     // preserve | align
+}
 
 // TrailingNewlineMode controls the trailing newline at end of output.
 type TrailingNewlineMode string
@@ -662,71 +695,79 @@ type AliasSection struct {
 }
 
 type Config struct {
-	ReservedKeywords     Section               `yaml:"reserved_keywords"`
-	Keywords             Section               `yaml:"keywords"`
-	DataTypes            DataTypesSection      `yaml:"data_types"`
-	Literals             Section               `yaml:"literals"`
-	Operators            Section               `yaml:"operators"`
-	Schemas              Section               `yaml:"schemas"`
-	Tables               Section               `yaml:"tables"`
-	Functions            Section               `yaml:"functions"`
-	ConditionalFunctions Section               `yaml:"conditional_functions"`
-	SystemFunctions      Section               `yaml:"system_functions"`
-	Aliases              AliasSection          `yaml:"aliases"`
-	Columns              Section               `yaml:"columns"`
-	PLpgSQLVariables     Section               `yaml:"plpgsql_variables"`
-	PLpgSQLKeywords      Section               `yaml:"plpgsql_keywords"`
-	TrailingWhitespace   TrailingWS            `yaml:"trailing_whitespace"`
-	Semicolons           SemicolonMode         `yaml:"semicolons"`
-	InequalityOp         InequalityOp          `yaml:"inequality_op"`
-	JoinForm             JoinForm              `yaml:"join_form"`
-	OperatorSpacing      OperatorSpacingMode   `yaml:"operator_spacing"`
-	BlankLines           BlankLinesMode        `yaml:"blank_lines"`
-	ParenSpacing         ParenSpacingMode      `yaml:"paren_spacing"`
-	QuotedIdents         QuotedIdentMode       `yaml:"quoted_identifiers"`
-	TrailingNewline      TrailingNewlineMode   `yaml:"trailing_newline"`
-	SyntaxErrors         SyntaxErrorMode       `yaml:"syntax_errors"`
-	ArithmeticSpacing    ArithmeticSpacingMode `yaml:"arithmetic_spacing"`
-	CommaSpacing         CommaSpacingMode      `yaml:"comma_spacing"`
-	OrderAsc             OrderAscMode          `yaml:"order_asc"`
-	CastStyle            CastStyleMode         `yaml:"cast_style"`
-	NotIn                NotInMode             `yaml:"not_in"`
-	SchemaQual           SchemaQualMode        `yaml:"schema_qualification"`
-	InlineSpacing        InlineSpacingMode     `yaml:"inline_spacing"`
-	Layout               LayoutConfig          `yaml:"layout"`
+	ReservedKeywords     Section             `yaml:"reserved_keywords"`
+	Keywords             Section             `yaml:"keywords"`
+	DataTypes            DataTypesSection    `yaml:"data_types"`
+	Literals             Section             `yaml:"literals"`
+	Operators            Section             `yaml:"operators"`
+	Schemas              Section             `yaml:"schemas"`
+	Tables               Section             `yaml:"tables"`
+	Functions            Section             `yaml:"functions"`
+	ConditionalFunctions Section             `yaml:"conditional_functions"`
+	SystemFunctions      Section             `yaml:"system_functions"`
+	Aliases              AliasSection        `yaml:"aliases"`
+	Columns              Section             `yaml:"columns"`
+	PLpgSQLVariables     Section             `yaml:"plpgsql_variables"`
+	PLpgSQLKeywords      Section             `yaml:"plpgsql_keywords"`
+	TrailingWhitespace   TrailingWS          `yaml:"trailing_whitespace"`
+	Semicolons           SemicolonMode       `yaml:"semicolons"`
+	InequalityOp         InequalityOp        `yaml:"inequality_op"`
+	JoinForm             JoinForm            `yaml:"join_form"`
+	OperatorSpacing      OperatorSpacingMode `yaml:"operator_spacing"`
+	BlankLines           BlankLinesMode      `yaml:"blank_lines"`
+	ParenSpacing         ParenSpacingMode    `yaml:"paren_spacing"`
+	QuotedIdents         QuotedIdentMode     `yaml:"quoted_identifiers"`
+	TrailingNewline      TrailingNewlineMode `yaml:"trailing_newline"`
+	SyntaxErrors         SyntaxErrorMode     `yaml:"syntax_errors"`
+	LineEndings          LineEndingMode      `yaml:"line_endings"`
+	Comments             CommentsCfg         `yaml:"comments"`
+	// BlankLinesBetweenStatements is "preserve" (default) or the exact number of blank
+	// lines (0-10) to put between statements.
+	BlankLinesBetweenStatements string                `yaml:"blank_lines_between_statements"`
+	ArithmeticSpacing           ArithmeticSpacingMode `yaml:"arithmetic_spacing"`
+	CommaSpacing                CommaSpacingMode      `yaml:"comma_spacing"`
+	OrderAsc                    OrderAscMode          `yaml:"order_asc"`
+	CastStyle                   CastStyleMode         `yaml:"cast_style"`
+	NotIn                       NotInMode             `yaml:"not_in"`
+	SchemaQual                  SchemaQualMode        `yaml:"schema_qualification"`
+	InlineSpacing               InlineSpacingMode     `yaml:"inline_spacing"`
+	Layout                      LayoutConfig          `yaml:"layout"`
 }
 
 func defaultConfig() *Config {
 	return &Config{
-		ReservedKeywords:     Section{Case: CaseUpper},
-		Keywords:             Section{Case: CaseUpper},
-		DataTypes:            DataTypesSection{Case: CaseLower, Form: TypeFormLong},
-		Literals:             Section{Case: CaseUpper},
-		Operators:            Section{Case: CaseUpper},
-		Schemas:              Section{Case: CaseLower},
-		Tables:               Section{Case: CaseLower},
-		Functions:            Section{Case: CaseLower},
-		ConditionalFunctions: Section{Case: CaseUpper},
-		SystemFunctions:      Section{Case: CaseUpper},
-		Aliases:              AliasSection{Case: CaseLower, As: AliasAsAdd},
-		Columns:              Section{Case: CaseLower},
-		TrailingWhitespace:   TrailingWSStrip,
-		Semicolons:           SemicolonPreserve,
-		InequalityOp:         InequalityC,
-		JoinForm:             JoinFormPreserve,
-		OperatorSpacing:      OperatorSpacingNormalize,
-		BlankLines:           BlankLinesPreserve,
-		ParenSpacing:         ParenSpacingRemove,
-		QuotedIdents:         QuotedIdentRemoveSafe,
-		TrailingNewline:      TrailingNewlinePreserve,
-		SyntaxErrors:         SyntaxErrorFail,
-		ArithmeticSpacing:    ArithmeticSpacingPreserve,
-		CommaSpacing:         CommaSpacingNormalize,
-		OrderAsc:             OrderAscPreserve,
-		CastStyle:            CastStylePreserve,
-		NotIn:                NotInPreserve,
-		SchemaQual:           SchemaQualPreserve,
-		Layout:               defaultLayout(),
+		ReservedKeywords:            Section{Case: CaseUpper},
+		Keywords:                    Section{Case: CaseUpper},
+		DataTypes:                   DataTypesSection{Case: CaseLower, Form: TypeFormLong},
+		Literals:                    Section{Case: CaseUpper},
+		Operators:                   Section{Case: CaseUpper},
+		Schemas:                     Section{Case: CaseLower},
+		Tables:                      Section{Case: CaseLower},
+		Functions:                   Section{Case: CaseLower},
+		ConditionalFunctions:        Section{Case: CaseUpper},
+		SystemFunctions:             Section{Case: CaseUpper},
+		Aliases:                     AliasSection{Case: CaseLower, As: AliasAsAdd},
+		Columns:                     Section{Case: CaseLower},
+		TrailingWhitespace:          TrailingWSStrip,
+		Semicolons:                  SemicolonPreserve,
+		InequalityOp:                InequalityC,
+		JoinForm:                    JoinFormPreserve,
+		OperatorSpacing:             OperatorSpacingNormalize,
+		BlankLines:                  BlankLinesPreserve,
+		ParenSpacing:                ParenSpacingRemove,
+		QuotedIdents:                QuotedIdentRemoveSafe,
+		TrailingNewline:             TrailingNewlinePreserve,
+		SyntaxErrors:                SyntaxErrorFail,
+		LineEndings:                 LineEndingPreserve,
+		Comments:                    CommentsCfg{SpaceAfterMarker: CommentSpacePreserve, AlignTrailing: CommentAlignPreserve},
+		BlankLinesBetweenStatements: "preserve",
+		ArithmeticSpacing:           ArithmeticSpacingPreserve,
+		CommaSpacing:                CommaSpacingNormalize,
+		OrderAsc:                    OrderAscPreserve,
+		CastStyle:                   CastStylePreserve,
+		NotIn:                       NotInPreserve,
+		SchemaQual:                  SchemaQualPreserve,
+		Layout:                      defaultLayout(),
 	}
 }
 
@@ -841,6 +882,25 @@ func validate(cfg *Config) error {
 	case SyntaxErrorFail, SyntaxErrorSkip, SyntaxErrorIgnore, "":
 	default:
 		return fmt.Errorf("syntax_errors must be fail|skip|ignore, got %q", cfg.SyntaxErrors)
+	}
+
+	switch cfg.LineEndings {
+	case LineEndingPreserve, LineEndingLF, LineEndingCRLF, "":
+	default:
+		return fmt.Errorf("line_endings must be preserve|lf|crlf, got %q", cfg.LineEndings)
+	}
+	switch cfg.Comments.SpaceAfterMarker {
+	case CommentSpacePreserve, CommentSpaceAdd, "":
+	default:
+		return fmt.Errorf("comments.space_after_marker must be preserve|add, got %q", cfg.Comments.SpaceAfterMarker)
+	}
+	switch cfg.Comments.AlignTrailing {
+	case CommentAlignPreserve, CommentAlignAlign, "":
+	default:
+		return fmt.Errorf("comments.align_trailing must be preserve|align, got %q", cfg.Comments.AlignTrailing)
+	}
+	if _, err := cfg.BlankLinesBetween(); err != nil {
+		return err
 	}
 
 	switch cfg.TrailingNewline {
@@ -1091,4 +1151,18 @@ func findConfig() (string, error) {
 		dir = parent
 	}
 	return "", nil
+}
+
+// BlankLinesBetween returns the number of blank lines to put between statements, or -1
+// for "preserve".
+func (c *Config) BlankLinesBetween() (int, error) {
+	v := strings.TrimSpace(c.BlankLinesBetweenStatements)
+	if v == "" || v == "preserve" {
+		return -1, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 || n > 10 {
+		return 0, fmt.Errorf("blank_lines_between_statements must be preserve or a number from 0 to 10, got %q", c.BlankLinesBetweenStatements)
+	}
+	return n, nil
 }

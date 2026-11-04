@@ -353,6 +353,20 @@ comma_spacing: normalize     # preserve | normalize | compact
 
 blank_lines: preserve        # preserve | max_3 | max_2 | max_1
 
+blank_lines_between_statements: preserve   # preserve | 0 .. 10
+                             #   N: exactly N blank lines between statements (after the ';', and after a
+                             #      comment on the same line); comments directly above a statement stay with
+                             #      it. psql meta-commands and the text after the last statement are not touched.
+
+line_endings: preserve       # preserve | lf | crlf
+                             #   preserve: keep the input's style (CRLF if most line breaks are CRLF)
+                             #   lf / crlf: convert — also inside multi-line string literals
+
+comments:
+  space_after_marker: preserve   # preserve | add     (--note → -- note; "-----", "--+", "--!" are left alone)
+  align_trailing: preserve       # preserve | align   (trailing -- comments of consecutive lines start in one column;
+                                 #                     a single trailing comment is left alone)
+
 paren_spacing: remove        # preserve | add | remove
 
 quoted_identifiers: remove_safe  # preserve | remove_safe

@@ -41,7 +41,7 @@ pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 
 ## Top-level config keys
 
-`reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `dollar_quote`, `paren_indent`).
+`reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `line_endings`, `comments`, `blank_lines_between_statements`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `dollar_quote`, `paren_indent`).
 
 ## Docs
 

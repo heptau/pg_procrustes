@@ -13,7 +13,7 @@ import (
 
 // SyntaxError describes one statement PostgreSQL could not parse.
 type SyntaxError struct {
-	Offset  int    // byte offset of the error in the input
+	Offset  int    // byte offset of the error (in the input with CRLF read as LF)
 	Line    int    // 1-based line of the error
 	Col     int    // 1-based column (in characters) of the error
 	Message string // parser message, e.g. `syntax error at or near "from"`
@@ -68,6 +68,17 @@ func FormatWithDiagnostics(sql string, cfg *config.Config) (string, []SyntaxErro
 	if strings.TrimSpace(sql) == "" {
 		return sql, nil, nil
 	}
+	// The formatter works on LF only; the requested line ending is applied at the end.
+	eol := detectEOL(sql)
+	out, diags, err := formatDiagnostics(normalizeEOL(sql), cfg)
+	if err != nil || out == "" {
+		return out, diags, err
+	}
+	return applyEOL(out, cfg.LineEndings, eol), diags, nil
+}
+
+// formatDiagnostics is FormatWithDiagnostics for LF-only input and output.
+func formatDiagnostics(sql string, cfg *config.Config) (string, []SyntaxError, error) {
 	mode := syntaxMode(cfg)
 	if mode == config.SyntaxErrorIgnore {
 		out, err := formatTolerant(sql, cfg)

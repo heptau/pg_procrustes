@@ -1432,6 +1432,8 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 				} else {
 					buf.WriteString(tokenText)
 				}
+			case cfg.Comments.SpaceAfterMarker == config.CommentSpaceAdd && strings.HasPrefix(tokenText, "--"):
+				buf.WriteString(spaceAfterLineCommentMarker(tokenText))
 			default:
 				buf.WriteString(tokenText)
 			}
@@ -1465,6 +1467,10 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		if err != nil {
 			return result, fmt.Errorf("layout: %w", err)
 		}
+	}
+
+	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
+		result = alignTrailingComments(result)
 	}
 
 	return result, nil
@@ -2001,6 +2007,9 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// followed by an inserted blank line); strip them, but never inside tokens.
 	if cfg.TrailingWhitespace == config.TrailingWSStrip {
 		resultBody = stripTrailingOutsideTokens(resultBody)
+	}
+	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
+		resultBody = alignTrailingComments(resultBody)
 	}
 
 	// Keep a single-line trailing gap before the closing delimiter (`end $$`),
@@ -3419,6 +3428,10 @@ func finishWholeText(result string, cfg *config.Config, addSemicolon bool) strin
 				result = result[:idx+1] + ";" + result[idx+1:]
 			}
 		}
+	}
+
+	if n, err := cfg.BlankLinesBetween(); err == nil && n >= 0 {
+		result = separateStatements(result, n)
 	}
 
 	switch cfg.TrailingNewline {
