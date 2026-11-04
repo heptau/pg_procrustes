@@ -471,7 +471,7 @@ func clauseBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMo
 // inlineContent reconstructs the tokens from [from, to) as a single-line string.
 // Unlike originalText, it replaces gaps that contain a newline with a single space,
 // so content originally formatted across multiple lines is collapsed to one line.
-func inlineContent(sql string, tokens []rawTok, from, to int) string {
+func inlineContent(sql string, tokens []rawTok, from, to int, parenMode config.ParenSpacingMode) string {
 	if from >= to {
 		return ""
 	}
@@ -480,7 +480,16 @@ func inlineContent(sql string, tokens []rawTok, from, to int) string {
 		if i > from {
 			gap := gapBetween(sql, tokens, i-1, i)
 			if strings.ContainsRune(gap, '\n') {
-				sb.WriteByte(' ')
+				// A line comment runs to the end of the line: joining what follows
+				// onto it would comment that code out, so keep the line break.
+				switch {
+				case strings.HasPrefix(tokens[i-1].text, "--"):
+					sb.WriteByte('\n')
+				case parenMode == config.ParenSpacingRemove && (tokens[i-1].text == "(" || tokens[i].text == ")"):
+					// paren_spacing: remove — no space inside parentheses.
+				default:
+					sb.WriteByte(' ')
+				}
 			} else {
 				sb.WriteString(gap)
 			}
@@ -632,7 +641,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 
 		clauseIndent := baseIndent
-		if alignMode == config.AlignIndent {
+		// align: indent places the other clauses one level deeper than the keyword
+		// that opens the statement, which itself stays at the base indent.
+		if alignMode == config.AlignIndent && ci > 0 && !opensStatement(cl.kind) {
 			clauseIndent = baseIndent + indentUnit
 		}
 
@@ -663,7 +674,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// Use inlineContent instead of originalText: the original may span multiple
 			// lines (e.g. ORDER BY items each on their own line), and placing that verbatim
 			// on the same line as the keyword would embed raw newlines in the output.
-			content := inlineContent(sql, tokens, kwEnd, conEnd)
+			content := inlineContent(sql, tokens, kwEnd, conEnd, cfg.ParenSpacing)
 			content = reformatCaseExprs(content, clauseIndent, cfg.Case, indentUnit, cfg.LineLength)
 			sb.WriteString(content)
 			continue
@@ -678,7 +689,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if cl.kind == clauseInsert {
 			openIdx, closeIdx := findInsertColumnParen(tokens, kwEnd, conEnd)
 			if openIdx >= 0 {
-				prefix := strings.TrimSpace(inlineContent(sql, tokens, kwEnd, openIdx))
+				prefix := strings.TrimSpace(inlineContent(sql, tokens, kwEnd, openIdx, cfg.ParenSpacing))
 				colItems := splitAtComma(sql, tokens, openIdx+1, closeIdx)
 				sb.WriteByte(' ')
 				if prefix != "" {
@@ -726,7 +737,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				}
 				if closeIdx+1 < conEnd {
-					trailing := strings.TrimSpace(inlineContent(sql, tokens, closeIdx+1, conEnd))
+					trailing := strings.TrimSpace(inlineContent(sql, tokens, closeIdx+1, conEnd, cfg.ParenSpacing))
 					if trailing != "" {
 						sb.WriteByte(' ')
 						sb.WriteString(trailing)
@@ -745,8 +756,19 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				return item
 			}
 			firstNewline := strings.IndexByte(item, '\n')
-			if firstNewline < 0 || strings.HasPrefix(item[firstNewline+1:], contentIndent) {
+			if firstNewline < 0 {
 				return item
+			}
+			// Judge by the first non-blank continuation line; a blank line right after
+			// the first newline must not make every pass add another level of indent.
+			for _, ln := range strings.Split(item[firstNewline+1:], "\n") {
+				if strings.TrimSpace(ln) == "" {
+					continue
+				}
+				if strings.HasPrefix(ln, contentIndent) {
+					return item
+				}
+				break
 			}
 			parts := strings.Split(item, "\n")
 			for j := 1; j < len(parts); j++ {
@@ -1572,18 +1594,41 @@ func withTrailingComma(item string) string {
 	return item + ","
 }
 
-// trimLeadingCommentIndent strips the source indentation of the lines that
-// follow a leading line comment, so that the item is re-indented consistently.
+// trimLeadingCommentIndent removes the common source indentation of the lines that
+// follow a leading line comment, so that the item is re-indented consistently
+// (and identically on every pass) while relative indentation is kept.
 func trimLeadingCommentIndent(item string) string {
 	if !strings.HasPrefix(item, "--") {
 		return item
 	}
 	lines := strings.Split(item, "\n")
+	minIndent := -1
+	for _, ln := range lines[1:] {
+		if strings.TrimSpace(ln) == "" {
+			continue
+		}
+		n := len(ln) - len(strings.TrimLeft(ln, " \t"))
+		if minIndent < 0 || n < minIndent {
+			minIndent = n
+		}
+	}
+	if minIndent <= 0 {
+		return item
+	}
 	for i := 1; i < len(lines); i++ {
-		lines[i] = strings.TrimLeft(lines[i], " \t")
-		if !strings.HasPrefix(lines[i], "--") {
-			break
+		if len(lines[i]) >= minIndent {
+			lines[i] = lines[i][minIndent:]
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// opensStatement reports whether a clause keyword begins a statement (SELECT,
+// WITH, INSERT INTO, UPDATE, DELETE FROM, PERFORM) rather than continuing one.
+func opensStatement(k clauseKind) bool {
+	switch k {
+	case clauseWith, clauseSelect, clausePerform, clauseInsert, clauseUpdate, clauseDelete:
+		return true
+	}
+	return false
 }

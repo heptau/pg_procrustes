@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Test matrix `formatter/matrix_test.go` formats every golden input plus extra statements under 20 config variants and checks parseability, unchanged AST fingerprint and idempotence; `FuzzFormat` (`go test ./formatter -run '^$' -fuzz FuzzFormat`) does the same for random parseable SQL, with regressions kept in `formatter/testdata/fuzz/`
 - New `arithmetic_spacing: preserve | normalize | compact` (default `preserve`, i.e. no change) formats spaces around binary `+ - * / % ^`; only operators proven binary by their neighbours are touched, so unary signs (`x = -1`), wildcards (`SELECT *`, `count(*)`, `t.*`), `%TYPE` and `a - -1` (never `a--1`) stay safe. Also fixes the `operator_spacing` validation message to list `compact`
 - Language switcher (Auto / English / Čeština / Español / Deutsch / Français / Português / Italiano) and theme switcher (Auto / Light / Dark) on the documentation website — fixed top-right icon buttons (backdrop-blurred for readability over any background) with a dropdown menu, matching in position and style on both `index.html` and `config-builder.html`; the choice is persisted in `localStorage` and synced across both pages. `index.html`'s content and `config-builder.html`'s static chrome (header, buttons, nav, modal) are fully translated to Czech, Spanish, German, French, Portuguese, and Italian; the interactive option catalog on the config builder remains English-only
 - JSON-LD structured data, Open Graph/Twitter preview images, and `sitemap.xml` `lastmod` dates for `config-builder.html`, matching `index.html`
@@ -20,6 +21,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Layout: a line comment inside collapsed clause content no longer swallows the code that followed it (`SELECT a, -- c b` after `clauses.break: always`), and `paren_spacing` is honored when multi-line parenthesised content is joined (no more `( SELECT … )`, which also broke idempotence)
+- Layout: `clauses.align: indent` keeps the statement-opening keyword (and the first clause) at the base indent instead of shifting it, so the output is stable on re-run; multi-line items with a blank line or a leading comment no longer gain indentation on every pass
+- Formatter: `aliases.as: remove` keeps `AS` for aliases PostgreSQL cannot take as bare labels (`month`, `year`, `over`, `filter`, …), which previously produced a syntax error
+- Formatter: removing quotes or inserting `AS`/`INNER`/`OUTER` can no longer fuse neighbouring tokens (`select"a"` → `SELECTa`, `"a"where` → `aWHERE`); `arithmetic_spacing: compact` never merges an operator with a following symbol (`0 % +a` → `0%+a`)
 - Layout (`internal/layout/layout.go`): with `clauses.break: always` and the default `union.blank_line: preserve`, `UNION`/`INTERSECT`/`EXCEPT` was glued to the preceding token (`uUNION`, `1UNION ALL`), producing invalid SQL; the source gap is now kept and the operator stays on its own line
 - Formatter: `operator_spacing` now also normalizes `:=` and `=>` (PL/pgSQL assignment, named arguments); arithmetic operators remain untouched by design
 - Formatter: derived-table aliases (`FROM (SELECT …) x`, `LATERAL`, `JOIN (SELECT …) y`) now honor `aliases.as` (add/remove) and `aliases.case`

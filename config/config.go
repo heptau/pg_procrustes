@@ -442,6 +442,11 @@ type LayoutConfig struct {
 	Case        SQLCaseCfg     `yaml:"case"`
 	DollarQuote DollarQuoteCfg `yaml:"dollar_quote"`
 	ParenIndent ParenIndentCfg `yaml:"paren_indent"`
+
+	// ParenSpacing mirrors the top-level paren_spacing option. It is not read from
+	// YAML: the formatter fills it in so layout joins lines next to ( and ) the same
+	// way the token pass would (keeps the output idempotent).
+	ParenSpacing ParenSpacingMode `yaml:"-"`
 }
 
 // DefaultLayout returns the default LayoutConfig (all fields set to preserve).

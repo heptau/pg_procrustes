@@ -31,7 +31,7 @@ func TestGolden(t *testing.T) {
 	}
 
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || e.Name() == "fuzz" { // fuzz/ holds Go fuzz corpora, not golden cases
 			continue
 		}
 		name := e.Name()

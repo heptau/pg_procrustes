@@ -689,7 +689,9 @@ func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) 
 			return " "
 		case config.ArithmeticSpacingCompact:
 			// "a - -1" must not become "a--1" (a line comment).
-			if (prevText == "-" || prevText == "+") && (nextText == "-" || nextText == "+") {
+			// "a - -1" → a--1 would be a comment and "0 % +a" → 0%+a one operator:
+			// never glue a symbol onto the operator that precedes it.
+			if len(prevText) == 1 && strings.Contains("+-*/%^", prevText) && nextText != "" && strings.ContainsRune("+-*/%^<>=~!@#&|`?", rune(nextText[0])) {
 				return " "
 			}
 			return ""
@@ -904,7 +906,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 				continue
 			}
 			if strings.ToLower(tok.text) == "as" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD {
-				if j := nextVisible(i); j >= 0 && pos.aliases[tokens[j].start] {
+				if j := nextVisible(i); j >= 0 && pos.aliases[tokens[j].start] && canOmitAs(tokens[j].text) {
 					dropText[i] = true
 					suppressGap[j] = true
 				}
@@ -1134,6 +1136,11 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			if !suppressGap[i] {
 				buf.WriteString(processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg))
 			}
+			// "a"where: once the quotes are removed the two words would fuse.
+			if gap == "" && strings.HasPrefix(prevTokenText, `"`) && tok.text != "" &&
+				(tok.text[0] == '_' || tok.text[0] >= 'a' && tok.text[0] <= 'z' || tok.text[0] >= 'A' && tok.text[0] <= 'Z' || tok.text[0] >= '0' && tok.text[0] <= '9') {
+				ensureSeparator(&buf)
+			}
 		}
 
 		// insertBefore: emit string after gap but before token.
@@ -1155,6 +1162,8 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			len(tokenText) >= 2 && tokenText[0] == '"' && tokenText[len(tokenText)-1] == '"' {
 			inner := tokenText[1 : len(tokenText)-1]
 			if safeToUnquote(inner) {
+				// select"a" → SELECT a, not SELECTa: keep a separator after a word.
+				ensureSeparator(&buf)
 				buf.WriteString(inner)
 				prevTokenText = tokenText
 				cur = tok.end
@@ -1232,6 +1241,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 		// ── AS insertion (add mode) ───────────────────────────────────────────
 		if class == classAlias && cfg.Aliases.As == config.AliasAsAdd {
 			if strings.ToLower(prevTokenText) != "as" {
+				ensureSeparator(&buf)
 				buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
 				buf.WriteByte(' ')
 			}
@@ -1244,10 +1254,12 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			switch {
 			case isDirectionJoinKeyword(prevLower):
 				// LEFT/RIGHT/FULL → insert OUTER
+				ensureSeparator(&buf)
 				buf.WriteString(applyCase("outer", kw))
 				buf.WriteByte(' ')
 			case !isAnyJoinKeyword(prevLower):
 				// bare JOIN → insert INNER
+				ensureSeparator(&buf)
 				buf.WriteString(applyCase("inner", kw))
 				buf.WriteByte(' ')
 			}
@@ -1367,7 +1379,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 
 	// layout post-processing
 	if !layout.IsNoop(&cfg.Layout) {
-		result, err = layout.Apply(result, &cfg.Layout)
+		result, err = layout.Apply(result, layoutConfig(cfg))
 		if err != nil {
 			return result, fmt.Errorf("layout: %w", err)
 		}
@@ -2282,7 +2294,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 		}
 
 		// Phase 2: apply layout (clause breaking, indentation normalization).
-		formatted, fmtErr := layout.Apply(sqlText, &cfg.Layout)
+		formatted, fmtErr := layout.Apply(sqlText, layoutConfig(cfg))
 		layoutChanged := fmtErr == nil && formatted != sqlText
 
 		if !preChanged && !layoutChanged {
@@ -3136,5 +3148,38 @@ func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
 			}
 			break
 		}
+	}
+}
+
+// canOmitAs reports whether alias can follow an expression without AS. Keywords
+// that PostgreSQL does not allow as bare labels (month, year, over, filter, …)
+// parse only with AS, so removing it would produce invalid SQL.
+func canOmitAs(alias string) bool {
+	if alias == "" {
+		return false
+	}
+	if alias[0] == '"' {
+		return true
+	}
+	_, err := pg_query.Parse("SELECT 1 " + alias)
+	return err == nil
+}
+
+// layoutConfig returns the layout config with the paren_spacing hint filled in.
+func layoutConfig(cfg *config.Config) *config.LayoutConfig {
+	lc := cfg.Layout
+	lc.ParenSpacing = cfg.ParenSpacing
+	return &lc
+}
+
+// ensureSeparator writes a space when buf ends in a word character, so a keyword or
+// identifier written next cannot fuse with the previous token (SELECTa, !aAS).
+func ensureSeparator(buf *strings.Builder) {
+	out := buf.String()
+	if out == "" {
+		return
+	}
+	if c := out[len(out)-1]; c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80 || c == '!' || c == '"' || c == '\'' || c == ')' || c == ']' {
+		buf.WriteByte(' ')
 	}
 }
