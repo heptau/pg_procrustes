@@ -12,9 +12,12 @@ import (
 type CaseRule string
 
 const (
-	CaseUpper    CaseRule = "upper"
-	CaseLower    CaseRule = "lower"
-	CasePreserve CaseRule = "preserve"
+	CaseUpper CaseRule = "upper"
+	CaseLower CaseRule = "lower"
+	// CaseCapitalize upper-cases the first letter of every word and lower-cases the
+	// rest (order_items → Order_items, character varying → Character Varying).
+	CaseCapitalize CaseRule = "capitalize"
+	CasePreserve   CaseRule = "preserve"
 )
 
 // TypeForm controls canonical form of data type names.
@@ -689,8 +692,8 @@ func validate(cfg *Config) error {
 		cfg.Aliases.Case, cfg.Columns.Case,
 	}
 	for _, v := range cases {
-		if v != CaseUpper && v != CaseLower && v != CasePreserve {
-			return fmt.Errorf("case must be %q, %q or %q, got %q", CaseUpper, CaseLower, CasePreserve, v)
+		if v != CaseUpper && v != CaseLower && v != CaseCapitalize && v != CasePreserve {
+			return fmt.Errorf("case must be %q, %q, %q or %q, got %q", CaseUpper, CaseLower, CaseCapitalize, CasePreserve, v)
 		}
 	}
 

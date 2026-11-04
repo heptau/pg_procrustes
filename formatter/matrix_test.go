@@ -70,6 +70,16 @@ var matrixVariants = []matrixVariant{
 	{"aliases_no_as", func(c *config.Config) { c.Aliases.As = config.AliasAsRemove }},
 	{"join_long", func(c *config.Config) { c.JoinForm = config.JoinFormLong }},
 	{"cast_operator", func(c *config.Config) { c.CastStyle = config.CastStyleOperator }},
+	{"capitalize_all", func(c *config.Config) {
+		for _, sec := range []*config.Section{
+			&c.ReservedKeywords, &c.Keywords, &c.Literals, &c.Operators, &c.Schemas, &c.Tables,
+			&c.Functions, &c.ConditionalFunctions, &c.SystemFunctions, &c.Columns,
+		} {
+			sec.Case = config.CaseCapitalize
+		}
+		c.DataTypes.Case = config.CaseCapitalize
+		c.Aliases.Case = config.CaseCapitalize
+	}},
 	{"keywords_lower", func(c *config.Config) {
 		c.ReservedKeywords.Case = config.CaseLower
 		c.Keywords.Case = config.CaseLower

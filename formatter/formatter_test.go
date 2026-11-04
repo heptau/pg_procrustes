@@ -1100,3 +1100,33 @@ func TestDDLColumnNamesAreNotKeywordCased(t *testing.T) {
 		}
 	}
 }
+
+func TestCapitalizeCase(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Tables.Case = config.CaseCapitalize
+	c.Columns.Case = config.CaseCapitalize
+	c.Schemas.Case = config.CaseCapitalize
+	c.DataTypes.Case = config.CaseCapitalize
+	c.Aliases.Case = config.CaseCapitalize
+	if err := config.Validate(c); err != nil {
+		t.Fatalf("capitalize must validate: %v", err)
+	}
+	got := fmtOnce(t, `select o.order_id, cast(x as character varying(3)) from public.order_items o where "MixedCase" = 1;`, c)
+	for _, want := range []string{"Public.Order_items", "O.Order_id", "Character Varying(3)", `"MixedCase"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if again := fmtOnce(t, got, c); again != got {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+
+	// Exceptions still win over capitalize.
+	c.Tables.Exceptions = []string{"order_items"}
+	if out := fmtOnce(t, "select 1 from order_items", c); !strings.Contains(out, "FROM order_items") {
+		t.Fatalf("exception ignored:\n%s", out)
+	}
+}

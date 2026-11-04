@@ -231,42 +231,42 @@ pg_procrustes looks for `.pg_procrustes.yaml` starting in the current directory 
 
 ```yaml
 reserved_keywords:
-  case: upper     # upper | lower | preserve  (SELECT, FROM, WHERE, …)
+  case: upper     # upper | lower | capitalize | preserve  (SELECT, FROM, WHERE, …)
 
 keywords:
-  case: upper     # upper | lower | preserve  (ANALYZE, CASCADE, VERBOSE, …)
+  case: upper     # upper | lower | capitalize | preserve  (ANALYZE, CASCADE, VERBOSE, …)
 
 data_types:
-  case: lower     # upper | lower | preserve
+  case: lower     # upper | lower | capitalize | preserve
   form: long      # preserve | long | short | long_no_space
                   #   long:          character varying, double precision
                   #   short:         varchar, float8, timestamptz
                   #   long_no_space: integer, bigint, varchar (no multi-word forms)
 
 literals:
-  case: upper     # upper | lower | preserve  (TRUE, FALSE, NULL)
+  case: upper     # upper | lower | capitalize | preserve  (TRUE, FALSE, NULL)
 
 operators:
-  case: upper     # upper | lower | preserve  (AND, OR, NOT, IN, IS, LIKE, …)
+  case: upper     # upper | lower | capitalize | preserve  (AND, OR, NOT, IN, IS, LIKE, …)
 
 schemas:
-  case: lower     # upper | lower | preserve
+  case: lower     # upper | lower | capitalize | preserve
 tables:
-  case: lower     # upper | lower | preserve
+  case: lower     # upper | lower | capitalize | preserve
 functions:
-  case: lower     # upper | lower | preserve  (now(), count(), my_func(), …)
+  case: lower     # upper | lower | capitalize | preserve  (now(), count(), my_func(), …)
 conditional_functions:
-  case: upper     # upper | lower | preserve  (COALESCE, NULLIF, GREATEST, LEAST)
+  case: upper     # upper | lower | capitalize | preserve  (COALESCE, NULLIF, GREATEST, LEAST)
 system_functions:
-  case: upper     # upper | lower | preserve  (CURRENT_DATE, SESSION_USER, …)
+  case: upper     # upper | lower | capitalize | preserve  (CURRENT_DATE, SESSION_USER, …)
 aliases:
-  case: lower     # upper | lower | preserve
+  case: lower     # upper | lower | capitalize | preserve
   as: add         # add | preserve | remove
 columns:
-  case: lower     # upper | lower | preserve
+  case: lower     # upper | lower | capitalize | preserve
 
 plpgsql_variables:
-  case: upper     # upper | lower | preserve
+  case: upper     # upper | lower | capitalize | preserve
                   # Controls PL/pgSQL runtime values: NEW, OLD, EXCLUDED (ON CONFLICT),
                   # FOUND, TG_OP, TG_TABLE_NAME, TG_TABLE_SCHEMA, TG_NAME, TG_WHEN,
                   # TG_LEVEL, TG_NARGS, TG_ARGV, TG_RELID, TG_RELNAME, TG_EVENT, TG_TAG,
@@ -276,7 +276,7 @@ plpgsql_variables:
                   # When omitted, NEW/OLD follow keywords.case; TG_*/FOUND are left as-is.
 
 plpgsql_keywords:
-  case: upper     # upper | lower | preserve
+  case: upper     # upper | lower | capitalize | preserve
                   # Controls PL/pgSQL-only statement keywords that the PostgreSQL scanner
                   # does not classify as reserved or unreserved keywords and therefore
                   # receive no transformation from the keywords/reserved_keywords rules:

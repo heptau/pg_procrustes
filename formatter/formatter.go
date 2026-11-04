@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
@@ -465,6 +467,8 @@ func applyCase(s string, rule config.CaseRule) string {
 		return strings.ToUpper(s)
 	case config.CaseLower:
 		return strings.ToLower(s)
+	case config.CaseCapitalize:
+		return capitalizeWords(s)
 	default:
 		return s
 	}
@@ -3258,4 +3262,19 @@ func resolveDDLColumns(tokens []rawToken, pos *astPositions) {
 			}
 		}
 	}
+}
+
+// capitalizeWords upper-cases the first letter of each space-separated word and
+// lower-cases the rest. Underscores are left alone: capitalize never renames an
+// identifier, it only changes the case of its letters.
+func capitalizeWords(s string) string {
+	words := strings.Split(strings.ToLower(s), " ")
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(w)
+		words[i] = string(unicode.ToUpper(r)) + w[size:]
+	}
+	return strings.Join(words, " ")
 }

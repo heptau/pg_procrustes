@@ -1001,7 +1001,7 @@ functions:
     <h3>plpgsql_variables</h3>
     <p data-i18n="plv_vars_p">Runtime pseudo-variables available inside trigger and function bodies:</p>
     <pre><code>plpgsql_variables:
-  case: upper   <span class="cm"># upper | lower | preserve</span>
+  case: upper   <span class="cm"># upper | lower | capitalize | preserve</span>
   <span class="cm"># Covers: NEW, OLD, EXCLUDED (ON CONFLICT),</span>
   <span class="cm">#         FOUND, TG_OP, TG_TABLE_NAME, TG_TABLE_SCHEMA,</span>
   <span class="cm">#         TG_NAME, TG_WHEN, TG_LEVEL, TG_NARGS, TG_ARGV,</span>
@@ -1032,7 +1032,7 @@ functions:
     <h3>plpgsql_keywords</h3>
     <p data-i18n="plv_keywords_p">PL/pgSQL statement keywords not classified as SQL keywords by the scanner:</p>
     <pre><code>plpgsql_keywords:
-  case: upper   <span class="cm"># upper | lower | preserve</span>
+  case: upper   <span class="cm"># upper | lower | capitalize | preserve</span>
   <span class="cm"># Covers: RAISE, PERFORM, ELSIF, ELSEIF, FOREACH, REVERSE,</span>
   <span class="cm">#         SLICE, EXIT, LOOP, WHILE, OPEN, ASSERT,</span>
   <span class="cm">#         DEBUG, INFO, NOTICE, WARNING, EXCEPTION (as RAISE severity / handler)</span></code></pre>
@@ -1621,7 +1621,7 @@ total := total + i;
     `,
 
     casing_h2: `Velikost písmen klíčových slov &amp; identifikátorů`,
-    casing_p: `Každou třídu tokenů lze nastavit na <code>upper</code>, <code>lower</code> nebo <code>preserve</code>.`,
+    casing_p: `Každou třídu tokenů lze nastavit na <code>upper</code>, <code>lower</code>, <code>capitalize</code> nebo <code>preserve</code>.`,
     casing_exceptions_h4: `Výjimky velikosti písmen`,
     casing_exceptions_p: `Jakákoli sekce pro velikost písmen přijímá seznam <code>exceptions</code>. Slova v tomto seznamu si zachovají přesnou velikost písmen bez ohledu na nastavení <code>case</code> dané sekce.`,
     casing_exceptions_note_p: `Výjimky se porovnávají bez ohledu na velikost písmen — hodnota v seznamu určuje přesnou velikost písmen na výstupu.`,
@@ -1835,7 +1835,7 @@ total := total + i;
     `,
 
   casing_h2: `Mayúsculas/minúsculas de palabras clave &amp; identificadores`,
-  casing_p: `Cada clase de token se puede configurar como <code>upper</code>, <code>lower</code> o <code>preserve</code>.`,
+  casing_p: `Cada clase de token se puede configurar como <code>upper</code>, <code>lower</code>, <code>capitalize</code> o <code>preserve</code>.`,
   casing_exceptions_h4: `Excepciones de mayúsculas/minúsculas`,
   casing_exceptions_p: `Cualquier sección de mayúsculas/minúsculas acepta una lista <code>exceptions</code>. Las palabras de la lista conservan exactamente su capitalización, sin importar el ajuste <code>case</code> de la sección.`,
   casing_exceptions_note_p: `Las excepciones se comparan sin distinguir mayúsculas/minúsculas — el valor en la lista define la capitalización exacta de salida.`,
@@ -2048,7 +2048,7 @@ total := total + i;
     `,
 
     casing_h2: `Groß-/Kleinschreibung von Schlüsselwörtern &amp; Bezeichnern`,
-    casing_p: `Jede Token-Klasse kann auf <code>upper</code>, <code>lower</code> oder <code>preserve</code> gesetzt werden.`,
+    casing_p: `Jede Token-Klasse kann auf <code>upper</code>, <code>lower</code>, <code>capitalize</code> oder <code>preserve</code> gesetzt werden.`,
     casing_exceptions_h4: `Ausnahmen bei der Groß-/Kleinschreibung`,
     casing_exceptions_p: `Jeder Abschnitt zur Groß-/Kleinschreibung akzeptiert eine <code>exceptions</code>-Liste. Wörter in dieser Liste behalten ihre exakte Schreibweise unabhängig von der <code>case</code>-Einstellung des jeweiligen Abschnitts.`,
     casing_exceptions_note_p: `Ausnahmen werden ohne Berücksichtigung der Groß-/Kleinschreibung abgeglichen — der Wert in der Liste bestimmt die exakte Schreibweise der Ausgabe.`,
@@ -2261,7 +2261,7 @@ total := total + i;
     `,
 
     casing_h2: `Casse des mots-clés &amp; identifiants`,
-    casing_p: `Chaque classe de token peut être définie sur <code>upper</code>, <code>lower</code>, ou <code>preserve</code>.`,
+    casing_p: `Chaque classe de token peut être définie sur <code>upper</code>, <code>lower</code>, <code>capitalize</code>, ou <code>preserve</code>.`,
     casing_exceptions_h4: `Exceptions de casse`,
     casing_exceptions_p: `Toute section de casse accepte une liste <code>exceptions</code>. Les mots de cette liste conservent leur capitalisation exacte, quel que soit le réglage <code>case</code> de la section.`,
     casing_exceptions_note_p: `Les exceptions sont comparées sans distinction de casse — la valeur indiquée dans la liste définit la casse exacte en sortie.`,
@@ -2474,7 +2474,7 @@ total := total + i;
     `,
 
     casing_h2: `Capitalização de palavras-chave &amp; identificadores`,
-    casing_p: `Cada classe de token pode ser definida como <code>upper</code>, <code>lower</code> ou <code>preserve</code>.`,
+    casing_p: `Cada classe de token pode ser definida como <code>upper</code>, <code>lower</code>, <code>capitalize</code> ou <code>preserve</code>.`,
     casing_exceptions_h4: `Exceções de capitalização`,
     casing_exceptions_p: `Qualquer seção de capitalização aceita uma lista <code>exceptions</code>. As palavras dessa lista mantêm exatamente a capitalização indicada, independentemente da configuração <code>case</code> da seção.`,
     casing_exceptions_note_p: `As exceções são comparadas sem diferenciar maiúsculas de minúsculas — o valor na lista define a capitalização exata na saída.`,
@@ -2687,7 +2687,7 @@ total := total + i;
   `,
 
   casing_h2: `Maiuscole/minuscole di parole chiave &amp; identificatori`,
-  casing_p: `Ogni classe di token può essere impostata su <code>upper</code>, <code>lower</code> o <code>preserve</code>.`,
+  casing_p: `Ogni classe di token può essere impostata su <code>upper</code>, <code>lower</code>, <code>capitalize</code> o <code>preserve</code>.`,
   casing_exceptions_h4: `Eccezioni di maiuscole/minuscole`,
   casing_exceptions_p: `Ogni sezione relativa alle maiuscole/minuscole accetta un elenco <code>exceptions</code>. Le parole in questo elenco mantengono la loro esatta capitalizzazione indipendentemente dall'impostazione <code>case</code> della sezione.`,
   casing_exceptions_note_p: `Le eccezioni vengono confrontate senza distinzione tra maiuscole e minuscole — il valore nell'elenco definisce l'esatta capitalizzazione in output.`,
