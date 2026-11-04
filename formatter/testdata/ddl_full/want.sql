@@ -35,5 +35,5 @@ CREATE VIEW public.active_accounts AS
 
 ALTER TABLE public.accounts ADD COLUMN notes text;
 ALTER TABLE public.accounts DROP COLUMN notes;
-ALTER TABLE public.accounts ALTER COLUMN LABEL SET NOT NULL;
-ALTER TABLE public.accounts RENAME COLUMN LABEL TO display_name;
+ALTER TABLE public.accounts ALTER COLUMN label SET NOT NULL;
+ALTER TABLE public.accounts RENAME COLUMN label TO display_name;

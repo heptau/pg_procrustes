@@ -834,6 +834,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 	pos.resolveAliases(tokens)
 	resolveSubselectAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
+	resolveDDLColumns(tokens, pos)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
 	//
@@ -3181,5 +3182,80 @@ func ensureSeparator(buf *strings.Builder) {
 	}
 	if c := out[len(out)-1]; c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80 || c == '!' || c == '"' || c == '\'' || c == ')' || c == ']' {
 		buf.WriteByte(' ')
+	}
+}
+
+// resolveDDLColumns registers column names the AST walk cannot locate:
+//   - ALTER/RENAME/DROP/ADD COLUMN [IF [NOT] EXISTS] name, and the new name in
+//     RENAME COLUMN old TO new;
+//   - the column list of CREATE [UNIQUE] INDEX … ON tbl [USING m] (a, b DESC, …).
+//
+// Without this, names that are unreserved keywords (label, event, name, …) are
+// upper-cased as keywords.
+func resolveDDLColumns(tokens []rawToken, pos *astPositions) {
+	isWord := func(t string) bool {
+		return t != "" && (t[0] == '_' || t[0] >= 'a' && t[0] <= 'z' || t[0] >= 'A' && t[0] <= 'Z' || t[0] == '"')
+	}
+	lowerAt := func(i int) string {
+		if i < 0 || i >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	for i := range tokens {
+		switch lowerAt(i) {
+		case "column":
+			k := i + 1
+			if lowerAt(k) == "if" {
+				k++
+				if lowerAt(k) == "not" {
+					k++
+				}
+				if lowerAt(k) == "exists" {
+					k++
+				}
+			}
+			if k >= len(tokens) || !isWord(tokens[k].text) || lowerAt(k+1) == "." {
+				continue // not a bare column name (e.g. COMMENT ON COLUMN t.c)
+			}
+			pos.columns[tokens[k].start] = true
+			if i > 0 && lowerAt(i-1) == "rename" && lowerAt(k+1) == "to" && k+2 < len(tokens) && isWord(tokens[k+2].text) {
+				pos.columns[tokens[k+2].start] = true
+			}
+		case "index":
+			// CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] [name] ON [ONLY] tbl [USING m] ( elems )
+			if i == 0 || (lowerAt(i-1) != "create" && lowerAt(i-1) != "unique") {
+				continue
+			}
+			k := i + 1
+			for k < len(tokens) && lowerAt(k) != "on" && tokens[k].text != ";" && tokens[k].text != "(" {
+				k++
+			}
+			for k < len(tokens) && tokens[k].text != "(" && tokens[k].text != ";" {
+				k++
+			}
+			if k >= len(tokens) || tokens[k].text != "(" {
+				continue
+			}
+			depth, expect := 1, true
+			for k++; k < len(tokens) && depth > 0; k++ {
+				switch t := tokens[k].text; {
+				case t == "(":
+					depth++
+					expect = false
+				case t == ")":
+					depth--
+				case t == "," && depth == 1:
+					expect = true
+				default:
+					if depth == 1 && expect {
+						if isWord(t) && lowerAt(k+1) != "(" {
+							pos.columns[tokens[k].start] = true
+						}
+						expect = false
+					}
+				}
+			}
+		}
 	}
 }

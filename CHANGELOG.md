@@ -21,6 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Layout: a leading `SELECT`/`WITH` after a statement prefix (`CREATE VIEW v AS`, `CREATE TABLE t AS`, `EXPLAIN`, …) now starts on its own line when clauses are broken, instead of `CREATE VIEW v AS SELECT` with the rest of the query left-aligned underneath
+- Formatter: column names in `ALTER TABLE … ALTER/RENAME/DROP/ADD COLUMN`, in `RENAME COLUMN … TO new` and in `CREATE INDEX … (cols)` are no longer upper-cased when they are unreserved keywords (`label`, `name`, `event`, …)
 - Layout: a line comment inside collapsed clause content no longer swallows the code that followed it (`SELECT a, -- c b` after `clauses.break: always`), and `paren_spacing` is honored when multi-line parenthesised content is joined (no more `( SELECT … )`, which also broke idempotence)
 - Layout: `clauses.align: indent` keeps the statement-opening keyword (and the first clause) at the base indent instead of shifting it, so the output is stable on re-run; multi-line items with a blank line or a leading comment no longer gain indentation on every pass
 - Formatter: `aliases.as: remove` keeps `AS` for aliases PostgreSQL cannot take as bare labels (`month`, `year`, `over`, `filter`, …), which previously produced a syntax error

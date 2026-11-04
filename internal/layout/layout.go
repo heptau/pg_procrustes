@@ -157,6 +157,7 @@ const (
 
 type stmtClause struct {
 	kind   clauseKind
+	kwTok  int // index of the clause keyword's first token
 	kwEnd  int
 	conEnd int
 }
@@ -208,6 +209,7 @@ func parseStatements(tokens []rawTok) []statement {
 					}
 					cl := stmtClause{
 						kind:  kind,
+						kwTok: i,
 						kwEnd: i + kwLen,
 					}
 					stmt.clauses = append(stmt.clauses, cl)
@@ -647,6 +649,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			clauseIndent = baseIndent + indentUnit
 		}
 
+		// A leading SELECT/WITH preceded by a statement prefix (CREATE VIEW v AS,
+		// CREATE TABLE t AS, EXPLAIN, …): keep the prefix on its own line and start
+		// the query on the next one, instead of gluing "AS SELECT" together.
+		prefixed := ci == 0 && (cl.kind == clauseSelect || cl.kind == clauseWith) && hasCodeTokens(tokens, kwStart, cl.kwTok)
+
 		if ci > 0 {
 			if prevIsUnionBlankAfter {
 				sb.WriteString("\n\n")
@@ -654,11 +661,20 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				sb.WriteByte('\n')
 			}
 			sb.WriteString(clauseIndent)
+		} else if prefixed {
+			sb.WriteString(baseIndent)
+			sb.WriteString(strings.TrimSpace(originalText(sql, tokens, kwStart, cl.kwTok)))
+			sb.WriteByte('\n')
+			sb.WriteString(clauseIndent)
 		} else {
 			sb.WriteString(clauseIndent)
 		}
 
-		kwText := strings.TrimSpace(originalText(sql, tokens, kwStart, kwEnd))
+		kwFrom := kwStart
+		if prefixed {
+			kwFrom = cl.kwTok
+		}
+		kwText := strings.TrimSpace(originalText(sql, tokens, kwFrom, kwEnd))
 		sb.WriteString(kwText)
 
 		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
@@ -1629,6 +1645,17 @@ func opensStatement(k clauseKind) bool {
 	switch k {
 	case clauseWith, clauseSelect, clausePerform, clauseInsert, clauseUpdate, clauseDelete:
 		return true
+	}
+	return false
+}
+
+// hasCodeTokens reports whether tokens[from:to] contain anything besides comments.
+func hasCodeTokens(tokens []rawTok, from, to int) bool {
+	for i := from; i < to && i < len(tokens); i++ {
+		t := tokens[i].text
+		if !strings.HasPrefix(t, "--") && !strings.HasPrefix(t, "/*") {
+			return true
+		}
 	}
 	return false
 }

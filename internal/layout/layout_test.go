@@ -213,3 +213,19 @@ func TestLineCommentsKeepCommaAndIdempotent(t *testing.T) {
 		}
 	}
 }
+
+func TestPrefixedSelectStartsOnNewLine(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	got, err := layout.Apply("CREATE VIEW v AS SELECT id FROM t WHERE a = 1;", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "CREATE VIEW v AS\nSELECT\n  id\nFROM\n  t\nWHERE\n  a = 1;"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	again, err := layout.Apply(got, cfg)
+	if err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
+	}
+}

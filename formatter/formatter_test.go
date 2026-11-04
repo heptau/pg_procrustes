@@ -1087,3 +1087,16 @@ func TestArithmeticSpacingLeavesPLpgSQLTypeAndWildcard(t *testing.T) {
 		}
 	}
 }
+
+func TestDDLColumnNamesAreNotKeywordCased(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmtOnce(t, "alter table t alter column label set not null; alter table t rename column label to name; create index i on t (event, status desc);", c)
+	for _, want := range []string{"ALTER COLUMN label SET", "RENAME COLUMN label TO name", "(event, status DESC)"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}

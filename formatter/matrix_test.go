@@ -94,6 +94,7 @@ var matrixInline = []string{
 	"create trigger tr before insert or update on t for each row execute function f(); drop trigger tr on t;",
 	"select date_trunc('month', o.created_at) as month, sum(x) over (order by y) as over from t o;",
 	"select a from t where a in (select b from u) and exists (select 1 from v where v.x = t.a);",
+	"create view v as select id, name from t where a = 1; create table x as select a from t; explain select a from t where b = 1;",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 
