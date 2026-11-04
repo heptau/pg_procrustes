@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -64,6 +65,7 @@ func main() {
 		configPath   string
 		backupExt    string
 		outDir       string
+		syntaxErrors string
 	)
 	flag.BoolVar(&writeInPlace, "w", false, "write result back to source files (in-place)")
 	flag.BoolVar(&checkMode, "check", false, "exit 1 if any file would be reformatted (CI mode)")
@@ -73,6 +75,7 @@ func main() {
 	flag.StringVar(&configPath, "c", "", "path to config file (default: auto-detect .pg_procrustes.yaml)")
 	flag.StringVar(&backupExt, "backup", "", "before overwriting, save original with this extension (e.g. .bak); requires -w")
 	flag.StringVar(&outDir, "out-dir", "", "write formatted files into this directory instead of stdout")
+	flag.StringVar(&syntaxErrors, "syntax-errors", "", "what to do with SQL that does not parse: fail | skip | ignore (default: syntax_errors from the config, else fail)")
 	flag.Usage = usage
 	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
 	flag.Parse()
@@ -110,6 +113,12 @@ func main() {
 	if err != nil {
 		die("config: %v", err)
 	}
+	if syntaxErrors != "" {
+		cfg.SyntaxErrors = config.SyntaxErrorMode(syntaxErrors)
+		if err := config.Validate(cfg); err != nil {
+			die("--syntax-errors: %v", err)
+		}
+	}
 
 	// Expand globs from args.
 	files, err := expandGlobs(flag.Args())
@@ -127,10 +136,9 @@ func main() {
 			die("read stdin: %v", err)
 		}
 		src := string(data)
-		warnSyntax("stdin", src)
-		out, err := formatter.Format(src, cfg)
-		if err != nil {
-			die("%v", err)
+		out, ok := formatSource("stdin", src, cfg)
+		if !ok {
+			os.Exit(1)
 		}
 		switch {
 		case checkMode:
@@ -150,9 +158,8 @@ func main() {
 
 	exitCode := 0
 	for _, path := range files {
-		src, out, err := readAndFormat(path, cfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", path, err)
+		src, out, ok := readAndFormat(path, cfg)
+		if !ok {
 			exitCode = 1
 			continue
 		}
@@ -229,24 +236,73 @@ func expandGlobs(args []string) ([]string, error) {
 	return out, nil
 }
 
-// warnSyntax prints a warning when src is not valid PostgreSQL. Formatting still
-// proceeds (token-level fallback), so the exit status is unaffected.
-func warnSyntax(name, src string) {
-	if err := formatter.SyntaxError(src); err != nil {
-		fmt.Fprintf(os.Stderr, "pg_procrustes: warning: %s: syntax error, formatting may be incomplete: %v\n", name, err)
-	}
-}
-
-// readAndFormat reads path and returns (original, formatted, err).
-func readAndFormat(path string, cfg *config.Config) (src, out string, err error) {
+// readAndFormat reads path and returns (original, formatted, ok). Problems are
+// reported on stderr; ok is false when the file must not be written or checked.
+func readAndFormat(path string, cfg *config.Config) (src, out string, ok bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", "", err
+		fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", path, err)
+		return "", "", false
 	}
 	src = string(data)
-	warnSyntax(path, src)
-	out, err = formatter.Format(src, cfg)
-	return src, out, err
+	out, ok = formatSource(path, src, cfg)
+	return src, out, ok
+}
+
+// formatSource formats src and reports syntax problems on stderr in the usual
+// "file:line:col: message" form with the offending line and a caret. With
+// syntax_errors: fail the result is not ok; with skip the statements that do not
+// parse are left as written and reported as warnings.
+func formatSource(name, src string, cfg *config.Config) (string, bool) {
+	out, diags, err := formatter.FormatWithDiagnostics(src, cfg)
+	var fatal formatter.SyntaxErrors
+	if errors.As(err, &fatal) {
+		reportSyntax(name, src, fatal, false)
+		return "", false
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", name, err)
+		return "", false
+	}
+	if len(diags) > 0 {
+		if cfg.SyntaxErrors == config.SyntaxErrorSkip {
+			reportSyntax(name, src, diags, true)
+			return out, true
+		}
+		reportSyntax(name, src, diags, false)
+		return "", false
+	}
+	return out, true
+}
+
+// reportSyntax prints each diagnostic as "name:line:col: [warning: ]message", followed
+// by the source line and a caret under the error column.
+func reportSyntax(name, src string, diags []formatter.SyntaxError, warn bool) {
+	lines := strings.Split(src, "\n")
+	kind := "error"
+	if warn {
+		kind = "warning: statement left unformatted"
+	}
+	for _, d := range diags {
+		fmt.Fprintf(os.Stderr, "%s:%d:%d: %s: %s\n", name, d.Line, d.Col, kind, d.Message)
+		if d.Line >= 1 && d.Line <= len(lines) {
+			line := strings.TrimRight(lines[d.Line-1], "\r")
+			fmt.Fprintf(os.Stderr, "    %s\n", line)
+			// Keep tabs in the padding so the caret lines up in the terminal.
+			pad := []rune{}
+			for i, r := range []rune(line) {
+				if i >= d.Col-1 {
+					break
+				}
+				if r == '\t' {
+					pad = append(pad, '\t')
+				} else {
+					pad = append(pad, ' ')
+				}
+			}
+			fmt.Fprintf(os.Stderr, "    %s^\n", string(pad))
+		}
+	}
 }
 
 // unifiedDiff produces a minimal unified diff between original and formatted.
@@ -415,6 +471,10 @@ Flags:
   --out-dir <dir>    write formatted files into this directory (cannot be combined with -w)
   --check            exit 1 if any file would be reformatted (CI / pre-commit use)
   --diff             print unified diff of changes without writing
+  --syntax-errors <m> what to do with SQL that does not parse: fail (default), skip, ignore
+                     fail:   report every bad statement (file:line:col) and exit 1
+                     skip:   format the valid statements, leave bad ones as written, warn
+                     ignore: format everything at token level without checking
 
 Examples:
   pg_procrustes query.sql

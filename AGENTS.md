@@ -16,7 +16,8 @@ The formatter runs first; layout runs on its output.
 | File | Purpose |
 |---|---|
 | `config/config.go` | All config structs, defaults (`defaultLayout`, `defaultFormatter`), `Validate()` |
-| `formatter/formatter.go` | `Format()` entry point; token loop; routes to sub-formatters |
+| `formatter/formatter.go` | `formatTolerant()`/`formatParsed()` — the token loop; routes to sub-formatters |
+| `formatter/syntax.go` | `Format()` / `FormatWithDiagnostics()` entry points: syntax check, `syntax_errors` policy (fail/skip/ignore), statement chunking, `SyntaxErrors` |
 | `formatter/plpgsql.go` | Dollar-quote detection; `reformatPLpgSQL`; `reformatControlFlow` (event scanner); `restructurePLpgSQL` |
 | `formatter/keywords.go` | Keyword and identifier classification and case rewriting |
 | `formatter/operators.go` | Operator normalization (spacing, `!=`/`<>`, cast style) |
@@ -202,7 +203,11 @@ trimHWS := func() {
 // Usage: trimHWS(); sb.WriteString(kwIndent); sb.WriteString(body[kwStart:kwEnd])
 ```
 
-### Format() pipeline — full sequence
+### Format() entry points
+
+`Format()` (`syntax.go`) is the public entry. It parses the input once; if it parses it calls `formatParsed()` (the pipeline below, reusing that parse). If not, it splits the script into statements (`splitStatements`, psql meta-commands become verbatim chunks), parses each, and applies `syntax_errors`: `fail` returns `SyntaxErrors`, `skip` formats valid chunks and copies the rest verbatim (whole-text settings — blank_lines, semicolons add, trailing_newline — are applied once at the end via `finishWholeText`), `ignore` skips the check. Internal callers that format fragments (PL/pgSQL bodies, extracted statements) must call `formatTolerant()`, never `Format()`.
+
+### Format pipeline — full sequence
 
 ```
 Format(sql, cfg):

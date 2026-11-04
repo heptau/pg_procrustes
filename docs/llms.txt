@@ -24,6 +24,7 @@ pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 - `-w` — write result back to source files
 - `--check` — exit 1 if any file would change (CI / pre-commit)
 - `--diff` — print unified diff without writing
+- `--syntax-errors <fail|skip|ignore>` — what to do with SQL that does not parse (default `fail`: report `file:line:col`, exit 1; `skip` formats the valid statements and leaves the rest as written)
 - `--backup[=.ext]` — save original before overwriting (requires `-w`)
 - `--out-dir <dir>` — write formatted files to a different directory
 - `-c <path>` — explicit config file path
@@ -40,7 +41,7 @@ pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 
 ## Top-level config keys
 
-`reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `dollar_quote`, `paren_indent`).
+`reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `dollar_quote`, `paren_indent`).
 
 ## Docs
 

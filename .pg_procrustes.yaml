@@ -109,6 +109,14 @@ inline_spacing: preserve         # preserve | normalize
                                  #              are never touched.
                                  #   Useful for removing hand-aligned column formatting.
 
+syntax_errors: fail          # fail | skip | ignore
+                             #   fail:   refuse SQL that does not parse — nothing is written, every bad statement is
+                             #           reported as file:line:col and the exit status is 1 (default)
+                             #   skip:   format the statements that parse, leave the bad ones exactly as written and
+                             #           warn about them (psql meta-commands such as \set are always left as written)
+                             #   ignore: token-level formatting without any syntax check (output is only guaranteed
+                             #           safe for valid SQL). Override per run with --syntax-errors.
+
 layout:
   line_length: 128              # target line length for auto-break decisions
   indent:

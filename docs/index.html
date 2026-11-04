@@ -919,6 +919,7 @@ pg_procrustes --version</code></pre>
         <tr><td><code>--backup[=.ext]</code></td><td data-i18n="usage_flag_backup">Save the original before overwriting (requires <code>-w</code>); default extension is <code>.bak</code></td></tr>
         <tr><td><code>--out-dir &lt;dir&gt;</code></td><td data-i18n="usage_flag_outdir">Write formatted files into this directory instead of in-place (cannot be combined with <code>-w</code>)</td></tr>
         <tr><td><code>--check</code></td><td data-i18n="usage_flag_check">Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
+        <tr><td><code>--syntax-errors &lt;mode&gt;</code></td><td>What to do with SQL that does not parse: <code>fail</code> (default — report <code>file:line:col</code>, exit 1), <code>skip</code> (format the valid statements, leave the rest as written) or <code>ignore</code></td></tr>
         <tr><td><code>--diff</code></td><td data-i18n="usage_flag_diff">Print a unified diff of changes without writing</td></tr>
       </tbody>
     </table></div>

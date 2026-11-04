@@ -1080,7 +1080,7 @@ func TestArithmeticSpacingCompact(t *testing.T) {
 
 func TestArithmeticSpacingLeavesPLpgSQLTypeAndWildcard(t *testing.T) {
 	c := arithCfg(t, config.ArithmeticSpacingNormalize)
-	got := fmtOnce(t, "create function f() returns int language plpgsql as $$ declare v users.id%type; begin return -1; end $$; select * from t returning *;", c)
+	got := fmtOnce(t, "create function f() returns int language plpgsql as $$ declare v users.id%type; begin return -1; end $$; select * from t;", c)
 	for _, want := range []string{"users.id%TYPE", "RETURN -1", "SELECT * FROM t"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in:\n%s", want, got)
@@ -1144,6 +1144,33 @@ func TestAliasesAsRemoveKeepsAsForNonBareLabels(t *testing.T) {
 			if !strings.Contains(got, want) {
 				t.Fatalf("pass %d: missing %q in:\n%s", i, want, got)
 			}
+		}
+	}
+}
+
+func TestNotInConversionsProduceValidSQL(t *testing.T) {
+	src := "select 1 from t where a not in ('x','y') and b not in (select id from u) and c <> all (array['p','q']) and d != all (array_col) and e <> all (select 1);"
+	for _, tc := range []struct {
+		mode config.NotInMode
+		want []string
+	}{
+		{config.NotInNotEqualsAll, []string{"a <> ALL (ARRAY['x', 'y'])", "b <> ALL (SELECT id FROM u)"}},
+		{config.NotInNotIn, []string{"c NOT IN ('p', 'q')", "e NOT IN (SELECT 1)", "d != ALL (array_col)"}},
+	} {
+		c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.NotIn = tc.mode
+		got := fmtOnce(t, src, c)
+		for _, w := range tc.want {
+			if !strings.Contains(got, w) {
+				t.Errorf("%s: missing %q in:\n%s", tc.mode, w, got)
+			}
+		}
+		// Formatting must never produce SQL PostgreSQL rejects ("<> ALL ('x', 'y')").
+		if _, err := formatter.Format(got, c); err != nil {
+			t.Errorf("%s: output does not parse: %v\n%s", tc.mode, err, got)
 		}
 	}
 }

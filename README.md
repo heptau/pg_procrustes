@@ -213,6 +213,9 @@ pg_procrustes --check *.sql
 # Show a unified diff without writing
 pg_procrustes --diff query.sql
 
+# Format what parses, leave broken statements as written (default is to refuse them)
+pg_procrustes -w --syntax-errors skip migrations/*.sql
+
 # Save original before overwriting (default extension: .bak)
 pg_procrustes -w --backup query.sql
 pg_procrustes -w --backup=.orig query.sql
@@ -335,6 +338,14 @@ arithmetic_spacing: preserve # preserve | normalize | compact   (default: preser
                              #   compact:   no spaces around binary + - * / % ^           (a+b, x*2)
                              #   Only operators that are provably binary are changed; unary signs (x = -1),
                              #   wildcards (SELECT *, count(*), t.*) and %TYPE are never touched.
+
+syntax_errors: fail          # fail | skip | ignore
+                             #   fail:   refuse SQL that does not parse — nothing is written, every bad statement is
+                             #           reported as file:line:col and the exit status is 1 (default)
+                             #   skip:   format the statements that parse, leave the bad ones exactly as written and
+                             #           warn about them (psql meta-commands such as \set are always left as written)
+                             #   ignore: token-level formatting without any syntax check (output is only guaranteed
+                             #           safe for valid SQL). Override per run with --syntax-errors.
 
 comma_spacing: normalize     # preserve | normalize | compact
                              #   normalize: one space after comma, none before

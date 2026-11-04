@@ -812,9 +812,18 @@ func stripTrailingFromGap(s string) string {
 	return b.String()
 }
 
-// Format normalizes casing in sql according to cfg.
+// formatTolerant normalizes casing and spacing in sql according to cfg without
+// checking that sql is valid PostgreSQL (unparsable input falls back to token-level
+// rules). Format wraps it with the syntax_errors policy; internal callers that format
+// fragments (PL/pgSQL bodies, extracted statements) use it directly.
 // Whitespace, comments, and string literals are always preserved verbatim.
-func Format(sql string, cfg *config.Config) (string, error) {
+func formatTolerant(sql string, cfg *config.Config) (string, error) {
+	return formatParsed(sql, cfg, nil)
+}
+
+// formatParsed is formatTolerant with an optional parse result for sql, so callers that
+// already parsed the input (to check its syntax) do not make PostgreSQL parse it again.
+func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) (string, error) {
 	if strings.TrimSpace(sql) == "" {
 		return sql, nil
 	}
@@ -835,7 +844,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 		}
 	}
 
-	pos := collectASTPositions(sql)
+	pos := collectASTPositions(sql, parsed)
 	pos.resolveAliases(tokens)
 	resolveSubselectAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
@@ -1065,30 +1074,102 @@ func Format(sql string, cfg *config.Config) (string, error) {
 		}
 	}
 
-	// not_in not_equals_all: NOT IN → <> ALL
+	// matchParen returns the index of the ")" that closes the "(" at index k, or -1.
+	matchParen := func(k int) int {
+		depth := 0
+		for m := k; m < len(tokens); m++ {
+			switch tokens[m].text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+				if depth == 0 {
+					return m
+				}
+			}
+		}
+		return -1
+	}
+	isQueryStart := func(k int) bool {
+		if k < 0 || k >= len(tokens) {
+			return false
+		}
+		switch strings.ToLower(tokens[k].text) {
+		case "select", "with", "values", "table":
+			return true
+		}
+		return false
+	}
+
+	// not_in not_equals_all: x NOT IN (a, b) → x <> ALL (ARRAY[a, b]);
+	// x NOT IN (SELECT …) → x <> ALL (SELECT …). "<> ALL (a, b)" would not be valid SQL.
 	if cfg.NotIn == config.NotInNotEqualsAll {
 		for i, tok := range tokens {
 			if strings.ToLower(tok.text) == "not" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD {
-				if j := nextVisible(i); j >= 0 && strings.ToLower(tokens[j].text) == "in" && tokens[j].kind == pg_query.KeywordKind_RESERVED_KEYWORD {
-					replaceWith[i] = "<>"
-					replaceWith[j] = "ALL"
+				j := nextVisible(i)
+				if j < 0 || strings.ToLower(tokens[j].text) != "in" || tokens[j].kind != pg_query.KeywordKind_RESERVED_KEYWORD {
+					continue
 				}
+				open := nextVisible(j)
+				if open < 0 || tokens[open].text != "(" {
+					continue
+				}
+				closeIdx := matchParen(open)
+				if closeIdx < 0 {
+					continue
+				}
+				if !isQueryStart(nextVisible(open)) {
+					replaceWith[open] = "(ARRAY["
+					replaceWith[closeIdx] = "])"
+				}
+				replaceWith[i] = "<>"
+				replaceWith[j] = "ALL"
 			}
 		}
 	}
 
-	// not_in not_in: <> ALL or != ALL → NOT IN
+	// not_in not_in: x <> ALL (ARRAY[a, b]) → x NOT IN (a, b); x <> ALL (SELECT …) →
+	// x NOT IN (SELECT …). Anything else (<> ALL (array_column)) has no NOT IN form
+	// and is left alone.
 	if cfg.NotIn == config.NotInNotIn {
 		for i, tok := range tokens {
 			tl := strings.ToLower(tok.text)
 			if (tl == "<>" || tl == "!=") && tok.kind == pg_query.KeywordKind_NO_KEYWORD {
-				if j := nextVisible(i); j >= 0 && strings.ToLower(tokens[j].text) == "all" && tokens[j].kind == pg_query.KeywordKind_RESERVED_KEYWORD {
-					if k := nextVisible(j); k >= 0 && tokens[k].text == "(" {
-						replaceWith[i] = "NOT IN"
-						dropText[j] = true
-						suppressGap[j] = true
-					}
+				j := nextVisible(i)
+				if j < 0 || strings.ToLower(tokens[j].text) != "all" || tokens[j].kind != pg_query.KeywordKind_RESERVED_KEYWORD {
+					continue
 				}
+				open := nextVisible(j)
+				if open < 0 || tokens[open].text != "(" {
+					continue
+				}
+				closeIdx := matchParen(open)
+				if closeIdx < 0 {
+					continue
+				}
+				first := nextVisible(open)
+				switch {
+				case isQueryStart(first):
+					// subquery: parentheses stay
+				case first >= 0 && strings.ToLower(tokens[first].text) == "array" && nextVisible(first) >= 0 &&
+					tokens[nextVisible(first)].text == "[" && closeIdx >= 2 && tokens[closeIdx-1].text == "]" &&
+					matchBracket(tokens, nextVisible(first)) == closeIdx-1:
+					br := nextVisible(first)
+					dropText[first] = true
+					suppressGap[first] = true
+					dropText[br] = true
+					suppressGap[br] = true
+					dropText[closeIdx-1] = true
+					suppressGap[closeIdx-1] = true
+					if nb := nextVisible(br); nb >= 0 && nb != closeIdx-1 {
+						suppressGap[nb] = true
+					}
+				default:
+					continue
+				}
+				replaceWith[i] = "NOT IN"
+				dropText[j] = true
+				suppressGap[j] = true
 			}
 		}
 	}
@@ -1376,29 +1457,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 		result = strings.TrimRight(result, " \t\r")
 	}
 
-	if cfg.BlankLines != config.BlankLinesPreserve {
-		result = collapseBlankLines(result, cfg.BlankLines)
-	}
-
-	if cfg.Semicolons == config.SemicolonAdd {
-		trimmed := strings.TrimRight(result, " \t\r\n")
-		if !strings.HasSuffix(trimmed, ";") {
-			// Insert ';' before any trailing comment lines / inline comments,
-			// preserving trailing newlines.
-			if idx := semicolonInsertPos(result); idx >= 0 {
-				result = result[:idx+1] + ";" + result[idx+1:]
-			}
-		}
-	}
-
-	// trailing_newline
-	if cfg.TrailingNewline == config.TrailingNewlineStrip {
-		result = strings.TrimRight(result, "\n")
-	} else if cfg.TrailingNewline == config.TrailingNewlineAdd {
-		if !strings.HasSuffix(result, "\n") {
-			result += "\n"
-		}
-	}
+	result = finishWholeText(result, cfg, true)
 
 	// layout post-processing
 	if !layout.IsNoop(&cfg.Layout) {
@@ -1413,12 +1472,15 @@ func Format(sql string, cfg *config.Config) (string, error) {
 
 // collectASTPositions parses sql and returns byte offsets for each identifier
 // category. On parse error returns empty maps (scanner-only fallback).
-func collectASTPositions(sql string) *astPositions {
+func collectASTPositions(sql string, result *pg_query.ParseResult) *astPositions {
 	pos := newASTPositions()
 	pos.sql = sql
-	result, err := pg_query.Parse(sql)
-	if err != nil {
-		return pos
+	if result == nil {
+		var err error
+		result, err = pg_query.Parse(sql)
+		if err != nil {
+			return pos
+		}
 	}
 	for _, stmt := range result.Stmts {
 		if stmt.Stmt != nil {
@@ -1908,7 +1970,7 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// Apply casing/spacing without layout first.
 	cfgInner := *cfg
 	cfgInner.Layout = config.LayoutConfig{}
-	formatted, err := Format(body, &cfgInner)
+	formatted, err := formatTolerant(body, &cfgInner)
 	if err != nil {
 		formatted = body
 	}
@@ -2319,7 +2381,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 
 		// Phase 1: apply full formatter rules (alias detection, casing) now that we have
 		// a valid SQL statement that pg_query.Parse can handle.
-		preFormatted, preErr := Format(sqlText, &cfgNoLayout)
+		preFormatted, preErr := formatTolerant(sqlText, &cfgNoLayout)
 		preChanged := preErr == nil && preFormatted != sqlText
 		if preChanged {
 			sqlText = preFormatted
@@ -3125,17 +3187,6 @@ func isTriggerKeywordContext(prev string) bool {
 	return false
 }
 
-// SyntaxError returns the PostgreSQL parser error for sql, or nil when sql
-// parses. Format itself tolerates unparsable input (it falls back to
-// token-level formatting), so callers use this to warn about it.
-func SyntaxError(sql string) error {
-	if strings.TrimSpace(sql) == "" {
-		return nil
-	}
-	_, err := pg_query.Parse(sql)
-	return err
-}
-
 // resolveSubselectAliases registers the alias token that follows a derived table
 // — FROM/JOIN/LATERAL ( SELECT … ) alias — in pos.aliases. RangeSubselect nodes
 // carry no location, so the alias is found by matching the closing paren of a
@@ -3350,4 +3401,50 @@ func unquoteIdent(text string) string {
 		return ""
 	}
 	return strings.ReplaceAll(text[1:len(text)-1], `""`, `"`)
+}
+
+// finishWholeText applies the settings that act on the text as a whole: blank-line
+// limits, the missing final semicolon (only when addSemicolon) and the trailing newline.
+func finishWholeText(result string, cfg *config.Config, addSemicolon bool) string {
+	if cfg.BlankLines != config.BlankLinesPreserve {
+		result = collapseBlankLines(result, cfg.BlankLines)
+	}
+
+	if addSemicolon && cfg.Semicolons == config.SemicolonAdd {
+		trimmed := strings.TrimRight(result, " \t\r\n")
+		if !strings.HasSuffix(trimmed, ";") {
+			// Insert ';' before any trailing comment lines / inline comments,
+			// preserving trailing newlines.
+			if idx := semicolonInsertPos(result); idx >= 0 {
+				result = result[:idx+1] + ";" + result[idx+1:]
+			}
+		}
+	}
+
+	switch cfg.TrailingNewline {
+	case config.TrailingNewlineStrip:
+		result = strings.TrimRight(result, "\n")
+	case config.TrailingNewlineAdd:
+		if !strings.HasSuffix(result, "\n") {
+			result += "\n"
+		}
+	}
+	return result
+}
+
+// matchBracket returns the index of the "]" that closes the "[" at index k, or -1.
+func matchBracket(tokens []rawToken, k int) int {
+	depth := 0
+	for m := k; m < len(tokens); m++ {
+		switch tokens[m].text {
+		case "[":
+			depth++
+		case "]":
+			depth--
+			if depth == 0 {
+				return m
+			}
+		}
+	}
+	return -1
 }

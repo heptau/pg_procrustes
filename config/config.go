@@ -20,6 +20,21 @@ const (
 	CasePreserve   CaseRule = "preserve"
 )
 
+// SyntaxErrorMode controls what happens when the input is not valid PostgreSQL.
+type SyntaxErrorMode string
+
+const (
+	// SyntaxErrorFail refuses to format input that does not parse: no output, an
+	// error that names every offending statement (default).
+	SyntaxErrorFail SyntaxErrorMode = "fail"
+	// SyntaxErrorSkip formats the statements that parse and leaves the ones that do
+	// not exactly as written, reporting them as warnings.
+	SyntaxErrorSkip SyntaxErrorMode = "skip"
+	// SyntaxErrorIgnore applies the token-level rules to everything without checking
+	// the syntax. The semantic guarantees only hold for valid SQL.
+	SyntaxErrorIgnore SyntaxErrorMode = "ignore"
+)
+
 // TypeForm controls canonical form of data type names.
 type TypeForm string
 
@@ -607,6 +622,7 @@ type Config struct {
 	ParenSpacing         ParenSpacingMode      `yaml:"paren_spacing"`
 	QuotedIdents         QuotedIdentMode       `yaml:"quoted_identifiers"`
 	TrailingNewline      TrailingNewlineMode   `yaml:"trailing_newline"`
+	SyntaxErrors         SyntaxErrorMode       `yaml:"syntax_errors"`
 	ArithmeticSpacing    ArithmeticSpacingMode `yaml:"arithmetic_spacing"`
 	CommaSpacing         CommaSpacingMode      `yaml:"comma_spacing"`
 	OrderAsc             OrderAscMode          `yaml:"order_asc"`
@@ -640,6 +656,7 @@ func defaultConfig() *Config {
 		ParenSpacing:         ParenSpacingRemove,
 		QuotedIdents:         QuotedIdentRemoveSafe,
 		TrailingNewline:      TrailingNewlinePreserve,
+		SyntaxErrors:         SyntaxErrorFail,
 		ArithmeticSpacing:    ArithmeticSpacingPreserve,
 		CommaSpacing:         CommaSpacingNormalize,
 		OrderAsc:             OrderAscPreserve,
@@ -755,6 +772,12 @@ func validate(cfg *Config) error {
 	case QuotedIdentPreserve, QuotedIdentRemoveSafe, "":
 	default:
 		return fmt.Errorf("quoted_identifiers must be preserve|remove_safe, got %q", cfg.QuotedIdents)
+	}
+
+	switch cfg.SyntaxErrors {
+	case SyntaxErrorFail, SyntaxErrorSkip, SyntaxErrorIgnore, "":
+	default:
+		return fmt.Errorf("syntax_errors must be fail|skip|ignore, got %q", cfg.SyntaxErrors)
 	}
 
 	switch cfg.TrailingNewline {
