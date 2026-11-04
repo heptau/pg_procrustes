@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- New `arithmetic_spacing: preserve | normalize | compact` (default `preserve`, i.e. no change) formats spaces around binary `+ - * / % ^`; only operators proven binary by their neighbours are touched, so unary signs (`x = -1`), wildcards (`SELECT *`, `count(*)`, `t.*`), `%TYPE` and `a - -1` (never `a--1`) stay safe. Also fixes the `operator_spacing` validation message to list `compact`
 - Language switcher (Auto / English / Čeština / Español / Deutsch / Français / Português / Italiano) and theme switcher (Auto / Light / Dark) on the documentation website — fixed top-right icon buttons (backdrop-blurred for readability over any background) with a dropdown menu, matching in position and style on both `index.html` and `config-builder.html`; the choice is persisted in `localStorage` and synced across both pages. `index.html`'s content and `config-builder.html`'s static chrome (header, buttons, nav, modal) are fully translated to Czech, Spanish, German, French, Portuguese, and Italian; the interactive option catalog on the config builder remains English-only
 - JSON-LD structured data, Open Graph/Twitter preview images, and `sitemap.xml` `lastmod` dates for `config-builder.html`, matching `index.html`
 - Sponsor (heart) and "Star on GitHub" (star) icon buttons in the top-right header of `index.html` and `config-builder.html`, next to the language and theme switchers, with translated tooltips

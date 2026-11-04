@@ -648,7 +648,7 @@ func collapseBlankLines(s string, mode config.BlankLinesMode) string {
 // processGap returns the gap string after applying paren spacing, operator
 // spacing, and trailing-whitespace rules. nextText is the text of the token
 // that follows the gap; prevText is the text of the token that precedes it.
-func processGap(gap, prevText, nextText string, cfg *config.Config) string {
+func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) string {
 	hasNL := strings.ContainsRune(gap, '\n')
 
 	// Paren spacing — only when no newline (keep structural formatting intact).
@@ -678,6 +678,20 @@ func processGap(gap, prevText, nextText string, cfg *config.Config) string {
 	if !hasNL && cfg.OperatorSpacing == config.OperatorSpacingCompact {
 		if (isSymbolicOp(prevText) || isSymbolicOp(nextText)) &&
 			prevText != "(" && nextText != ")" {
+			return ""
+		}
+	}
+
+	// Arithmetic spacing — only around operators proven binary (see binaryArithmetic).
+	if arith && !hasNL {
+		switch cfg.ArithmeticSpacing {
+		case config.ArithmeticSpacingNormalize:
+			return " "
+		case config.ArithmeticSpacingCompact:
+			// "a - -1" must not become "a--1" (a line comment).
+			if (prevText == "-" || prevText == "+") && (nextText == "-" || nextText == "+") {
+				return " "
+			}
 			return ""
 		}
 	}
@@ -1099,6 +1113,10 @@ func Format(sql string, cfg *config.Config) (string, error) {
 
 	cur := 0
 	prevTokenText := "" // raw text of previous written token
+	arithStart, arithEnd := map[int]bool{}, map[int]bool{}
+	if cfg.ArithmeticSpacing == config.ArithmeticSpacingNormalize || cfg.ArithmeticSpacing == config.ArithmeticSpacingCompact {
+		arithStart, arithEnd = binaryArithmetic(tokens)
+	}
 
 	for i, tok := range tokens {
 		if skip[i] {
@@ -1114,7 +1132,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 				gap = sql[cur:tok.start]
 			}
 			if !suppressGap[i] {
-				buf.WriteString(processGap(gap, prevTokenText, tok.text, cfg))
+				buf.WriteString(processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg))
 			}
 		}
 
@@ -1308,7 +1326,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 	}
 
 	if cur < len(sql) {
-		buf.WriteString(processGap(sql[cur:], prevTokenText, "", cfg))
+		buf.WriteString(processGap(sql[cur:], prevTokenText, "", false, cfg))
 	}
 
 	result := buf.String()

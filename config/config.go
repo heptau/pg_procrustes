@@ -121,6 +121,16 @@ const (
 	TrailingNewlineStrip    TrailingNewlineMode = "strip"
 )
 
+// ArithmeticSpacingMode controls spaces around binary arithmetic operators
+// (+ - * / % ^). Unary signs and wildcard asterisks are never touched.
+type ArithmeticSpacingMode string
+
+const (
+	ArithmeticSpacingPreserve  ArithmeticSpacingMode = "preserve"  // leave spacing as written (default)
+	ArithmeticSpacingNormalize ArithmeticSpacingMode = "normalize" // exactly one space on each side
+	ArithmeticSpacingCompact   ArithmeticSpacingMode = "compact"   // no spaces around operators
+)
+
 // CommaSpacingMode controls spaces around commas.
 type CommaSpacingMode string
 
@@ -524,36 +534,37 @@ type AliasSection struct {
 }
 
 type Config struct {
-	ReservedKeywords     Section             `yaml:"reserved_keywords"`
-	Keywords             Section             `yaml:"keywords"`
-	DataTypes            DataTypesSection    `yaml:"data_types"`
-	Literals             Section             `yaml:"literals"`
-	Operators            Section             `yaml:"operators"`
-	Schemas              Section             `yaml:"schemas"`
-	Tables               Section             `yaml:"tables"`
-	Functions            Section             `yaml:"functions"`
-	ConditionalFunctions Section             `yaml:"conditional_functions"`
-	SystemFunctions      Section             `yaml:"system_functions"`
-	Aliases              AliasSection        `yaml:"aliases"`
-	Columns              Section             `yaml:"columns"`
-	PLpgSQLVariables     Section             `yaml:"plpgsql_variables"`
-	PLpgSQLKeywords      Section             `yaml:"plpgsql_keywords"`
-	TrailingWhitespace   TrailingWS          `yaml:"trailing_whitespace"`
-	Semicolons           SemicolonMode       `yaml:"semicolons"`
-	InequalityOp         InequalityOp        `yaml:"inequality_op"`
-	JoinForm             JoinForm            `yaml:"join_form"`
-	OperatorSpacing      OperatorSpacingMode `yaml:"operator_spacing"`
-	BlankLines           BlankLinesMode      `yaml:"blank_lines"`
-	ParenSpacing         ParenSpacingMode    `yaml:"paren_spacing"`
-	QuotedIdents         QuotedIdentMode     `yaml:"quoted_identifiers"`
-	TrailingNewline      TrailingNewlineMode `yaml:"trailing_newline"`
-	CommaSpacing         CommaSpacingMode    `yaml:"comma_spacing"`
-	OrderAsc             OrderAscMode        `yaml:"order_asc"`
-	CastStyle            CastStyleMode       `yaml:"cast_style"`
-	NotIn                NotInMode           `yaml:"not_in"`
-	SchemaQual           SchemaQualMode      `yaml:"schema_qualification"`
-	InlineSpacing        InlineSpacingMode   `yaml:"inline_spacing"`
-	Layout               LayoutConfig        `yaml:"layout"`
+	ReservedKeywords     Section               `yaml:"reserved_keywords"`
+	Keywords             Section               `yaml:"keywords"`
+	DataTypes            DataTypesSection      `yaml:"data_types"`
+	Literals             Section               `yaml:"literals"`
+	Operators            Section               `yaml:"operators"`
+	Schemas              Section               `yaml:"schemas"`
+	Tables               Section               `yaml:"tables"`
+	Functions            Section               `yaml:"functions"`
+	ConditionalFunctions Section               `yaml:"conditional_functions"`
+	SystemFunctions      Section               `yaml:"system_functions"`
+	Aliases              AliasSection          `yaml:"aliases"`
+	Columns              Section               `yaml:"columns"`
+	PLpgSQLVariables     Section               `yaml:"plpgsql_variables"`
+	PLpgSQLKeywords      Section               `yaml:"plpgsql_keywords"`
+	TrailingWhitespace   TrailingWS            `yaml:"trailing_whitespace"`
+	Semicolons           SemicolonMode         `yaml:"semicolons"`
+	InequalityOp         InequalityOp          `yaml:"inequality_op"`
+	JoinForm             JoinForm              `yaml:"join_form"`
+	OperatorSpacing      OperatorSpacingMode   `yaml:"operator_spacing"`
+	BlankLines           BlankLinesMode        `yaml:"blank_lines"`
+	ParenSpacing         ParenSpacingMode      `yaml:"paren_spacing"`
+	QuotedIdents         QuotedIdentMode       `yaml:"quoted_identifiers"`
+	TrailingNewline      TrailingNewlineMode   `yaml:"trailing_newline"`
+	ArithmeticSpacing    ArithmeticSpacingMode `yaml:"arithmetic_spacing"`
+	CommaSpacing         CommaSpacingMode      `yaml:"comma_spacing"`
+	OrderAsc             OrderAscMode          `yaml:"order_asc"`
+	CastStyle            CastStyleMode         `yaml:"cast_style"`
+	NotIn                NotInMode             `yaml:"not_in"`
+	SchemaQual           SchemaQualMode        `yaml:"schema_qualification"`
+	InlineSpacing        InlineSpacingMode     `yaml:"inline_spacing"`
+	Layout               LayoutConfig          `yaml:"layout"`
 }
 
 func defaultConfig() *Config {
@@ -579,6 +590,7 @@ func defaultConfig() *Config {
 		ParenSpacing:         ParenSpacingRemove,
 		QuotedIdents:         QuotedIdentRemoveSafe,
 		TrailingNewline:      TrailingNewlinePreserve,
+		ArithmeticSpacing:    ArithmeticSpacingPreserve,
 		CommaSpacing:         CommaSpacingNormalize,
 		OrderAsc:             OrderAscPreserve,
 		CastStyle:            CastStylePreserve,
@@ -674,7 +686,7 @@ func validate(cfg *Config) error {
 	switch cfg.OperatorSpacing {
 	case OperatorSpacingPreserve, OperatorSpacingNormalize, OperatorSpacingCompact, "":
 	default:
-		return fmt.Errorf("operator_spacing must be preserve|normalize, got %q", cfg.OperatorSpacing)
+		return fmt.Errorf("operator_spacing must be preserve|normalize|compact, got %q", cfg.OperatorSpacing)
 	}
 
 	switch cfg.BlankLines {
@@ -699,6 +711,12 @@ func validate(cfg *Config) error {
 	case TrailingNewlinePreserve, TrailingNewlineAdd, TrailingNewlineStrip, "":
 	default:
 		return fmt.Errorf("trailing_newline must be preserve|add|strip, got %q", cfg.TrailingNewline)
+	}
+
+	switch cfg.ArithmeticSpacing {
+	case ArithmeticSpacingPreserve, ArithmeticSpacingNormalize, ArithmeticSpacingCompact, "":
+	default:
+		return fmt.Errorf("arithmetic_spacing must be preserve|normalize|compact, got %q", cfg.ArithmeticSpacing)
 	}
 
 	switch cfg.CommaSpacing {

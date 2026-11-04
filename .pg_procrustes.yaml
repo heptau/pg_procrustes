@@ -81,6 +81,12 @@ operator_spacing: normalize  # preserve | normalize | compact
                              #   normalize: exactly one space on each side of =, !=, <>, <, >, <=, >=, ||, :=, =>
                              #   compact:   no spaces around =, !=, <>, <, >, <=, >=, ||, :=, =>
 
+arithmetic_spacing: preserve # preserve | normalize | compact   (default: preserve — leaves spacing untouched)
+                             #   normalize: exactly one space around binary + - * / % ^   (a + b, x * 2)
+                             #   compact:   no spaces around binary + - * / % ^           (a+b, x*2)
+                             #   Only operators that are provably binary are changed; unary signs (x = -1),
+                             #   wildcards (SELECT *, count(*), t.*) and %TYPE are never touched.
+
 comma_spacing: normalize     # preserve | normalize | compact
                              #   normalize: one space after comma, none before
                              #   compact:   no spaces around commas

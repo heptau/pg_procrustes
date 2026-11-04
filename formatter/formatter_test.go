@@ -1024,3 +1024,66 @@ func TestDollarQuoteKeepsGapBeforeClose(t *testing.T) {
 		t.Fatalf("END glued to closing delimiter:\n%s", got)
 	}
 }
+
+func arithCfg(t *testing.T, mode config.ArithmeticSpacingMode) *config.Config {
+	t.Helper()
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ArithmeticSpacing = mode
+	return c
+}
+
+const arithSQL = "SELECT a+1, b - 2, c*d, -1, x = -1, a - -1, count(*), t.*, (a+b)*(c-d), f(x)-1 FROM t WHERE q*2 > 1;"
+
+func TestArithmeticSpacingDefaultPreserves(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ArithmeticSpacing != config.ArithmeticSpacingPreserve {
+		t.Fatalf("default must be preserve, got %q", c.ArithmeticSpacing)
+	}
+	got := fmtOnce(t, arithSQL, c)
+	if got != arithSQL {
+		t.Fatalf("preserve changed arithmetic spacing:\n%s", got)
+	}
+}
+
+func TestArithmeticSpacingNormalize(t *testing.T) {
+	c := arithCfg(t, config.ArithmeticSpacingNormalize)
+	got := fmtOnce(t, arithSQL, c)
+	want := "SELECT a + 1, b - 2, c * d, -1, x = -1, a - -1, count(*), t.*, (a + b) * (c - d), f(x) - 1 FROM t WHERE q * 2 > 1;"
+	if got != want {
+		t.Fatalf("got:  %s\nwant: %s", got, want)
+	}
+	if again := fmtOnce(t, got, c); again != got {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+func TestArithmeticSpacingCompact(t *testing.T) {
+	c := arithCfg(t, config.ArithmeticSpacingCompact)
+	got := fmtOnce(t, arithSQL, c)
+	want := "SELECT a+1, b-2, c*d, -1, x = -1, a- -1, count(*), t.*, (a+b)*(c-d), f(x)-1 FROM t WHERE q*2 > 1;"
+	if got != want {
+		t.Fatalf("got:  %s\nwant: %s", got, want)
+	}
+	if strings.Contains(got, "--") {
+		t.Fatalf("compact produced a line-comment start:\n%s", got)
+	}
+	if again := fmtOnce(t, got, c); again != got {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+func TestArithmeticSpacingLeavesPLpgSQLTypeAndWildcard(t *testing.T) {
+	c := arithCfg(t, config.ArithmeticSpacingNormalize)
+	got := fmtOnce(t, "create function f() returns int language plpgsql as $$ declare v users.id%type; begin return -1; end $$; select * from t returning *;", c)
+	for _, want := range []string{"users.id%TYPE", "RETURN -1", "SELECT * FROM t"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}
