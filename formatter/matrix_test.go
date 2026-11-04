@@ -95,6 +95,10 @@ var matrixInline = []string{
 	"select date_trunc('month', o.created_at) as month, sum(x) over (order by y) as over from t o;",
 	"select a from t where a in (select b from u) and exists (select 1 from v where v.x = t.a);",
 	"create view v as select id, name from t where a = 1; create table x as select a from t; explain select a from t where b = 1;",
+	"alter table t alter column a set not null, alter column b set default 1; alter table t set schema s; alter role bob set search_path = x; set search_path = public;",
+	"create table x (a int references o(id) on delete cascade on update cascade) with (fillfactor = 70); alter table t alter column a type int using a::int;",
+	"select * from t where a = 1 for update; create trigger tr before insert or update on t for each row execute function f();",
+	"insert into t values (1) on conflict (id) do update set a = 2; delete from t using u where t.id = u.id;",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 

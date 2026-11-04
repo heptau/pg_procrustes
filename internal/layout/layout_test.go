@@ -229,3 +229,30 @@ func TestPrefixedSelectStartsOnNewLine(t *testing.T) {
 		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
 	}
 }
+
+func TestNonQueryKeywordsAreNotClauses(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	for _, sql := range []string{
+		"ALTER TABLE t ALTER COLUMN a SET NOT NULL;",
+		"ALTER TABLE t ALTER COLUMN a TYPE integer USING a::integer;",
+		"CREATE TABLE x (a integer) WITH (fillfactor = 70);",
+		"SET search_path = public;",
+		"CREATE TRIGGER tr BEFORE INSERT OR UPDATE ON t FOR EACH ROW EXECUTE FUNCTION f();",
+		"CREATE TABLE t2 (a integer REFERENCES o(id) ON UPDATE CASCADE);",
+	} {
+		got, err := layout.Apply(sql, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != sql {
+			t.Errorf("statement was rewrapped:\n%s\n---\n%s", sql, got)
+		}
+	}
+	got, err := layout.Apply("SELECT * FROM t WHERE a = 1 FOR UPDATE;", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "FOR UPDATE") {
+		t.Errorf("FOR UPDATE split across lines:\n%s", got)
+	}
+}

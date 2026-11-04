@@ -50,6 +50,5 @@ INSERT INTO products (id,
 )
 VALUES
    (1, 'Widget', 9.99, 100)
-ON CONFLICT (id) DO
-UPDATE
+ON CONFLICT (id) DO UPDATE
 SET price = excluded.price, stock = excluded.stock;

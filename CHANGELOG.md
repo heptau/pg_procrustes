@@ -21,6 +21,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Layout: `SET`, `USING`, `WITH (…)` and `UPDATE` are only treated as clause keywords where they are query clauses; `ALTER TABLE … SET`/`ALTER COLUMN … SET NOT NULL`/`… TYPE … USING`, `ALTER ROLE … SET`, standalone `SET`, `CREATE TABLE … WITH (…)`, `FOR UPDATE`, `ON UPDATE CASCADE`, trigger events (`BEFORE INSERT OR UPDATE`) and `ON CONFLICT … DO UPDATE` no longer get broken into bogus clauses (`DO UPDATE SET` now stays on the `ON CONFLICT` line before `SET`)
 - Layout: a leading `SELECT`/`WITH` after a statement prefix (`CREATE VIEW v AS`, `CREATE TABLE t AS`, `EXPLAIN`, …) now starts on its own line when clauses are broken, instead of `CREATE VIEW v AS SELECT` with the rest of the query left-aligned underneath
 - Formatter: column names in `ALTER TABLE … ALTER/RENAME/DROP/ADD COLUMN`, in `RENAME COLUMN … TO new` and in `CREATE INDEX … (cols)` are no longer upper-cased when they are unreserved keywords (`label`, `name`, `event`, …)
 - Layout: a line comment inside collapsed clause content no longer swallows the code that followed it (`SELECT a, -- c b` after `clauses.break: always`), and `paren_spacing` is honored when multi-line parenthesised content is joined (no more `( SELECT … )`, which also broke idempotence)

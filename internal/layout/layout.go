@@ -202,6 +202,9 @@ func parseStatements(tokens []rawTok) []statement {
 
 			if depth == 0 {
 				kind, kwLen := detectClause(tokens, i)
+				if kind != clauseUnknown && !clauseAllowed(kind, tokens, i, &stmt) {
+					kind = clauseUnknown
+				}
 				if kind != clauseUnknown {
 					if len(stmt.clauses) > 0 {
 						last := &stmt.clauses[len(stmt.clauses)-1]
@@ -1658,4 +1661,48 @@ func hasCodeTokens(tokens []rawTok, from, to int) bool {
 		}
 	}
 	return false
+}
+
+// clauseAllowed rejects clause keywords that appear in a different role than the
+// query clause they are named after: SET in ALTER TABLE … SET / ALTER ROLE … SET,
+// USING in CREATE INDEX … USING gin or ALTER COLUMN … TYPE … USING, WITH (…) storage
+// parameters, and UPDATE in FOR UPDATE, ON UPDATE CASCADE, DO UPDATE and trigger
+// events (BEFORE INSERT OR UPDATE). Those stay part of the surrounding clause.
+func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) bool {
+	prev := ""
+	if i > stmt.startTok {
+		for k := i - 1; k >= stmt.startTok; k-- {
+			if t := tokens[k].text; !strings.HasPrefix(t, "--") && !strings.HasPrefix(t, "/*") {
+				prev = strings.ToLower(t)
+				break
+			}
+		}
+	}
+	has := func(kinds ...clauseKind) bool {
+		for _, c := range stmt.clauses {
+			for _, k := range kinds {
+				if c.kind == k {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	switch kind {
+	case clauseSet:
+		// UPDATE … SET and ON CONFLICT … DO UPDATE SET only.
+		return has(clauseUpdate, clauseOnConflict)
+	case clauseUsing:
+		// JOIN … USING (cols) and DELETE … USING tables only.
+		return has(clauseJoin, clauseDelete)
+	case clauseWith:
+		// A CTE list opens a statement or follows AS (CREATE VIEW v AS WITH …).
+		return prev == "" || prev == "as" || prev == ";"
+	case clauseUpdate:
+		switch prev {
+		case "do", "for", "on", "or", "before", "after", "of", "key", "instead":
+			return false
+		}
+	}
+	return true
 }
