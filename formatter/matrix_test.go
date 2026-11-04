@@ -2,6 +2,7 @@ package formatter_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -271,6 +272,27 @@ raise exception 'boom';
 end if;
 end $$;`,
 	"create function s() returns int language sql as $$ select a, b from t where x = 1 order by a $$;",
+	"select a -- first col\n, b /* second */ , c\nfrom t -- the table\nwhere x = 1 -- cond one\n and y = 2 /* cond two */\n and z = 3 -- cond three\norder by a -- sort\n, b;",
+	"select /* lead */ a, b from t /* before where */ where /* inside */ x = 1;",
+	"select a,\n -- comment between items\n b,\n /* block between */\n c from t;",
+	"select case -- c1\n when a > 1 then 'x' -- c2\n when a < 0 then 'y' /* c3 */\n else 'z' -- c4\n end as k from t;",
+	"select a from t -- c1\nunion -- c2\nselect b from u /* c3 */;",
+	"select a from t join u -- join comment\n on t.id = u.id -- on comment\n and t.x = u.x -- more\n where t.k = 1;",
+	"insert into t (a, b) -- cols\nvalues (1, 2), -- row one\n (3, 4) -- row two\n;",
+	"update t set a = 1, -- first\n b = 2 -- second\nwhere id = 3 -- key\n;",
+	"with x as ( -- cte comment\n select 1 as a /* inline */ ) -- after cte\nselect * from x;",
+	"-- leading comment\nselect 1; /* between statements */ select 2; -- trailing",
+	"select a, /* c */ b from t where x in (1, -- one\n 2, /* two */ 3);",
+	"select a from t where -- why\n x = 1 and -- more why\n y = 2;",
+	"select a --\n, b from t;",
+	"insert into t values (1, 2) -- one\n, (3, 4) -- two\n, (5, 6);",
+	"select a from t where x = 1 -- one\n or y = 2 -- two\n or (z = 3 -- three\n and w = 4);",
+	"select a, b from t -- tail one\n-- tail two\n;",
+	"select coalesce(a, -- fallback\n b) as c, f(1, /* two */ 2) from t group by a -- g\n, b having count(*) > 1 -- h\n;",
+	"select a from t order by a desc -- d\n limit 5 -- l\n offset 1 -- o\n;",
+	"select a from t left join u on t.id = u.id -- lj\n left join v on v.id = u.id -- lj2\n;",
+	"select (select max(x) -- inner\n from u) as m from t;",
+	"select a from (select 1 as a -- inner\n) s;",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 
@@ -286,7 +308,7 @@ func matrixInputs(t *testing.T) map[string]string {
 		in[filepath.Base(filepath.Dir(f))] = string(b)
 	}
 	for i, s := range matrixInline {
-		in["inline_"+string(rune('a'+i))] = s
+		in[fmt.Sprintf("inline_%02d", i)] = s
 	}
 	return in
 }

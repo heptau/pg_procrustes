@@ -883,6 +883,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	}
 
 	if stmt.semiIdx >= 0 {
+		// A ';' written after a trailing -- comment would end up inside the comment.
+		if last := stmt.clauses[len(stmt.clauses)-1].conEnd - 1; last >= 0 && last < len(tokens) &&
+			strings.HasPrefix(tokens[last].text, "--") {
+			sb.WriteByte('\n')
+		}
 		sb.WriteString(tokens[stmt.semiIdx].text)
 	}
 
@@ -1052,13 +1057,32 @@ func splitValues(sql string, tokens []rawTok, from, to int) []string {
 				depth--
 			}
 			if depth == 0 {
+				// Row text ends at the closing paren. Then consume, in source order: the
+				// separating comma, a line comment on the same line (it belongs to the row),
+				// and a comma that follows that comment (leading-comma style).
+				j := i
+				sawComma := false
+				if j+1 < to && tokens[j+1].text == "," {
+					j++
+					sawComma = true
+				}
+				comment := ""
+				if j+1 < to && strings.HasPrefix(tokens[j+1].text, "--") &&
+					!strings.Contains(sql[tokens[j].end:tokens[j+1].start], "\n") {
+					j++
+					comment = tokens[j].text
+					if !sawComma && j+1 < to && tokens[j+1].text == "," {
+						j++
+					}
+				}
 				item := strings.TrimSpace(originalText(sql, tokens, itemStart, i+1))
+				if comment != "" {
+					item += " " + comment
+				}
 				if item != "" {
 					items = append(items, item)
 				}
-				if i+1 < to && tokens[i+1].text == "," {
-					i++
-				}
+				i = j
 				itemStart = i + 1
 			}
 		}
@@ -1144,6 +1168,9 @@ func reformatCaseExprs(item string, baseIndent string, cfg config.SQLCaseCfg, in
 		sb.WriteString(item[pos:tok.start])
 		if doExpand {
 			sb.WriteString(expandCaseExpr(item, toks, i, endIdx, baseIndent, indentUnit, cfg.Indent))
+		} else if caseHasLineComment(toks, i, endIdx) {
+			// Flattening would put everything after a -- comment inside the comment.
+			sb.WriteString(item[tok.start:toks[endIdx].end])
 		} else {
 			sb.WriteString(flattenCaseExpr(toks, i, endIdx))
 		}
@@ -1819,4 +1846,14 @@ func findWhenThen(tokens []rawTok, from, to int) int {
 		}
 	}
 	return -1
+}
+
+// caseHasLineComment reports whether toks[from..to] contain a -- line comment.
+func caseHasLineComment(toks []rawTok, from, to int) bool {
+	for i := from; i <= to && i < len(toks); i++ {
+		if strings.HasPrefix(toks[i].text, "--") {
+			return true
+		}
+	}
+	return false
 }

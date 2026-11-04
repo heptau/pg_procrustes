@@ -331,3 +331,31 @@ func TestMergeSeparateSettings(t *testing.T) {
 		t.Fatalf("WHEN action should stay inline by default:\n%s", got)
 	}
 }
+
+func TestLineCommentsNeverSwallowCode(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	cfg.Case.Break = config.BreakNever
+	for _, sql := range []string{
+		"SELECT CASE -- c1\n WHEN a > 1 THEN 'x' -- c2\n ELSE 'z' END AS k FROM t;",
+		"INSERT INTO t VALUES (1, 2) -- one\n, (3, 4) -- two\n;",
+		"SELECT a FROM t -- tail\n;",
+	} {
+		got, err := layout.Apply(sql, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Every line comment must end its line: nothing but the comment may follow "--" on
+		// that line, and the statement must still end with a real ';'.
+		for _, ln := range strings.Split(got, "\n") {
+			if i := strings.Index(ln, "--"); i >= 0 {
+				rest := ln[i:]
+				if strings.Contains(rest, ";") || strings.Contains(rest, "WHEN") || strings.Contains(rest, "END") {
+					t.Errorf("code swallowed by a comment in %q:\n%s", ln, got)
+				}
+			}
+		}
+		if again, err := layout.Apply(got, cfg); err != nil || again != got {
+			t.Errorf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
+		}
+	}
+}
