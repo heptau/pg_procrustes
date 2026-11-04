@@ -418,6 +418,55 @@ func resolveOnConflictCols(tokens []rawToken, pos *astPositions) {
 	}
 }
 
+// resolveIndexCols registers the plain column names of CREATE [UNIQUE] INDEX … (col,
+// …) [INCLUDE (col, …)] as columns. IndexElem carries no Location, so without this an
+// unreserved-keyword column such as name or status in the list would be upper-cased.
+func resolveIndexCols(tokens []rawToken, pos *astPositions) {
+	for i, tok := range tokens {
+		if strings.ToLower(tok.text) != "index" || i == 0 {
+			continue
+		}
+		if prev := strings.ToLower(tokens[i-1].text); prev != "create" && prev != "unique" {
+			continue
+		}
+		k := i + 1
+		for k < len(tokens) && tokens[k].text != ";" && tokens[k].text != "(" {
+			k++
+		}
+		for k < len(tokens) && tokens[k].text == "(" {
+			depth, expectCol := 1, true
+			k++
+			for ; k < len(tokens) && depth > 0; k++ {
+				t := tokens[k].text
+				switch {
+				case t == "(":
+					depth++
+					expectCol = false
+				case t == ")":
+					depth--
+					expectCol = false
+				case t == "," && depth == 1:
+					expectCol = true
+				default:
+					if depth == 1 && expectCol {
+						// name(…) is an expression / function call, not a plain column.
+						if k+1 >= len(tokens) || tokens[k+1].text != "(" {
+							pos.columns[tokens[k].start] = true
+						}
+						expectCol = false
+					}
+				}
+			}
+			// Continue only with INCLUDE (…).
+			if k+1 < len(tokens) && strings.ToLower(tokens[k].text) == "include" && tokens[k+1].text == "(" {
+				k++
+				continue
+			}
+			break
+		}
+	}
+}
+
 // clauseKeywords are tokens that cannot be alias names and end a SELECT target.
 var clauseKeywords = map[string]bool{
 	"from": true, "where": true, "group": true, "having": true,
@@ -848,6 +897,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	pos.resolveAliases(tokens)
 	resolveSubselectAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
+	resolveIndexCols(tokens, pos)
 	resolveDDLColumns(tokens, pos)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
@@ -1592,6 +1642,9 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 
 	case *pg_query.Node_CommonTableExpr:
 		cte := n.CommonTableExpr
+		if cte.Location >= 0 && cte.Ctename != "" {
+			pos.tables[int(cte.Location)] = true // WITH data AS (…): data is a name, not a keyword
+		}
 		walkNode(cte.Ctequery, pos)
 
 	case *pg_query.Node_InsertStmt:

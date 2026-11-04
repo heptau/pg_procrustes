@@ -1,0 +1,9 @@
+layout:
+  clauses:
+    break: always
+  content:
+    break: always
+  ddl:
+    create_index:
+      break: auto
+  line_length: 60

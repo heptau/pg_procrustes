@@ -244,6 +244,14 @@ layout:
                                #   auto:   break when there is more than one action or the statement
                                #           is longer than line_length
                                #   (comma_position and indent size apply to both)
+    create_index:
+      break: preserve          # preserve | never | always | auto
+                               #   always: ON, USING, INCLUDE, WITH (…), TABLESPACE and WHERE each on an indented line
+                               #           CREATE INDEX idx
+                               #              ON t
+                               #              USING btree (a, b)
+                               #              WHERE a > 1;
+                               #   never:  collapse to one line;  auto: break when longer than line_length
   dollar_quote:
     newline_after_open: preserve   # preserve | add | remove  (\n after opening $$)
     newline_before_close: preserve # preserve | add | remove  (\n before closing $$)

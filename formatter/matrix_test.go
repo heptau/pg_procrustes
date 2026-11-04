@@ -136,6 +136,16 @@ var matrixVariants = []matrixVariant{
 	{"ddl_create_always_align_none", func(c *config.Config) {
 		c.Layout.DDL.CreateTable = config.CreateTableCfg{Break: config.BreakAlways, Align: config.ColumnAlignNone}
 	}},
+	{"ddl_index_always", func(c *config.Config) {
+		c.Layout.DDL.CreateIndex.Break = config.BreakAlways
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+	}},
+	{"ddl_index_never", func(c *config.Config) { c.Layout.DDL.CreateIndex.Break = config.BreakNever }},
+	{"ddl_index_auto_narrow", func(c *config.Config) {
+		c.Layout.DDL.CreateIndex.Break = config.BreakAuto
+		c.Layout.LineLength = 40
+	}},
 	{"ddl_never", func(c *config.Config) {
 		c.Layout.DDL.CreateTable.Break = config.BreakNever
 		c.Layout.DDL.AlterTable.Break = config.BreakNever
@@ -277,6 +287,10 @@ var matrixVariants = []matrixVariant{
 // matrixInline are extra statements exercising constructs the golden inputs miss
 // (comments, set operations, CASE, quoted identifiers, arithmetic).
 var matrixInline = []string{
+	"create unique index concurrently if not exists idx on public.users using btree (lower(email), created_at desc) include (name) where deleted_at is null and active;",
+	"create index on t (a); create index i2 on only t using gin (doc jsonb_path_ops) with (fastupdate = off) tablespace fast where a > 1;",
+	"create materialized view mv as select a, b from t where x > 1 with no data; create view v as select a from t with local check option;",
+	"with data as (select 1) select * from data;",
 	"select a, -- first\n b -- second\n from t where x = 1 -- tail\n and y = 2;",
 	"select a from u union select b from v union all select 1;",
 	"select a from u where x = 1 union all select 1 order by 1;",

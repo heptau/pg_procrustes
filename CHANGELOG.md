@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- DDL layout: `layout.ddl.create_index.break: preserve | never | always | auto` puts the `ON`, `USING`, `INCLUDE`, `NULLS [NOT] DISTINCT`, `WITH (…)`, `TABLESPACE` and `WHERE` parts of `CREATE INDEX` on their own indented lines (or collapses them to one line).
 - Layout: `layout.content.align_aliases: preserve | align` pads the expressions of a broken SELECT list so every `AS` lines up, and `layout.content.align_set: preserve | align` does the same for the `=` of an `UPDATE … SET` list; items spanning several lines, with comments or `CASE` are left alone.
 - `builtin_functions.case` (default empty = same as `functions`) casing for PostgreSQL built-in functions (`count`, `sum`, `date_trunc`, …) separately from user functions, with `exceptions`; `call_paren_spacing: preserve | add | remove` controls the space between a function name and `(` (`count (*)` vs `count(*)`) for function calls only.
 - `blank_lines_between_statements: preserve | 0 … 10` (exactly N blank lines after each `;`, a same-line comment stays attached, comments above the next statement stay with it, psql meta-commands untouched), `line_endings: preserve | lf | crlf` and `comments.space_after_marker: preserve | add` (`--note` → `-- note`; `-----`, `--+`, `--!` and block comments untouched) / `comments.align_trailing: preserve | align` (trailing `--` comments of consecutive lines start in one column; single comments and runs with tabs are left alone; also inside function bodies)
@@ -30,6 +31,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Layout: the `WITH [NO] DATA` / `WITH [CASCADED | LOCAL] CHECK OPTION` trailer of `CREATE [MATERIALIZED] VIEW` and `CREATE TABLE AS` is its own clause instead of being glued to the last `WHERE` condition.
+- Formatter: plain column names in `CREATE INDEX … (name) INCLUDE (name)` and CTE names such as `WITH data AS` are no longer upper-cased as keywords.
 - PL/pgSQL: `RAISE EXCEPTION` is no longer mistaken for the `EXCEPTION` section when `dollar_quote.plpgsql` restructuring is active (a statement wrapped as `RAISE` / `EXCEPTION '…'` was fused into `raiseexception`); trailing whitespace left behind by the blank-line and DECLARE/BEGIN settings inside dollar-quoted bodies is stripped, so those settings are idempotent
 - `not_in: not_equals_all` turned `x NOT IN ('a', 'b')` into `x <> ALL ('a', 'b')`, which PostgreSQL rejects; it now writes `x <> ALL (ARRAY['a', 'b'])` (subqueries are unchanged). `not_in: not_in` turned `x <> ALL (ARRAY['a', 'b'])` into `x NOT IN (ARRAY['a', 'b'])`, which compares `x` with a single array value instead of its elements; it now writes `x NOT IN ('a', 'b')`, converts `<> ALL (SELECT …)`, and leaves `<> ALL (array_column)` alone because no `NOT IN` form exists. Found by the new syntax check (the golden files had recorded the broken output)
 - CRLF files were silently converted to LF (the trailing-whitespace pass removed the `\r`); the new `line_endings: preserve` (default) keeps the input's style, and `--check` no longer reports every CRLF file as changed

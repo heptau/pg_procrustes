@@ -486,6 +486,14 @@ layout:
                                #   auto:   break when there is more than one action or the statement
                                #           is longer than line_length
                                #   (comma_position and indent size apply to both)
+    create_index:
+      break: preserve          # preserve | never | always | auto
+                               #   always: ON, USING, INCLUDE, WITH (…), TABLESPACE and WHERE each on an indented line
+                               #           CREATE INDEX idx
+                               #              ON t
+                               #              USING btree (a, b)
+                               #              WHERE a > 1;
+                               #   never:  collapse to one line;  auto: break when longer than line_length
 
   case:
     break: preserve          # preserve | never | always | auto

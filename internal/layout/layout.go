@@ -50,7 +50,7 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 			return false
 		}
 	}
-	for _, b := range []config.BreakMode{cfg.DDL.CreateTable.Break, cfg.DDL.AlterTable.Break} {
+	for _, b := range []config.BreakMode{cfg.DDL.CreateTable.Break, cfg.DDL.AlterTable.Break, cfg.DDL.CreateIndex.Break} {
 		if b != "" && b != config.BreakPreserve {
 			return false
 		}
@@ -162,6 +162,9 @@ const (
 	clauseMerge   // MERGE INTO target [AS alias]
 	clauseMergeOn // ON join_condition of a MERGE
 	clauseWhen    // WHEN [NOT] MATCHED … THEN action
+	// clauseWithOption is the trailer of CREATE [MATERIALIZED] VIEW / CREATE TABLE AS:
+	// WITH [NO] DATA and WITH [CASCADED | LOCAL] CHECK OPTION.
+	clauseWithOption
 )
 
 type stmtClause struct {
@@ -253,6 +256,37 @@ func parseStatements(tokens []rawTok) []statement {
 	return stmts
 }
 
+// withOptionLen returns the token count of a WITH [NO] DATA or WITH [CASCADED|LOCAL]
+// CHECK OPTION trailer starting at i, or 0 when the WITH starts a CTE list.
+func withOptionLen(tokens []rawTok, i int) int {
+	lw := func(k int) string {
+		if k >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[k].text)
+	}
+	atEnd := func(k int) bool { return k >= len(tokens) || tokens[k].text == ";" }
+	switch lw(i + 1) {
+	case "no":
+		if lw(i+2) == "data" && atEnd(i+3) {
+			return 3
+		}
+	case "data":
+		if atEnd(i + 2) {
+			return 2
+		}
+	case "check":
+		if lw(i+2) == "option" {
+			return 3
+		}
+	case "local", "cascaded":
+		if lw(i+2) == "check" && lw(i+3) == "option" {
+			return 4
+		}
+	}
+	return 0
+}
+
 func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 	n := len(tokens)
 	lower := strings.ToLower(tokens[i].text)
@@ -265,6 +299,9 @@ func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 
 	switch lower {
 	case "with":
+		if n := withOptionLen(tokens, i); n > 0 {
+			return clauseWithOption, n
+		}
 		return clauseWith, 1
 	case "select":
 		return clauseSelect, 1
@@ -534,6 +571,15 @@ func inlineContent(sql string, tokens []rawTok, from, to int, parenMode config.P
 }
 
 func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutConfig, indentUnit string, depth int) string {
+	// CREATE INDEX … WHERE has clauses but is laid out by the DDL code when asked to.
+	if len(stmt.clauses) > 0 {
+		if first := firstCodeTok(tokens, stmt.startTok, stmt.endTok); first >= 0 &&
+			strings.EqualFold(tokens[first].text, "create") && createIndexToken(tokens, stmt, first) >= 0 {
+			if out, ok := rebuildDDL(sql, tokens, stmt, cfg, indentUnit, depth); ok {
+				return out
+			}
+		}
+	}
 	if len(stmt.clauses) == 0 {
 		if out, ok := rebuildDDL(sql, tokens, stmt, cfg, indentUnit, depth); ok {
 			return out

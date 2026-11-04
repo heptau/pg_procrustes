@@ -55,6 +55,9 @@ func rebuildDDL(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutC
 	}
 	switch w(first) {
 	case "create":
+		if idx := createIndexToken(tokens, stmt, first); idx >= 0 {
+			return rebuildCreateIndex(sql, tokens, stmt, idx, cfg, indentUnit, depth)
+		}
 		if open := createTableOpenParen(tokens, stmt, first); open >= 0 {
 			return rebuildCreateTable(sql, tokens, stmt, open, cfg, indentUnit, depth)
 		}
@@ -509,3 +512,104 @@ func alignColumns(items []string, mode config.ColumnAlignMode) []string {
 }
 
 func runeLen(s string) int { return len([]rune(s)) }
+
+// createIndexToken returns the index of the INDEX token of CREATE [UNIQUE] INDEX …, or -1.
+func createIndexToken(tokens []rawTok, stmt statement, first int) int {
+	i := first + 1
+	if i < stmt.endTok && strings.EqualFold(tokens[i].text, "unique") {
+		i++
+	}
+	if i < stmt.endTok && strings.EqualFold(tokens[i].text, "index") {
+		return i
+	}
+	return -1
+}
+
+// rebuildCreateIndex puts the ON, USING, INCLUDE, NULLS [NOT] DISTINCT, WITH (…),
+// TABLESPACE and WHERE parts of CREATE INDEX on their own indented lines.
+func rebuildCreateIndex(sql string, tokens []rawTok, stmt statement, idx int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
+	mode := cfg.DDL.CreateIndex.Break
+	if mode == "" || mode == config.BreakPreserve {
+		return "", false
+	}
+	if hasLineComment(tokens, stmt.startTok, stmt.endTok) {
+		return "", false
+	}
+	// Segment starts: the first ON after INDEX, then USING / INCLUDE / TABLESPACE / WHERE /
+	// WITH ( / NULLS [NOT] DISTINCT at parenthesis depth 0.
+	var starts []int
+	parens, seenOn := 0, false
+	lw := func(i int) string {
+		if i >= stmt.endTok {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	for i := idx + 1; i < stmt.endTok; i++ {
+		switch tokens[i].text {
+		case "(":
+			parens++
+			continue
+		case ")":
+			parens--
+			continue
+		}
+		if parens != 0 {
+			continue
+		}
+		switch lw(i) {
+		case "on":
+			if !seenOn {
+				seenOn = true
+				starts = append(starts, i)
+			}
+		case "using", "include", "tablespace", "where":
+			if seenOn {
+				starts = append(starts, i)
+			}
+		case "with":
+			if seenOn && lw(i+1) == "(" {
+				starts = append(starts, i)
+			}
+		case "nulls":
+			if seenOn && (lw(i+1) == "distinct" || lw(i+1) == "not" && lw(i+2) == "distinct") {
+				starts = append(starts, i)
+			}
+		}
+	}
+	if len(starts) == 0 {
+		return "", false
+	}
+	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
+	parenMode := cfg.ParenSpacing
+	var sb strings.Builder
+	if !shouldBreak(flat, mode, cfg.LineLength) {
+		if mode != config.BreakNever {
+			return "", false
+		}
+		sb.WriteString(ddlHead(sql, tokens, stmt, starts[0]-1))
+		for k, s := range starts {
+			end := stmt.endTok
+			if k+1 < len(starts) {
+				end = starts[k+1]
+			}
+			sb.WriteByte(' ')
+			sb.WriteString(inlineContent(sql, tokens, s, end, parenMode))
+		}
+		finishDDL(&sb, tokens, stmt)
+		return sb.String(), true
+	}
+	indent := strings.Repeat(indentUnit, depth+1)
+	sb.WriteString(ddlHead(sql, tokens, stmt, starts[0]-1))
+	for k, s := range starts {
+		end := stmt.endTok
+		if k+1 < len(starts) {
+			end = starts[k+1]
+		}
+		sb.WriteByte('\n')
+		sb.WriteString(indent)
+		sb.WriteString(inlineContent(sql, tokens, s, end, parenMode))
+	}
+	finishDDL(&sb, tokens, stmt)
+	return sb.String(), true
+}
