@@ -1172,6 +1172,11 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			class = classColumn
 		default:
 			class = classify(tok.kind, tokenText)
+			// "trigger" is a pseudo-type only after RETURNS/::/etc.; after these
+			// DDL words it is the TRIGGER keyword (CREATE TRIGGER, DROP TRIGGER, ...).
+			if class == classDataType && lower == "trigger" && isTriggerKeywordContext(prevTokenText) {
+				class = classKeyword
+			}
 			if class == classOther && dataTypeNames[lower] {
 				class = classDataType
 			}
@@ -3033,4 +3038,25 @@ func FormatFile(path string, cfg *config.Config) (string, error) {
 		return "", err
 	}
 	return Format(string(data), cfg)
+}
+
+// isTriggerKeywordContext reports whether a "trigger" token preceded by prev is
+// the TRIGGER keyword rather than the pseudo-type returned by trigger functions.
+func isTriggerKeywordContext(prev string) bool {
+	switch strings.ToLower(prev) {
+	case "create", "drop", "alter", "replace", "on", "disable", "enable", "constraint", "event", "user", "system":
+		return true
+	}
+	return false
+}
+
+// SyntaxError returns the PostgreSQL parser error for sql, or nil when sql
+// parses. Format itself tolerates unparsable input (it falls back to
+// token-level formatting), so callers use this to warn about it.
+func SyntaxError(sql string) error {
+	if strings.TrimSpace(sql) == "" {
+		return nil
+	}
+	_, err := pg_query.Parse(sql)
+	return err
 }

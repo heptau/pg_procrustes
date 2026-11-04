@@ -192,3 +192,24 @@ func TestUnionPreserveWithClauseBreakAlways(t *testing.T) {
 		}
 	}
 }
+
+func TestLineCommentsKeepCommaAndIdempotent(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	for _, sql := range []string{
+		"SELECT a -- first\n, b -- second\nFROM t;",
+		"SELECT a, -- note\n b FROM t;",
+		"INSERT INTO t (a, -- x\n b) VALUES (1, 2);",
+	} {
+		got, err := layout.Apply(sql, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got, "-- first,") || strings.Contains(got, "-- x,") {
+			t.Fatalf("comma swallowed by line comment:\n%s", got)
+		}
+		again, err := layout.Apply(got, cfg)
+		if err != nil || again != got {
+			t.Fatalf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
+		}
+	}
+}

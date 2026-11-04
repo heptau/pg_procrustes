@@ -984,3 +984,16 @@ func fmtOnce(t *testing.T, sql string, c *config.Config) string {
 	}
 	return out
 }
+
+func TestTriggerKeywordVsPseudoType(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmtOnce(t, "create trigger tr before insert on t execute function f(); drop trigger tr on t; create function g() returns trigger language plpgsql as $$ begin return new; end $$;", c)
+	for _, want := range []string{"CREATE TRIGGER tr", "DROP TRIGGER tr", "RETURNS trigger"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}

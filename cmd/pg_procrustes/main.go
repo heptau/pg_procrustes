@@ -127,6 +127,7 @@ func main() {
 			die("read stdin: %v", err)
 		}
 		src := string(data)
+		warnSyntax("stdin", src)
 		out, err := formatter.Format(src, cfg)
 		if err != nil {
 			die("%v", err)
@@ -228,6 +229,14 @@ func expandGlobs(args []string) ([]string, error) {
 	return out, nil
 }
 
+// warnSyntax prints a warning when src is not valid PostgreSQL. Formatting still
+// proceeds (token-level fallback), so the exit status is unaffected.
+func warnSyntax(name, src string) {
+	if err := formatter.SyntaxError(src); err != nil {
+		fmt.Fprintf(os.Stderr, "pg_procrustes: warning: %s: syntax error, formatting may be incomplete: %v\n", name, err)
+	}
+}
+
 // readAndFormat reads path and returns (original, formatted, err).
 func readAndFormat(path string, cfg *config.Config) (src, out string, err error) {
 	data, err := os.ReadFile(path)
@@ -235,6 +244,7 @@ func readAndFormat(path string, cfg *config.Config) (src, out string, err error)
 		return "", "", err
 	}
 	src = string(data)
+	warnSyntax(path, src)
 	out, err = formatter.Format(src, cfg)
 	return src, out, err
 }

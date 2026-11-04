@@ -695,11 +695,16 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte('(')
 					for ii, item := range colItems {
 						if ii == 0 {
+							if ii < len(colItems)-1 {
+								item = withTrailingComma(item)
+							}
 							sb.WriteString(item)
 						} else {
-							sb.WriteByte(',')
 							sb.WriteByte('\n')
 							sb.WriteString(contentIndent)
+							if ii < len(colItems)-1 {
+								item = withTrailingComma(item)
+							}
 							sb.WriteString(item)
 						}
 					}
@@ -710,10 +715,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteString("(\n")
 					for ii, item := range colItems {
 						sb.WriteString(contentIndent)
-						sb.WriteString(item)
+						item = strings.ReplaceAll(item, "\n", "\n"+contentIndent)
 						if ii < len(colItems)-1 {
-							sb.WriteByte(',')
+							item = withTrailingComma(item)
 						}
+						sb.WriteString(item)
 						sb.WriteByte('\n')
 					}
 					sb.WriteString(clauseIndent)
@@ -762,10 +768,10 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte('\n')
 					sb.WriteString(contentIndent)
 				}
-				sb.WriteString(item)
 				if useComma && ii < len(items)-1 {
-					sb.WriteByte(',')
+					item = withTrailingComma(item)
 				}
+				sb.WriteString(item)
 			}
 			continue
 		}
@@ -781,10 +787,10 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// (applied by applyLayoutToSQL) produces the correct absolute indentation
 			// for the whole item without disrupting the relative structure.
 			item = reindentItem(item)
-			sb.WriteString(item)
 			if useComma && ii < len(items)-1 {
-				sb.WriteByte(',')
+				item = withTrailingComma(item)
 			}
+			sb.WriteString(item)
 		}
 	}
 
@@ -875,14 +881,27 @@ func splitAtComma(sql string, tokens []rawTok, from, to int) []string {
 				depth--
 			}
 		} else if t == "," && depth == 0 {
-			item := strings.TrimSpace(originalText(sql, tokens, itemStart, i))
+			itemEnd := i
+			next := i + 1
+			// A line comment on the same line as the comma belongs to the item
+			// before it ("a, -- note"); keep it there so it is stable across passes.
+			if i+1 < to && strings.HasPrefix(tokens[i+1].text, "--") &&
+				!strings.Contains(sql[tokens[i].end:tokens[i+1].start], "\n") {
+				itemEnd = i + 2
+				next = i + 2
+			}
+			item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, itemEnd)))
+			if strings.HasPrefix(tokens[itemEnd-1].text, "--") && itemEnd != i {
+				// originalText included the comma token; drop it from the item text
+				item = trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, i))) + " " + tokens[itemEnd-1].text
+			}
 			if item != "" {
 				items = append(items, item)
 			}
-			itemStart = i + 1
+			itemStart = next
 		}
 	}
-	item := strings.TrimSpace(originalText(sql, tokens, itemStart, to))
+	item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, to)))
 	if item != "" {
 		items = append(items, item)
 	}
@@ -1535,4 +1554,36 @@ func parenParseDollarDelim(s string, pos int) (string, int) {
 		return "", 0
 	}
 	return s[pos : i+1], i + 1 - pos
+}
+
+// withTrailingComma appends a comma to item. When the item ends with a line
+// comment (-- ...), the comma is inserted before the comment; appending it
+// after would put the comma inside the comment and silently change the SQL.
+func withTrailingComma(item string) string {
+	res, err := pg_query.Scan(item)
+	if err == nil && len(res.Tokens) > 0 {
+		last := res.Tokens[len(res.Tokens)-1]
+		start, end := int(last.Start), int(last.End)
+		if start >= 0 && end <= len(item) && strings.HasPrefix(item[start:end], "--") {
+			before := strings.TrimRight(item[:start], " \t")
+			return before + ", " + item[start:]
+		}
+	}
+	return item + ","
+}
+
+// trimLeadingCommentIndent strips the source indentation of the lines that
+// follow a leading line comment, so that the item is re-indented consistently.
+func trimLeadingCommentIndent(item string) string {
+	if !strings.HasPrefix(item, "--") {
+		return item
+	}
+	lines := strings.Split(item, "\n")
+	for i := 1; i < len(lines); i++ {
+		lines[i] = strings.TrimLeft(lines[i], " \t")
+		if !strings.HasPrefix(lines[i], "--") {
+			break
+		}
+	}
+	return strings.Join(lines, "\n")
 }
