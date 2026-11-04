@@ -256,3 +256,24 @@ func TestNonQueryKeywordsAreNotClauses(t *testing.T) {
 		t.Errorf("FOR UPDATE split across lines:\n%s", got)
 	}
 }
+
+func TestMergeClauses(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	sql := "MERGE INTO t AS tgt USING s ON tgt.id = s.id AND tgt.ok WHEN MATCHED THEN UPDATE SET a = CASE WHEN s.x THEN 1 ELSE 2 END, b = 3 WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id);"
+	got, err := layout.Apply(sql, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "MERGE INTO t AS tgt\n" +
+		"USING\n  s\n" +
+		"ON\n  tgt.id = s.id\n  AND tgt.ok\n" +
+		"WHEN MATCHED THEN UPDATE SET a = CASE WHEN s.x THEN 1 ELSE 2 END, b = 3\n" +
+		"WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id);"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	again, err := layout.Apply(got, cfg)
+	if err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
+	}
+}

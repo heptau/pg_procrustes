@@ -1,0 +1,5 @@
+layout:
+  clauses:
+    break: always
+  content:
+    break: always

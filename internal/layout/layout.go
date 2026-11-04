@@ -153,6 +153,9 @@ const (
 	clauseUnion
 	clauseException
 	clauseSemi
+	clauseMerge   // MERGE INTO target [AS alias]
+	clauseMergeOn // ON join_condition of a MERGE
+	clauseWhen    // WHEN [NOT] MATCHED … THEN action
 )
 
 type stmtClause struct {
@@ -322,6 +325,13 @@ func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 		if next() == "conflict" {
 			return clauseOnConflict, 2
 		}
+		return clauseMergeOn, 1 // only accepted inside MERGE (see clauseAllowed)
+	case "merge":
+		if next() == "into" {
+			return clauseMerge, 2
+		}
+	case "when":
+		return clauseWhen, 1 // only accepted inside MERGE (see clauseAllowed)
 	case "set":
 		return clauseSet, 1
 	case "using":
@@ -442,7 +452,7 @@ func clauseBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMo
 		return get(c.Into)
 	case clauseFrom:
 		return get(c.From)
-	case clauseJoin:
+	case clauseJoin, clauseMergeOn:
 		return get(c.Join)
 	case clauseWhere:
 		return get(c.Where)
@@ -683,6 +693,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
+		if cl.kind == clauseMerge || cl.kind == clauseWhen {
+			doContentBreak = false // target and WHEN … THEN action read best on the keyword line
+		}
 
 		if kwEnd >= conEnd {
 			continue
@@ -860,7 +873,7 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 		return get(c.WhereConds)
 	case clauseHaving:
 		return get(c.HavingConds)
-	case clauseJoin:
+	case clauseJoin, clauseMergeOn:
 		return get(c.JoinOn)
 	case clauseGroupBy:
 		return get(c.GroupList)
@@ -883,7 +896,7 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 
 func splitContent(sql string, tokens []rawTok, from, to int, kind clauseKind) []string {
 	switch kind {
-	case clauseWhere, clauseHaving:
+	case clauseWhere, clauseHaving, clauseMergeOn:
 		return splitAtAndOr(sql, tokens, from, to)
 	case clauseJoin:
 		onIdx := from
@@ -1015,7 +1028,7 @@ func splitValues(sql string, tokens []rawTok, from, to int) []string {
 
 func usesCommaSeparator(kind clauseKind) bool {
 	switch kind {
-	case clauseWhere, clauseHaving, clauseJoin:
+	case clauseWhere, clauseHaving, clauseJoin, clauseMergeOn:
 		return false
 	default:
 		return true
@@ -1646,7 +1659,7 @@ func trimLeadingCommentIndent(item string) string {
 // WITH, INSERT INTO, UPDATE, DELETE FROM, PERFORM) rather than continuing one.
 func opensStatement(k clauseKind) bool {
 	switch k {
-	case clauseWith, clauseSelect, clausePerform, clauseInsert, clauseUpdate, clauseDelete:
+	case clauseWith, clauseSelect, clausePerform, clauseInsert, clauseUpdate, clauseDelete, clauseMerge:
 		return true
 	}
 	return false
@@ -1693,12 +1706,46 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		// UPDATE … SET and ON CONFLICT … DO UPDATE SET only.
 		return has(clauseUpdate, clauseOnConflict)
 	case clauseUsing:
-		// JOIN … USING (cols) and DELETE … USING tables only.
+		// JOIN … USING (cols), DELETE … USING tables and MERGE … USING source only.
+		if has(clauseMerge) {
+			return !has(clauseUsing, clauseWhen)
+		}
 		return has(clauseJoin, clauseDelete)
+	case clauseMergeOn:
+		// The ON of a MERGE (after USING, before the first WHEN); an ON that belongs to a
+		// JOIN in the source stays part of that join.
+		return has(clauseMerge, clauseUsing) && !has(clauseWhen, clauseMergeOn, clauseJoin)
+	case clauseWhen:
+		// WHEN [NOT] MATCHED of a MERGE, not CASE WHEN.
+		if !has(clauseMerge) {
+			return false
+		}
+		depth := 0
+		from := stmt.startTok
+		if n := len(stmt.clauses); n > 0 {
+			from = stmt.clauses[n-1].kwEnd
+		}
+		for k := from; k < i; k++ {
+			switch strings.ToLower(tokens[k].text) {
+			case "case":
+				depth++
+			case "end":
+				if depth > 0 {
+					depth--
+				}
+			}
+		}
+		return depth == 0
+	case clauseValues:
+		// MERGE … WHEN NOT MATCHED THEN INSERT (…) VALUES (…) is part of the WHEN action.
+		return !has(clauseWhen)
 	case clauseWith:
 		// A CTE list opens a statement or follows AS (CREATE VIEW v AS WITH …).
 		return prev == "" || prev == "as" || prev == ";"
 	case clauseUpdate:
+		if has(clauseWhen) {
+			return false // THEN UPDATE SET … is the action of a MERGE WHEN
+		}
 		switch prev {
 		case "do", "for", "on", "or", "before", "after", "of", "key", "instead":
 			return false

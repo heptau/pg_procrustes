@@ -99,6 +99,8 @@ var matrixInline = []string{
 	"create table x (a int references o(id) on delete cascade on update cascade) with (fillfactor = 70); alter table t alter column a type int using a::int;",
 	"select * from t where a = 1 for update; create trigger tr before insert or update on t for each row execute function f();",
 	"insert into t values (1) on conflict (id) do update set a = 2; delete from t using u where t.id = u.id;",
+	"merge into public.Accounts as tgt using (select id, amount from staging where ok) as src on tgt.id = src.id and tgt.active when matched and src.amount > 0 then update set balance = tgt.balance + src.amount, updated = now() when matched then delete when not matched then insert (id, balance) values (src.id, case when src.amount > 0 then src.amount else 0 end) when not matched by source then do nothing;",
+	"merge into t using u on t.id = u.id when matched then update set a = case when u.x then 1 else 2 end -- tail\n when not matched then insert values (u.id, 1);",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 

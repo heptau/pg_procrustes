@@ -2240,7 +2240,7 @@ func isPLpgSQLBody(body string) bool {
 // sqlClauseStarters are top-level keywords that begin a SQL statement in PL/pgSQL.
 var sqlClauseStarters = map[string]bool{
 	"select": true, "insert": true, "update": true, "delete": true,
-	"with": true, "perform": true,
+	"with": true, "perform": true, "merge": true,
 }
 
 // applyLayoutPerStatement applies layout to individual SQL statements inside a
