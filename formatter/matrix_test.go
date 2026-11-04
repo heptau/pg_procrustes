@@ -157,6 +157,20 @@ var matrixVariants = []matrixVariant{
 		c.Layout.LineLength = 50
 		c.Layout.Clauses.Break = config.BreakAlways
 	}},
+	{"wrap_narrow", func(c *config.Config) {
+		c.Layout.LineLength = 40
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.Content.WrapExpressions = config.WrapWrap
+	}},
+	{"wrap_always_tabs_comma_start", func(c *config.Config) {
+		c.Layout.LineLength = 30
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Content.WrapExpressions = config.WrapWrap
+		c.Layout.Indent.Type = config.IndentTypeTab
+	}},
 	{"ddl_never", func(c *config.Config) {
 		c.Layout.DDL.CreateTable.Break = config.BreakNever
 		c.Layout.DDL.AlterTable.Break = config.BreakNever
@@ -298,6 +312,8 @@ var matrixVariants = []matrixVariant{
 // matrixInline are extra statements exercising constructs the golden inputs miss
 // (comments, set operations, CASE, quoted identifiers, arithmetic).
 var matrixInline = []string{
+	"select coalesce(nullif(trim(both ' ' from first_name), ''), nullif(trim(last_name), ''), 'unknown_value_placeholder') as display_name, id from users where status in ('active', 'pending', 'suspended', 'archived', 'deleted', 'banned', 'review') and (select count(*) from t where a = 1 and b = 2) > 0;",
+	"insert into t (a, b, c) values (1, 'a long literal value number one', now()), (2, 'a long literal value number two', now());",
 	"create or replace function public.add_user(p_name text, p_age int default 18, variadic tags text[] default '{}') returns table(id bigint, name text) language plpgsql security definer set search_path = public, pg_temp stable parallel safe cost 100 as $$ begin return query select 1, 'a'; end; $$;",
 	"create function f(name text, status int, text) returns int language sql immutable as 'select 1'; create function g() returns trigger as $$ begin return new; end $$ language plpgsql;",
 	"create unique index concurrently if not exists idx on public.users using btree (lower(email), created_at desc) include (name) where deleted_at is null and active;",

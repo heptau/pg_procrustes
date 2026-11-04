@@ -929,6 +929,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// first_item: inline — first item on the keyword line, subsequent items on new lines.
 			for ii, item := range items {
 				item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
+				if cfg.Content.WrapExpressions == config.WrapWrap {
+					item = wrapLongItem(item, contentIndent, indentUnit, cfg.LineLength-1)
+				}
 				item = reindentItem(item)
 				if ii == 0 {
 					sb.WriteByte(' ')
@@ -954,6 +957,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			sb.WriteByte('\n')
 			sb.WriteString(lineLead(ii))
 			item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
+			if cfg.Content.WrapExpressions == config.WrapWrap {
+				item = wrapLongItem(item, contentIndent, indentUnit, cfg.LineLength-1)
+			}
 			// When an item spans multiple lines and its continuation lines are NOT
 			// already indented to contentIndent level (e.g. case.break=preserve keeps
 			// WHEN/END at zero indent, or the source had the expression broken across

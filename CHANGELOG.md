@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Layout: `layout.content.wrap_expressions: preserve | wrap` breaks a list item longer than `line_length` at the commas of its first parenthesised group (function arguments, `IN` lists, rows) with one element per line and `)` on its own line; nested groups wrap recursively, `CASE`, subqueries and items with comments are left alone.
 - DDL layout: `layout.ddl.create_function.params` and `.options` (`preserve | never | always | auto`) put every `CREATE FUNCTION` / `PROCEDURE` parameter on its own line (closing `)` on its own line) and every option (`RETURNS`, `LANGUAGE`, `STABLE`, `SECURITY DEFINER`, `SET …`, `AS` body) on its own line; headers with a `--` comment or a `BEGIN ATOMIC` body are left alone.
 - DDL layout: `layout.ddl.create_index.break: preserve | never | always | auto` puts the `ON`, `USING`, `INCLUDE`, `NULLS [NOT] DISTINCT`, `WITH (…)`, `TABLESPACE` and `WHERE` parts of `CREATE INDEX` on their own indented lines (or collapses them to one line).
 - Layout: `layout.content.align_aliases: preserve | align` pads the expressions of a broken SELECT list so every `AS` lines up, and `layout.content.align_set: preserve | align` does the same for the `=` of an `UPDATE … SET` list; items spanning several lines, with comments or `CASE` are left alone.

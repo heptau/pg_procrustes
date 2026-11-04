@@ -363,7 +363,19 @@ type ContentCfg struct {
 	// per line (first_item: newline) and leave multi-line items alone.
 	AlignAliases AlignItemsMode `yaml:"align_aliases"` // preserve | align
 	AlignSet     AlignItemsMode `yaml:"align_set"`     // preserve | align
+
+	// WrapExpressions breaks list items longer than line_length at the commas of their
+	// first parenthesised group (function arguments, IN lists, rows).
+	WrapExpressions WrapMode `yaml:"wrap_expressions"` // preserve | wrap
 }
+
+// WrapMode controls whether over-long items are wrapped.
+type WrapMode string
+
+const (
+	WrapPreserve WrapMode = "preserve" // never wrap (default)
+	WrapWrap     WrapMode = "wrap"     // wrap items longer than line_length
+)
 
 // AlignItemsMode controls padding inside the items of a broken list.
 type AlignItemsMode string
@@ -650,6 +662,7 @@ func defaultLayout() LayoutConfig {
 			JoinOnPosition:          JoinOnInline,
 			AlignAliases:            AlignItemsPreserve,
 			AlignSet:                AlignItemsPreserve,
+			WrapExpressions:         WrapPreserve,
 		},
 		Case: SQLCaseCfg{
 			Break:  BreakPreserve,
@@ -1080,6 +1093,11 @@ func validate(cfg *Config) error {
 		if m != AlignItemsPreserve && m != AlignItemsAlign && m != "" {
 			return fmt.Errorf("layout.content.%s must be preserve|align, got %q", name, m)
 		}
+	}
+	switch cfg.Layout.Content.WrapExpressions {
+	case WrapPreserve, WrapWrap, "":
+	default:
+		return fmt.Errorf("layout.content.wrap_expressions must be preserve|wrap, got %q", cfg.Layout.Content.WrapExpressions)
 	}
 	switch cfg.Layout.Content.CommaPosition {
 	case CommaEnd, CommaStart, "":

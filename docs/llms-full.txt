@@ -432,6 +432,9 @@ layout:
     align_set: preserve         # preserve | align   (SET list: pad targets so every = lines up)
                                 #   both act on lists the layout puts one item per line (first_item: break);
                                 #   multi-line items and items with comments or CASE are left alone
+    wrap_expressions: preserve  # preserve | wrap   (items longer than line_length: one element per line inside the
+                                #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line.
+                                #   Acts on lists the layout puts one item per line; CASE, subqueries and comments are left alone)
     comma_position: end         # end | start   (applies when a list is broken over lines)
                                 #   end:   a,        start:   a
                                 #          b,                , b
@@ -994,6 +997,9 @@ layout:
     align_set: preserve         # preserve | align   (SET list: pad targets so every = lines up)
                                 #   both act on lists the layout puts one item per line (first_item: break);
                                 #   multi-line items and items with comments or CASE are left alone
+    wrap_expressions: preserve  # preserve | wrap   (items longer than line_length: one element per line inside the
+                                #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line.
+                                #   Acts on lists the layout puts one item per line; CASE, subqueries and comments are left alone)
     comma_position: end         # end | start   (applies when a list is broken over lines)
                                 #   end:   a,        start:   a
                                 #          b,                , b
