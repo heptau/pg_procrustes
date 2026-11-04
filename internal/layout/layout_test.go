@@ -277,3 +277,57 @@ func TestMergeClauses(t *testing.T) {
 		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
 	}
 }
+
+func TestPerClauseOverrideAloneIsNotNoop(t *testing.T) {
+	cfg := mkCfg(config.BreakPreserve, config.BreakPreserve, 128)
+	cfg.Clauses.Where = config.ClauseRule{Break: config.BreakAlways}
+	if layout.IsNoop(cfg) {
+		t.Fatal("clauses.where.break: always must not be treated as a no-op")
+	}
+	got, err := layout.Apply("SELECT a FROM t WHERE x = 1;", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "\nWHERE") {
+		t.Fatalf("WHERE override ignored:\n%s", got)
+	}
+
+	cfg = mkCfg(config.BreakPreserve, config.BreakPreserve, 128)
+	cfg.Content.WhenActions = config.ContentRule{Break: config.BreakAlways}
+	if layout.IsNoop(cfg) {
+		t.Fatal("content.when_actions.break: always must not be treated as a no-op")
+	}
+}
+
+func TestMergeSeparateSettings(t *testing.T) {
+	sql := "MERGE INTO t AS tgt USING s ON tgt.id = s.id AND tgt.ok WHEN MATCHED AND s.x > 0 THEN UPDATE SET a = 1 WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id);"
+	cfg := mkCfg(config.BreakPreserve, config.BreakPreserve, 128)
+	cfg.Clauses.When = config.ClauseRule{Break: config.BreakAlways}
+	cfg.Clauses.MergeOn = config.ClauseRule{Break: config.BreakAlways}
+	cfg.Content.MergeOn = config.ContentRule{Break: config.BreakAlways}
+	cfg.Content.WhenActions = config.ContentRule{Break: config.BreakAlways}
+	got, err := layout.Apply(sql, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "MERGE INTO t AS tgt USING s\n" +
+		"ON\n  tgt.id = s.id\n  AND tgt.ok\n" +
+		"WHEN MATCHED AND s.x > 0 THEN\n  UPDATE SET a = 1\n" +
+		"WHEN NOT MATCHED THEN\n  INSERT (id) VALUES (s.id);"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	if again, err := layout.Apply(got, cfg); err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
+	}
+
+	// when_actions does not inherit content.break: WHEN branches stay on one line.
+	cfg = mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	got, err = layout.Apply(sql, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "WHEN MATCHED AND s.x > 0 THEN UPDATE SET a = 1\n") {
+		t.Fatalf("WHEN action should stay inline by default:\n%s", got)
+	}
+}

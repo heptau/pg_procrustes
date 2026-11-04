@@ -38,6 +38,18 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 	if parenMode == "" {
 		parenMode = config.ParenIndentPreserve
 	}
+	// Per-clause / per-section overrides can enable breaking even when the global
+	// setting is preserve.
+	for _, nr := range cfg.Clauses.ClauseRules() {
+		if nr.Rule.Break != "" && nr.Rule.Break != config.BreakPreserve {
+			return false
+		}
+	}
+	for _, nr := range cfg.Content.ContentRules() {
+		if nr.Rule.Break != "" && nr.Rule.Break != config.BreakPreserve {
+			return false
+		}
+	}
 	return clauseBreak == config.BreakPreserve &&
 		unionBL == config.UnionBlankLinePreserve &&
 		contentBreak == config.BreakPreserve &&
@@ -452,8 +464,14 @@ func clauseBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMo
 		return get(c.Into)
 	case clauseFrom:
 		return get(c.From)
-	case clauseJoin, clauseMergeOn:
+	case clauseJoin:
 		return get(c.Join)
+	case clauseMerge:
+		return get(c.Merge)
+	case clauseMergeOn:
+		return get(c.MergeOn)
+	case clauseWhen:
+		return get(c.When)
 	case clauseWhere:
 		return get(c.Where)
 	case clauseGroupBy:
@@ -693,8 +711,8 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
-		if cl.kind == clauseMerge || cl.kind == clauseWhen {
-			doContentBreak = false // target and WHEN … THEN action read best on the keyword line
+		if cl.kind == clauseMerge {
+			doContentBreak = false // a single target name reads best on the keyword line
 		}
 
 		if kwEnd >= conEnd {
@@ -715,6 +733,20 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		contentIndent := clauseIndent + indentUnit
 		if contentAlign == config.AlignSame {
 			contentIndent = clauseIndent
+		}
+
+		// MERGE WHEN [NOT] MATCHED … THEN action: the action goes on its own indented line.
+		if cl.kind == clauseWhen {
+			if thenIdx := findWhenThen(tokens, kwEnd, conEnd); thenIdx >= 0 && thenIdx+1 < conEnd {
+				head := reformatCaseExprs(inlineContent(sql, tokens, kwEnd, thenIdx+1, cfg.ParenSpacing), clauseIndent, cfg.Case, indentUnit, cfg.LineLength)
+				action := reformatCaseExprs(inlineContent(sql, tokens, thenIdx+1, conEnd, cfg.ParenSpacing), contentIndent, cfg.Case, indentUnit, cfg.LineLength)
+				sb.WriteByte(' ')
+				sb.WriteString(head)
+				sb.WriteByte('\n')
+				sb.WriteString(contentIndent)
+				sb.WriteString(action)
+				continue
+			}
 		}
 
 		// Special case: INSERT INTO table_name (col1, col2, ...) column list.
@@ -873,8 +905,18 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 		return get(c.WhereConds)
 	case clauseHaving:
 		return get(c.HavingConds)
-	case clauseJoin, clauseMergeOn:
+	case clauseJoin:
 		return get(c.JoinOn)
+	case clauseMergeOn:
+		return get(c.MergeOn)
+	case clauseWhen:
+		// WHEN … THEN action stays on one line unless when_actions asks otherwise;
+		// deliberately not inherited from content.break.
+		brk, align, first := get(c.WhenActions)
+		if c.WhenActions.Break == "" {
+			brk = config.BreakNever
+		}
+		return brk, align, first
 	case clauseGroupBy:
 		return get(c.GroupList)
 	case clauseOrderBy:
@@ -1752,4 +1794,27 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		}
 	}
 	return true
+}
+
+// findWhenThen returns the index of the THEN that ends the condition of a MERGE
+// WHEN clause: the first THEN outside parentheses and CASE expressions, or -1.
+func findWhenThen(tokens []rawTok, from, to int) int {
+	paren, cs := 0, 0
+	for i := from; i < to; i++ {
+		switch t := strings.ToLower(tokens[i].text); {
+		case t == "(" || t == "[":
+			paren++
+		case t == ")" || t == "]":
+			if paren > 0 {
+				paren--
+			}
+		case t == "case":
+			cs++
+		case t == "end" && cs > 0:
+			cs--
+		case t == "then" && paren == 0 && cs == 0:
+			return i
+		}
+	}
+	return -1
 }

@@ -280,6 +280,9 @@ type ClausesCfg struct {
 	Returning  ClauseRule `yaml:"returning"`
 	With       ClauseRule `yaml:"with"`
 	Exception  ClauseRule `yaml:"exception"`
+	Merge      ClauseRule `yaml:"merge"`    // MERGE INTO target
+	MergeOn    ClauseRule `yaml:"merge_on"` // ON condition of a MERGE
+	When       ClauseRule `yaml:"when"`     // WHEN [NOT] MATCHED … THEN action
 }
 
 type ContentCfg struct {
@@ -297,6 +300,45 @@ type ContentCfg struct {
 	ValuesList    ContentRule   `yaml:"values_list"`
 	ReturningList ContentRule   `yaml:"returning_list"`
 	WithList      ContentRule   `yaml:"with_list"`
+	MergeOn       ContentRule   `yaml:"merge_on"`     // MERGE ON conditions (AND/OR split)
+	WhenActions   ContentRule   `yaml:"when_actions"` // MERGE WHEN … THEN: break before the action
+}
+
+// NamedClauseRule pairs a per-clause rule with its config path.
+type NamedClauseRule struct {
+	Name string
+	Rule ClauseRule
+}
+
+// ClauseRules lists every per-clause override of layout.clauses.
+func (c ClausesCfg) ClauseRules() []NamedClauseRule {
+	return []NamedClauseRule{
+		{"into", c.Into}, {"from", c.From}, {"join", c.Join}, {"where", c.Where},
+		{"group_by", c.GroupBy}, {"having", c.Having}, {"order_by", c.OrderBy},
+		{"limit", c.Limit}, {"offset", c.Offset}, {"values", c.Values},
+		{"on_conflict", c.OnConflict}, {"set", c.Set}, {"using", c.Using},
+		{"returning", c.Returning}, {"with", c.With}, {"exception", c.Exception},
+		{"merge", c.Merge}, {"merge_on", c.MergeOn}, {"when", c.When},
+	}
+}
+
+// NamedContentRule pairs a per-section rule with its config path.
+type NamedContentRule struct {
+	Name string
+	Rule ContentRule
+}
+
+// ContentRules lists every per-section override of layout.content.
+func (c ContentCfg) ContentRules() []NamedContentRule {
+	return []NamedContentRule{
+		{"select_list", c.SelectList}, {"where_conds", c.WhereConds},
+		{"having_conds", c.HavingConds}, {"join_on", c.JoinOn},
+		{"group_list", c.GroupList}, {"order_list", c.OrderList},
+		{"set_list", c.SetList}, {"insert_columns", c.InsertColumns},
+		{"values_list", c.ValuesList}, {"returning_list", c.ReturningList},
+		{"with_list", c.WithList}, {"merge_on", c.MergeOn},
+		{"when_actions", c.WhenActions},
+	}
 }
 
 type UnionCfg struct {
@@ -811,6 +853,30 @@ func validate(cfg *Config) error {
 		case FirstItemBreak, FirstItemInline, "":
 		default:
 			return fmt.Errorf("%s must be break|inline, got %q", r.name, r.v)
+		}
+	}
+	for _, nr := range cfg.Layout.Clauses.ClauseRules() {
+		switch nr.Rule.Break {
+		case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
+		default:
+			return fmt.Errorf("layout.clauses.%s.break must be preserve|never|always|auto, got %q", nr.Name, nr.Rule.Break)
+		}
+		switch nr.Rule.Align {
+		case AlignSame, AlignIndent, "":
+		default:
+			return fmt.Errorf("layout.clauses.%s.align must be same|indent, got %q", nr.Name, nr.Rule.Align)
+		}
+	}
+	for _, nr := range []NamedContentRule{{"merge_on", cfg.Layout.Content.MergeOn}, {"when_actions", cfg.Layout.Content.WhenActions}} {
+		switch nr.Rule.Break {
+		case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
+		default:
+			return fmt.Errorf("layout.content.%s.break must be preserve|never|always|auto, got %q", nr.Name, nr.Rule.Break)
+		}
+		switch nr.Rule.FirstItem {
+		case FirstItemBreak, FirstItemInline, "":
+		default:
+			return fmt.Errorf("layout.content.%s.first_item must be break|inline, got %q", nr.Name, nr.Rule.FirstItem)
 		}
 	}
 	switch cfg.Layout.Union.BlankLine {

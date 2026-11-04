@@ -1185,7 +1185,9 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
     insert_columns: { break: always, first_item: inline }  <span class="cm"># INSERT INTO table(col1, col2, …)</span>
     values_list:    { break: always }                      <span class="cm"># VALUES row tuples</span>
     returning_list: { break: always, first_item: inline }  <span class="cm"># RETURNING items (comma)</span>
-    with_list:      { break: always }                      <span class="cm"># WITH CTE definitions (comma)</span></code></pre>
+    with_list:      { break: always }                      <span class="cm"># WITH CTE definitions (comma)</span>
+    merge_on:       { break: always }                      <span class="cm"># MERGE ON conditions (AND/OR)</span>
+    when_actions:   { break: always }                      <span class="cm"># MERGE WHEN … THEN action (default: never)</span></code></pre>
 
     <h3>break: always + first_item</h3>
     <div class="ba-grid">

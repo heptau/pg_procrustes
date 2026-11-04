@@ -137,6 +137,9 @@ layout:
     # returning:  { break: auto, align: same }
     # with:       { break: auto, align: same }
     # exception:  { break: auto, align: same }
+    # merge:      { break: auto, align: same }   — MERGE INTO target
+    # merge_on:   { break: auto, align: same }   — ON condition of a MERGE
+    # when:       { break: auto, align: same }   — WHEN [NOT] MATCHED … THEN action
   union:
     blank_line: preserve        # preserve | none | before | after | both
   content:
@@ -163,6 +166,9 @@ layout:
     # values_list:    { break: auto, first_item: break }  — VALUES row tuples (each tuple is one item)
     # returning_list: { break: auto, first_item: break }  — RETURNING items (comma-split)
     # with_list:      { break: auto, first_item: break }  — WITH CTE definitions (comma-split)
+    # merge_on:       { break: auto, first_item: break }  — MERGE ON conditions (AND/OR split)
+    # when_actions:   { break: auto }  — MERGE WHEN … THEN: action on its own line below THEN
+    #                 (default: never — does NOT inherit content.break)
   case:
     break: preserve              # preserve | never | always | auto
                                  #   never:    collapse CASE...END to single line

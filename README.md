@@ -379,7 +379,8 @@ layout:
     align: same              # same | indent
     # per-clause overrides (inherit from clauses.break / clauses.align when omitted):
     # from, join, where, group_by, having, order_by, limit, offset,
-    # values, on_conflict, set, using, returning, with, exception
+    # values, on_conflict, set, using, returning, with, exception,
+    # merge (MERGE INTO), merge_on (MERGE ON), when (MERGE WHEN … THEN)
     # Example:
     # join: { break: always }
     # limit: { break: never }
@@ -402,6 +403,9 @@ layout:
     #   values_list    — VALUES row tuples (each tuple is one item)
     #   returning_list — RETURNING items (comma-split)
     #   with_list      — WITH CTE definitions (comma-split)
+    #   merge_on       — MERGE ON conditions (AND/OR split)
+    #   when_actions   — MERGE WHEN … THEN: action on its own line below THEN
+    #                    (default: never — does not inherit content.break)
     # Example:
     # where_conds:    { break: always }
     # having_conds:   { break: always, first_item: inline }
