@@ -428,6 +428,10 @@ layout:
     first_item: break        # break | inline
                              #   break:  first item on new indented line (default)
                              #   inline: first item stays on keyword line, rest indented below
+    align_aliases: preserve     # preserve | align   (SELECT list: pad expressions so every AS lines up)
+    align_set: preserve         # preserve | align   (SET list: pad targets so every = lines up)
+                                #   both act on lists the layout puts one item per line (first_item: break);
+                                #   multi-line items and items with comments or CASE are left alone
     comma_position: end         # end | start   (applies when a list is broken over lines)
                                 #   end:   a,        start:   a
                                 #          b,                , b
@@ -968,6 +972,10 @@ layout:
                                 #   inline: first item on the keyword line, rest indented below
                                 #           SELECT col1,            WHERE cond1
                                 #              col2                    AND cond2
+    align_aliases: preserve     # preserve | align   (SELECT list: pad expressions so every AS lines up)
+    align_set: preserve         # preserve | align   (SET list: pad targets so every = lines up)
+                                #   both act on lists the layout puts one item per line (first_item: break);
+                                #   multi-line items and items with comments or CASE are left alone
     comma_position: end         # end | start   (applies when a list is broken over lines)
                                 #   end:   a,        start:   a
                                 #          b,                , b

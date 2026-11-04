@@ -357,7 +357,21 @@ type ContentCfg struct {
 	CommaPosition           CommaPosition           `yaml:"comma_position"`            // end | start
 	LogicalOperatorPosition LogicalOperatorPosition `yaml:"logical_operator_position"` // start | end
 	JoinOnPosition          JoinOnPosition          `yaml:"join_on_position"`          // inline | newline
+
+	// AlignAliases pads SELECT expressions so every AS lines up; AlignSet pads SET
+	// targets so every = lines up. Both only act on lists the layout puts one item
+	// per line (first_item: newline) and leave multi-line items alone.
+	AlignAliases AlignItemsMode `yaml:"align_aliases"` // preserve | align
+	AlignSet     AlignItemsMode `yaml:"align_set"`     // preserve | align
 }
+
+// AlignItemsMode controls padding inside the items of a broken list.
+type AlignItemsMode string
+
+const (
+	AlignItemsPreserve AlignItemsMode = "preserve" // leave the spacing as written (default)
+	AlignItemsAlign    AlignItemsMode = "align"    // pad so the AS / = of every item line up
+)
 
 // NamedClauseRule pairs a per-clause rule with its config path.
 type NamedClauseRule struct {
@@ -621,6 +635,8 @@ func defaultLayout() LayoutConfig {
 			CommaPosition:           CommaEnd,
 			LogicalOperatorPosition: LogicalOperatorStart,
 			JoinOnPosition:          JoinOnInline,
+			AlignAliases:            AlignItemsPreserve,
+			AlignSet:                AlignItemsPreserve,
 		},
 		Case: SQLCaseCfg{
 			Break:  BreakPreserve,
@@ -1041,6 +1057,13 @@ func validate(cfg *Config) error {
 		case FirstItemBreak, FirstItemInline, "":
 		default:
 			return fmt.Errorf("layout.content.%s.first_item must be break|inline, got %q", nr.Name, nr.Rule.FirstItem)
+		}
+	}
+	for name, m := range map[string]AlignItemsMode{
+		"align_aliases": cfg.Layout.Content.AlignAliases, "align_set": cfg.Layout.Content.AlignSet,
+	} {
+		if m != AlignItemsPreserve && m != AlignItemsAlign && m != "" {
+			return fmt.Errorf("layout.content.%s must be preserve|align, got %q", name, m)
 		}
 	}
 	switch cfg.Layout.Content.CommaPosition {

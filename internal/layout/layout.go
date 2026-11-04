@@ -833,6 +833,14 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if !useComma && cfg.Content.LogicalOperatorPosition == config.LogicalOperatorEnd {
 			items = moveOperatorsToEnd(items)
 		}
+		if contentFirstItem != config.FirstItemInline {
+			switch {
+			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsAlign:
+				items = alignItems(items, "as")
+			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsAlign:
+				items = alignItems(items, "=")
+			}
+		}
 		// lineIndent is the indent of line ii: with comma_position: start the comma sits
 		// two columns to the left so the items themselves stay aligned.
 		lineLead := func(ii int) string {

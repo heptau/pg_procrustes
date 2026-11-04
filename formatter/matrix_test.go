@@ -82,6 +82,19 @@ var matrixVariants = []matrixVariant{
 	{"aliases_no_as", func(c *config.Config) { c.Aliases.As = config.AliasAsRemove }},
 	{"join_long", func(c *config.Config) { c.JoinForm = config.JoinFormLong }},
 	{"cast_operator", func(c *config.Config) { c.CastStyle = config.CastStyleOperator }},
+	{"align_aliases_set", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.AlignAliases = config.AlignItemsAlign
+		c.Layout.Content.AlignSet = config.AlignItemsAlign
+	}},
+	{"align_aliases_set_comma_start", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Content.AlignAliases = config.AlignItemsAlign
+		c.Layout.Content.AlignSet = config.AlignItemsAlign
+	}},
 	{"comma_start", func(c *config.Config) {
 		c.Layout.Clauses.Break = config.BreakAlways
 		c.Layout.Content.Break = config.BreakAlways
