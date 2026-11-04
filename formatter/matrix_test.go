@@ -23,6 +23,14 @@ type matrixVariant struct {
 }
 
 var matrixVariants = []matrixVariant{
+	{"call_paren_add_builtin_upper", func(c *config.Config) {
+		c.CallParenSpacing = config.ParenSpacingAdd
+		c.BuiltinFunctions.Case = config.CaseUpper
+	}},
+	{"call_paren_remove_builtin_capitalize", func(c *config.Config) {
+		c.CallParenSpacing = config.ParenSpacingRemove
+		c.BuiltinFunctions.Case = config.CaseCapitalize
+	}},
 	{"clauses_always", func(c *config.Config) { c.Layout.Clauses.Break = config.BreakAlways }},
 	{"content_always", func(c *config.Config) { c.Layout.Content.Break = config.BreakAlways }},
 	{"clauses_content_always", func(c *config.Config) {

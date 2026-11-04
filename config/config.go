@@ -695,32 +695,37 @@ type AliasSection struct {
 }
 
 type Config struct {
-	ReservedKeywords     Section             `yaml:"reserved_keywords"`
-	Keywords             Section             `yaml:"keywords"`
-	DataTypes            DataTypesSection    `yaml:"data_types"`
-	Literals             Section             `yaml:"literals"`
-	Operators            Section             `yaml:"operators"`
-	Schemas              Section             `yaml:"schemas"`
-	Tables               Section             `yaml:"tables"`
-	Functions            Section             `yaml:"functions"`
-	ConditionalFunctions Section             `yaml:"conditional_functions"`
-	SystemFunctions      Section             `yaml:"system_functions"`
-	Aliases              AliasSection        `yaml:"aliases"`
-	Columns              Section             `yaml:"columns"`
-	PLpgSQLVariables     Section             `yaml:"plpgsql_variables"`
-	PLpgSQLKeywords      Section             `yaml:"plpgsql_keywords"`
-	TrailingWhitespace   TrailingWS          `yaml:"trailing_whitespace"`
-	Semicolons           SemicolonMode       `yaml:"semicolons"`
-	InequalityOp         InequalityOp        `yaml:"inequality_op"`
-	JoinForm             JoinForm            `yaml:"join_form"`
-	OperatorSpacing      OperatorSpacingMode `yaml:"operator_spacing"`
-	BlankLines           BlankLinesMode      `yaml:"blank_lines"`
-	ParenSpacing         ParenSpacingMode    `yaml:"paren_spacing"`
-	QuotedIdents         QuotedIdentMode     `yaml:"quoted_identifiers"`
-	TrailingNewline      TrailingNewlineMode `yaml:"trailing_newline"`
-	SyntaxErrors         SyntaxErrorMode     `yaml:"syntax_errors"`
-	LineEndings          LineEndingMode      `yaml:"line_endings"`
-	Comments             CommentsCfg         `yaml:"comments"`
+	ReservedKeywords     Section          `yaml:"reserved_keywords"`
+	Keywords             Section          `yaml:"keywords"`
+	DataTypes            DataTypesSection `yaml:"data_types"`
+	Literals             Section          `yaml:"literals"`
+	Operators            Section          `yaml:"operators"`
+	Schemas              Section          `yaml:"schemas"`
+	Tables               Section          `yaml:"tables"`
+	Functions            Section          `yaml:"functions"`
+	ConditionalFunctions Section          `yaml:"conditional_functions"`
+	SystemFunctions      Section          `yaml:"system_functions"`
+	// BuiltinFunctions overrides Functions for PostgreSQL built-in functions
+	// (count, sum, lower, date_trunc, ...). An empty case means "same as functions".
+	BuiltinFunctions   Section             `yaml:"builtin_functions"`
+	Aliases            AliasSection        `yaml:"aliases"`
+	Columns            Section             `yaml:"columns"`
+	PLpgSQLVariables   Section             `yaml:"plpgsql_variables"`
+	PLpgSQLKeywords    Section             `yaml:"plpgsql_keywords"`
+	TrailingWhitespace TrailingWS          `yaml:"trailing_whitespace"`
+	Semicolons         SemicolonMode       `yaml:"semicolons"`
+	InequalityOp       InequalityOp        `yaml:"inequality_op"`
+	JoinForm           JoinForm            `yaml:"join_form"`
+	OperatorSpacing    OperatorSpacingMode `yaml:"operator_spacing"`
+	BlankLines         BlankLinesMode      `yaml:"blank_lines"`
+	ParenSpacing       ParenSpacingMode    `yaml:"paren_spacing"`
+	// CallParenSpacing controls the space between a function name and its "(".
+	CallParenSpacing ParenSpacingMode    `yaml:"call_paren_spacing"`
+	QuotedIdents     QuotedIdentMode     `yaml:"quoted_identifiers"`
+	TrailingNewline  TrailingNewlineMode `yaml:"trailing_newline"`
+	SyntaxErrors     SyntaxErrorMode     `yaml:"syntax_errors"`
+	LineEndings      LineEndingMode      `yaml:"line_endings"`
+	Comments         CommentsCfg         `yaml:"comments"`
 	// BlankLinesBetweenStatements is "preserve" (default) or the exact number of blank
 	// lines (0-10) to put between statements.
 	BlankLinesBetweenStatements string                `yaml:"blank_lines_between_statements"`
@@ -755,6 +760,7 @@ func defaultConfig() *Config {
 		OperatorSpacing:             OperatorSpacingNormalize,
 		BlankLines:                  BlankLinesPreserve,
 		ParenSpacing:                ParenSpacingRemove,
+		CallParenSpacing:            ParenSpacingPreserve,
 		QuotedIdents:                QuotedIdentRemoveSafe,
 		TrailingNewline:             TrailingNewlinePreserve,
 		SyntaxErrors:                SyntaxErrorFail,
@@ -870,6 +876,15 @@ func validate(cfg *Config) error {
 	case ParenSpacingPreserve, ParenSpacingAdd, ParenSpacingRemove, "":
 	default:
 		return fmt.Errorf("paren_spacing must be preserve|add|remove, got %q", cfg.ParenSpacing)
+	}
+
+	switch cfg.CallParenSpacing {
+	case ParenSpacingPreserve, ParenSpacingAdd, ParenSpacingRemove, "":
+	default:
+		return fmt.Errorf("call_paren_spacing must be preserve|add|remove, got %q", cfg.CallParenSpacing)
+	}
+	if c := cfg.BuiltinFunctions.Case; c != "" && c != CaseUpper && c != CaseLower && c != CaseCapitalize && c != CasePreserve {
+		return fmt.Errorf("builtin_functions.case must be upper|lower|capitalize|preserve, got %q", c)
 	}
 
 	switch cfg.QuotedIdents {

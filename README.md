@@ -262,6 +262,10 @@ conditional_functions:
   case: upper     # upper | lower | capitalize | preserve  (COALESCE, NULLIF, GREATEST, LEAST)
 system_functions:
   case: upper     # upper | lower | capitalize | preserve  (CURRENT_DATE, SESSION_USER, …)
+builtin_functions:
+  case: ""        # "" (same as functions) | upper | lower | capitalize | preserve
+                  # PostgreSQL built-ins (count, sum, lower, date_trunc, …); other functions follow `functions`
+  # exceptions: [jsonb_set]
 aliases:
   case: lower     # upper | lower | capitalize | preserve
   as: add         # add | preserve | remove
@@ -368,6 +372,8 @@ comments:
                                  #                     a single trailing comment is left alone)
 
 paren_spacing: remove        # preserve | add | remove
+call_paren_spacing: preserve # preserve | add | remove  (space between a function name and "(":
+                             #                           count (*) vs count(*); only function calls, not IN (…) or VALUES (…))
 
 quoted_identifiers: remove_safe  # preserve | remove_safe
 

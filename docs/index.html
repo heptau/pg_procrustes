@@ -957,6 +957,7 @@ columns:    { case: lower }
 functions:  { case: lower }
 conditional_functions:  { case: upper }  <span class="cm"># COALESCE, NULLIF, GREATEST, LEAST</span>
 system_functions:       { case: upper }  <span class="cm"># CURRENT_DATE, SESSION_USER, …</span>
+builtin_functions:      { case: "" }     <span class="cm"># "" = same as functions | upper | lower | capitalize | preserve (count, sum, date_trunc, …)</span>
 
 aliases:
   case: lower
@@ -1072,6 +1073,7 @@ arithmetic_spacing:   preserve   <span class="cm"># preserve | normalize | compa
 comma_spacing:        normalize  <span class="cm"># preserve | normalize | compact</span>
 blank_lines:          preserve   <span class="cm"># preserve | max_3 | max_2 | max_1</span>
 paren_spacing:        remove     <span class="cm"># preserve | add | remove</span>
+call_paren_spacing:   preserve   <span class="cm"># preserve | add | remove  (count (*) vs count(*))</span>
 quoted_identifiers:   remove_safe
 schema_qualification: preserve   <span class="cm"># preserve | remove_public</span>
 cast_style:           preserve   <span class="cm"># preserve | operator  (CAST(x AS t) → x::t)</span>

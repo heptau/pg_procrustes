@@ -1202,6 +1202,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 
 	cur := 0
 	prevTokenText := "" // raw text of previous written token
+	prevIsCall := false // previous token is a function name (for call_paren_spacing)
 	arithStart, arithEnd := map[int]bool{}, map[int]bool{}
 	if cfg.ArithmeticSpacing == config.ArithmeticSpacingNormalize || cfg.ArithmeticSpacing == config.ArithmeticSpacingCompact {
 		arithStart, arithEnd = binaryArithmetic(tokens)
@@ -1221,7 +1222,16 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 				gap = sql[cur:tok.start]
 			}
 			if !suppressGap[i] {
-				buf.WriteString(processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg))
+				g := processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg)
+				if prevIsCall && tok.text == "(" && !strings.ContainsAny(g, "\n") && !strings.Contains(g, "/*") && !strings.Contains(g, "--") {
+					switch cfg.CallParenSpacing {
+					case config.ParenSpacingAdd:
+						g = " "
+					case config.ParenSpacingRemove:
+						g = ""
+					}
+				}
+				buf.WriteString(g)
 			}
 			// "a"where: once the quotes are removed the two words would fuse.
 			if gap == "" && strings.HasPrefix(prevTokenText, `"`) && tok.text != "" &&
@@ -1396,7 +1406,11 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		case classTable:
 			buf.WriteString(applyCaseEx(tokenText, cfg.Tables.Case, cfg.Tables.Exceptions))
 		case classFunction:
-			buf.WriteString(applyCaseEx(tokenText, cfg.Functions.Case, cfg.Functions.Exceptions))
+			if cfg.BuiltinFunctions.Case != "" && isBuiltinFunction(tokenText) {
+				buf.WriteString(applyCaseEx(tokenText, cfg.BuiltinFunctions.Case, cfg.BuiltinFunctions.Exceptions))
+			} else {
+				buf.WriteString(applyCaseEx(tokenText, cfg.Functions.Case, cfg.Functions.Exceptions))
+			}
 		case classConditionalFunction:
 			buf.WriteString(applyCaseEx(tokenText, cfg.ConditionalFunctions.Case, cfg.ConditionalFunctions.Exceptions))
 		case classSystemFunction:
@@ -1440,6 +1454,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		}
 
 		prevTokenText = tokenText
+		prevIsCall = pos.functions[tok.start] || pos.conditionalFunctions[tok.start]
 		cur = tok.end
 	}
 
