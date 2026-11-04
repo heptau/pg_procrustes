@@ -359,3 +359,69 @@ func TestLineCommentsNeverSwallowCode(t *testing.T) {
 		}
 	}
 }
+
+func TestCommaPositionStart(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	cfg.Indent.Size = 3
+	cfg.Content.CommaPosition = config.CommaStart
+	got, err := layout.Apply("SELECT a, b, count(*) AS n FROM t GROUP BY a, b;", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "SELECT\n   a\n , b\n , count(*) AS n\nFROM\n   t\nGROUP BY\n   a\n , b;"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	if again, err := layout.Apply(got, cfg); err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
+	}
+}
+
+func TestLogicalOperatorPositionEndKeepsBetweenIntact(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	cfg.Content.LogicalOperatorPosition = config.LogicalOperatorEnd
+	got, err := layout.Apply("SELECT 1 FROM t WHERE a = 1 AND b BETWEEN 1 AND 5 OR c = 3;", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "SELECT\n  1\nFROM\n  t\nWHERE\n  a = 1 AND\n  b BETWEEN 1 AND 5 OR\n  c = 3;"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	if again, err := layout.Apply(got, cfg); err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
+	}
+}
+
+func TestJoinOnPositionNewline(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	cfg.Clauses.Join.Align = config.AlignIndent
+	cfg.Content.JoinOnPosition = config.JoinOnNewline
+	got, err := layout.Apply("SELECT 1 FROM a JOIN b ON a.id = b.id AND a.x = 1 LEFT JOIN c USING (id);", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"\n  JOIN b\n    ON a.id = b.id\n    AND a.x = 1\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if again, err := layout.Apply(got, cfg); err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s", err, again)
+	}
+}
+
+func TestOperatorPositionEndMovesCommentWithOperator(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 128)
+	cfg.Content.LogicalOperatorPosition = config.LogicalOperatorEnd
+	got, err := layout.Apply("SELECT 1 FROM t WHERE a = 1 -- one\n AND b = 2 -- two\n;", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "a = 1 AND -- one\n") {
+		t.Fatalf("comment should stay on the line of its condition:\n%s", got)
+	}
+	if again, err := layout.Apply(got, cfg); err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
+	}
+}

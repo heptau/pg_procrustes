@@ -22,3 +22,17 @@ func TestValidateRejectsBadPerClauseRules(t *testing.T) {
 		t.Fatalf("defaults must validate: %v", err)
 	}
 }
+
+func TestValidateRejectsBadPositions(t *testing.T) {
+	for name, mutate := range map[string]func(*Config){
+		"comma_position":            func(c *Config) { c.Layout.Content.CommaPosition = "middle" },
+		"logical_operator_position": func(c *Config) { c.Layout.Content.LogicalOperatorPosition = "middle" },
+		"join_on_position":          func(c *Config) { c.Layout.Content.JoinOnPosition = "middle" },
+	} {
+		cfg := defaultConfig()
+		mutate(cfg)
+		if err := Validate(cfg); err == nil {
+			t.Errorf("%s: expected a validation error", name)
+		}
+	}
+}

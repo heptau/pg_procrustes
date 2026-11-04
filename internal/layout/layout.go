@@ -770,16 +770,21 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				} else if contentFirstItem == config.FirstItemInline {
 					sb.WriteByte('(')
+					colStart := cfg.Content.CommaPosition == config.CommaStart
 					for ii, item := range colItems {
 						if ii == 0 {
-							if ii < len(colItems)-1 {
+							if !colStart && ii < len(colItems)-1 {
 								item = withTrailingComma(item)
 							}
 							sb.WriteString(item)
 						} else {
 							sb.WriteByte('\n')
-							sb.WriteString(contentIndent)
-							if ii < len(colItems)-1 {
+							if colStart {
+								sb.WriteString(leadCommaIndent(contentIndent) + ", ")
+							} else {
+								sb.WriteString(contentIndent)
+							}
+							if !colStart && ii < len(colItems)-1 {
 								item = withTrailingComma(item)
 							}
 							sb.WriteString(item)
@@ -790,10 +795,15 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				} else {
 					sb.WriteString("(\n")
+					colStart := cfg.Content.CommaPosition == config.CommaStart
 					for ii, item := range colItems {
-						sb.WriteString(contentIndent)
+						if colStart && ii > 0 {
+							sb.WriteString(leadCommaIndent(contentIndent) + ", ")
+						} else {
+							sb.WriteString(contentIndent)
+						}
 						item = strings.ReplaceAll(item, "\n", "\n"+contentIndent)
-						if ii < len(colItems)-1 {
+						if !colStart && ii < len(colItems)-1 {
 							item = withTrailingComma(item)
 						}
 						sb.WriteString(item)
@@ -813,8 +823,25 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			}
 		}
 
-		items := splitContent(sql, tokens, kwEnd, conEnd, cl.kind)
+		joinNewline := cl.kind == clauseJoin && cfg.Content.JoinOnPosition == config.JoinOnNewline &&
+			findTopLevelOn(tokens, kwEnd, conEnd) >= 0
+		if joinNewline {
+			contentFirstItem = config.FirstItemInline // JOIN t stays on the keyword line
+		}
+		items := splitContent(sql, tokens, kwEnd, conEnd, cl.kind, joinNewline)
 		useComma := usesCommaSeparator(cl.kind)
+		commaStart := useComma && cfg.Content.CommaPosition == config.CommaStart
+		if !useComma && cfg.Content.LogicalOperatorPosition == config.LogicalOperatorEnd {
+			items = moveOperatorsToEnd(items)
+		}
+		// lineIndent is the indent of line ii: with comma_position: start the comma sits
+		// two columns to the left so the items themselves stay aligned.
+		lineLead := func(ii int) string {
+			if !commaStart || ii == 0 {
+				return contentIndent
+			}
+			return leadCommaIndent(contentIndent) + ", "
+		}
 
 		// reindentItem ensures continuation lines of a multi-line item are indented correctly.
 		reindentItem := func(item string) string {
@@ -853,10 +880,13 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				if ii == 0 {
 					sb.WriteByte(' ')
 				} else {
+					if commaStart {
+						item = writeLeadingComments(&sb, item, contentIndent)
+					}
 					sb.WriteByte('\n')
-					sb.WriteString(contentIndent)
+					sb.WriteString(lineLead(ii))
 				}
-				if useComma && ii < len(items)-1 {
+				if useComma && !commaStart && ii < len(items)-1 {
 					item = withTrailingComma(item)
 				}
 				sb.WriteString(item)
@@ -865,8 +895,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 
 		for ii, item := range items {
+			if commaStart && ii > 0 {
+				item = writeLeadingComments(&sb, item, contentIndent)
+			}
 			sb.WriteByte('\n')
-			sb.WriteString(contentIndent)
+			sb.WriteString(lineLead(ii))
 			item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
 			// When an item spans multiple lines and its continuation lines are NOT
 			// already indented to contentIndent level (e.g. case.break=preserve keeps
@@ -875,7 +908,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// (applied by applyLayoutToSQL) produces the correct absolute indentation
 			// for the whole item without disrupting the relative structure.
 			item = reindentItem(item)
-			if useComma && ii < len(items)-1 {
+			if useComma && !commaStart && ii < len(items)-1 {
 				item = withTrailingComma(item)
 			}
 			sb.WriteString(item)
@@ -943,23 +976,27 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 	}
 }
 
-func splitContent(sql string, tokens []rawTok, from, to int, kind clauseKind) []string {
+func splitContent(sql string, tokens []rawTok, from, to int, kind clauseKind, joinOnNewline bool) []string {
 	switch kind {
 	case clauseWhere, clauseHaving, clauseMergeOn:
 		return splitAtAndOr(sql, tokens, from, to)
 	case clauseJoin:
+		onTok := findTopLevelOn(tokens, from, to)
 		onIdx := from
-		for i := from; i < to; i++ {
-			if strings.ToLower(tokens[i].text) == "on" {
-				onIdx = i + 1
-				break
-			}
+		if onTok >= 0 {
+			onIdx = onTok + 1
 		}
 		prefix := ""
 		if onIdx > from {
 			prefix = strings.TrimSpace(originalText(sql, tokens, from, onIdx))
 		}
 		conds := splitAtAndOr(sql, tokens, onIdx, to)
+		if joinOnNewline && onTok >= 0 && len(conds) > 0 {
+			// JOIN t / ON a = b / AND c — the table stays on the keyword line.
+			table := strings.TrimSpace(originalText(sql, tokens, from, onTok))
+			conds[0] = tokens[onTok].text + " " + conds[0]
+			return append([]string{table}, conds...)
+		}
 		if prefix != "" && len(conds) > 0 {
 			conds[0] = prefix + " " + conds[0]
 		}
@@ -1015,6 +1052,7 @@ func splitAtAndOr(sql string, tokens []rawTok, from, to int) []string {
 	var items []string
 	parenDepth := 0
 	caseDepth := 0
+	between := 0 // pending BETWEEN … AND
 	itemStart := from
 	for i := from; i < to; i++ {
 		t := tokens[i].text
@@ -1029,19 +1067,35 @@ func splitAtAndOr(sql string, tokens []rawTok, from, to int) []string {
 			caseDepth++
 		} else if lower == "end" && caseDepth > 0 {
 			caseDepth--
+		} else if lower == "between" && parenDepth == 0 && caseDepth == 0 {
+			between++
+		} else if lower == "and" && between > 0 && parenDepth == 0 && caseDepth == 0 {
+			between-- // the AND of "x BETWEEN a AND b" is part of the predicate
 		} else if (lower == "and" || lower == "or") && parenDepth == 0 && caseDepth == 0 {
-			item := strings.TrimSpace(originalText(sql, tokens, itemStart, i))
-			if item != "" {
-				items = append(items, item)
+			if item := strings.TrimSpace(originalText(sql, tokens, itemStart, i)); item != "" {
+				items = append(items, joinLeadingOperator(sql, tokens, itemStart, i))
 			}
 			itemStart = i
 		}
 	}
-	item := strings.TrimSpace(originalText(sql, tokens, itemStart, to))
-	if item != "" {
-		items = append(items, item)
+	if item := strings.TrimSpace(originalText(sql, tokens, itemStart, to)); item != "" {
+		items = append(items, joinLeadingOperator(sql, tokens, itemStart, to))
 	}
 	return items
+}
+
+// joinLeadingOperator returns tokens[from:to] as an item. When the item starts with
+// AND/OR and a line break separates it from its condition ("AND\n x = 1", as written in
+// the operator-at-end style) the break is replaced by a space.
+func joinLeadingOperator(sql string, tokens []rawTok, from, to int) string {
+	item := strings.TrimSpace(originalText(sql, tokens, from, to))
+	if from+1 < to {
+		if l := strings.ToLower(tokens[from].text); (l == "and" || l == "or") && !strings.HasPrefix(tokens[from+1].text, "--") &&
+			strings.Contains(gapBetween(sql, tokens, from, from+1), "\n") {
+			item = tokens[from].text + " " + strings.TrimSpace(originalText(sql, tokens, from+1, to))
+		}
+	}
+	return item
 }
 
 func splitValues(sql string, tokens []rawTok, from, to int) []string {
@@ -1684,17 +1738,72 @@ func parenParseDollarDelim(s string, pos int) (string, int) {
 // withTrailingComma appends a comma to item. When the item ends with a line
 // comment (-- ...), the comma is inserted before the comment; appending it
 // after would put the comma inside the comment and silently change the SQL.
-func withTrailingComma(item string) string {
+func withTrailingComma(item string) string { return appendBeforeComment(item, ",") }
+
+// appendBeforeComment appends suffix (",", " AND", …) to item. When the item ends with
+// a line comment the suffix goes before the comment, otherwise it would be swallowed.
+func appendBeforeComment(item, suffix string) string {
 	res, err := pg_query.Scan(item)
 	if err == nil && len(res.Tokens) > 0 {
 		last := res.Tokens[len(res.Tokens)-1]
 		start, end := int(last.Start), int(last.End)
 		if start >= 0 && end <= len(item) && strings.HasPrefix(item[start:end], "--") {
 			before := strings.TrimRight(item[:start], " \t")
-			return before + ", " + item[start:]
+			return before + suffix + " " + item[start:]
 		}
 	}
-	return item + ","
+	return item + suffix
+}
+
+// splitLeadingOperator splits "AND x = 1" into ("AND", "x = 1"); ok is false when item
+// does not start with AND/OR followed by more text.
+func splitLeadingOperator(item string) (op, rest string, ok bool) {
+	for _, w := range []string{"and", "or"} {
+		if len(item) > len(w) && strings.EqualFold(item[:len(w)], w) && (item[len(w)] == ' ' || item[len(w)] == '\t' || item[len(w)] == '\n') {
+			return item[:len(w)], strings.TrimLeft(item[len(w):], " \t\n"), true
+		}
+	}
+	return "", item, false
+}
+
+// moveOperatorsToEnd turns ["a = 1", "AND b = 2", "OR c"] into ["a = 1 AND", "b = 2 OR", "c"].
+func moveOperatorsToEnd(items []string) []string {
+	out := append([]string(nil), items...)
+	for i := 1; i < len(out); i++ {
+		if op, rest, ok := splitLeadingOperator(out[i]); ok {
+			out[i-1] = appendBeforeComment(out[i-1], " "+op)
+			// A comment right after the operator ("AND -- why") ends the line the operator
+			// now ends, so it travels with it.
+			if strings.HasPrefix(rest, "--") {
+				comment, remaining := rest, ""
+				if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
+					comment, remaining = rest[:nl], strings.TrimLeft(rest[nl+1:], " \t\n")
+				}
+				out[i-1] += " " + strings.TrimRight(comment, " \t\r")
+				rest = remaining
+			}
+			out[i] = rest
+		}
+	}
+	return out
+}
+
+// findTopLevelOn returns the index of the first ON outside parentheses in tokens[from:to], or -1.
+func findTopLevelOn(tokens []rawTok, from, to int) int {
+	depth := 0
+	for i := from; i < to; i++ {
+		switch t := tokens[i].text; {
+		case t == "(" || t == "[":
+			depth++
+		case t == ")" || t == "]":
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0 && strings.EqualFold(t, "on"):
+			return i
+		}
+	}
+	return -1
 }
 
 // trimLeadingCommentIndent removes the common source indentation of the lines that
@@ -1856,4 +1965,50 @@ func caseHasLineComment(toks []rawTok, from, to int) bool {
 		}
 	}
 	return false
+}
+
+// leadCommaIndent shortens indent by two columns (the width of ", ") so that a line
+// starting with a comma keeps its item aligned with the others; indents that are too
+// short (or tabs) are returned unchanged and the comma is simply placed after them.
+func leadCommaIndent(indent string) string {
+	if strings.HasSuffix(indent, "  ") {
+		return indent[:len(indent)-2]
+	}
+	return indent
+}
+
+// writeLeadingComments writes the comments that open item on lines of their own (each
+// indented to indent) and returns the rest of the item. With comma_position: start a
+// comment after the comma would be read back as a trailing comment of the previous item,
+// so comments that precede an item go above its comma line instead.
+func writeLeadingComments(sb *strings.Builder, item, indent string) string {
+	res, err := pg_query.Scan(item)
+	if err != nil || len(res.Tokens) == 0 {
+		return item
+	}
+	cut := -1
+	for _, t := range res.Tokens {
+		text := item[t.Start:t.End]
+		if strings.HasPrefix(text, "--") || strings.HasPrefix(text, "/*") {
+			continue
+		}
+		cut = int(t.Start)
+		break
+	}
+	if cut <= 0 {
+		return item
+	}
+	lead := strings.TrimSpace(item[:cut])
+	if lead == "" {
+		return item
+	}
+	for _, ln := range strings.Split(lead, "\n") {
+		if strings.TrimSpace(ln) == "" {
+			continue
+		}
+		sb.WriteByte('\n')
+		sb.WriteString(indent)
+		sb.WriteString(strings.TrimSpace(ln))
+	}
+	return item[cut:]
 }

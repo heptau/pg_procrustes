@@ -408,6 +408,19 @@ layout:
     first_item: break        # break | inline
                              #   break:  first item on new indented line (default)
                              #   inline: first item stays on keyword line, rest indented below
+    comma_position: end         # end | start   (applies when a list is broken over lines)
+                                #   end:   a,        start:   a
+                                #          b,                , b
+                                #          c                 , c      (items stay aligned)
+    logical_operator_position: start   # start | end   (AND / OR in broken conditions)
+                                #   start: a = 1             end:   a = 1 AND
+                                #          AND b = 2                b = 2 OR
+                                #          OR  c = 3                c = 3
+    join_on_position: inline    # inline | newline   (ON of a broken JOIN)
+                                #   inline:  JOIN t ON a = b       newline: JOIN t
+                                #            AND c = d                          ON a = b
+                                #                                               AND c = d
+                                #   JOIN itself is indented under FROM with clauses.join.align: indent.
     # per-section overrides (each inherits content.break / content.align / content.first_item when omitted):
     #   select_list    — SELECT column list (comma-split)
     #   where_conds    — WHERE conditions (AND/OR split)
@@ -892,6 +905,19 @@ layout:
                                 #   inline: first item on the keyword line, rest indented below
                                 #           SELECT col1,            WHERE cond1
                                 #              col2                    AND cond2
+    comma_position: end         # end | start   (applies when a list is broken over lines)
+                                #   end:   a,        start:   a
+                                #          b,                , b
+                                #          c                 , c      (items stay aligned)
+    logical_operator_position: start   # start | end   (AND / OR in broken conditions)
+                                #   start: a = 1             end:   a = 1 AND
+                                #          AND b = 2                b = 2 OR
+                                #          OR  c = 3                c = 3
+    join_on_position: inline    # inline | newline   (ON of a broken JOIN)
+                                #   inline:  JOIN t ON a = b       newline: JOIN t
+                                #            AND c = d                          ON a = b
+                                #                                               AND c = d
+                                #   JOIN itself is indented under FROM with clauses.join.align: indent.
     # per-section overrides (inherit content.break / content.align / content.first_item when omitted):
     # select_list:    { break: auto, first_item: break }  — SELECT column list (comma-split)
     # where_conds:    { break: auto, first_item: break }  — WHERE conditions (AND/OR split)

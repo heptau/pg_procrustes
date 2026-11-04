@@ -1,6 +1,7 @@
 package formatter_test
 
 import (
+	"strings"
 	"testing"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -33,6 +34,13 @@ func FuzzFormat(f *testing.F) {
 		}
 		if _, err := pg_query.Parse(src); err != nil {
 			t.Skip() // only parseable SQL has a defined semantic to preserve
+		}
+		if strings.Contains(src, "$") {
+			// Dollar-quoted bodies are not validated by the syntax check; fragments such as
+			// `AS $$update= ;$$` have no defined formatting, so require a valid body.
+			if _, err := pg_query.ParsePlPgSqlToJSON(src); err != nil {
+				t.Skip()
+			}
 		}
 		base, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
 		baseOut, err := formatter.Format(src, base)

@@ -320,6 +320,10 @@ type ContentCfg struct {
 	WithList      ContentRule   `yaml:"with_list"`
 	MergeOn       ContentRule   `yaml:"merge_on"`     // MERGE ON conditions (AND/OR split)
 	WhenActions   ContentRule   `yaml:"when_actions"` // MERGE WHEN … THEN: break before the action
+
+	CommaPosition           CommaPosition           `yaml:"comma_position"`            // end | start
+	LogicalOperatorPosition LogicalOperatorPosition `yaml:"logical_operator_position"` // start | end
+	JoinOnPosition          JoinOnPosition          `yaml:"join_on_position"`          // inline | newline
 }
 
 // NamedClauseRule pairs a per-clause rule with its config path.
@@ -358,6 +362,30 @@ func (c ContentCfg) ContentRules() []NamedContentRule {
 		{"when_actions", c.WhenActions},
 	}
 }
+
+// CommaPosition controls where the comma goes when a list is broken over several lines.
+type CommaPosition string
+
+const (
+	CommaEnd   CommaPosition = "end"   // a, b, c — comma ends the line (default)
+	CommaStart CommaPosition = "start" // , b — comma opens the line, items stay aligned
+)
+
+// LogicalOperatorPosition controls where AND / OR go when conditions are broken over lines.
+type LogicalOperatorPosition string
+
+const (
+	LogicalOperatorStart LogicalOperatorPosition = "start" // AND b — operator opens the line (default)
+	LogicalOperatorEnd   LogicalOperatorPosition = "end"   // a AND — operator ends the line
+)
+
+// JoinOnPosition controls where ON goes when a JOIN's content is broken over lines.
+type JoinOnPosition string
+
+const (
+	JoinOnInline  JoinOnPosition = "inline"  // JOIN t ON a = b — ON stays after the table (default)
+	JoinOnNewline JoinOnPosition = "newline" // ON a = b on its own indented line below JOIN t
+)
 
 type UnionCfg struct {
 	BlankLine UnionBlankLine `yaml:"blank_line"`
@@ -527,8 +555,11 @@ func defaultLayout() LayoutConfig {
 		},
 		Union: UnionCfg{BlankLine: UnionBlankLinePreserve},
 		Content: ContentCfg{
-			Break: BreakPreserve,
-			Align: AlignIndent,
+			Break:                   BreakPreserve,
+			Align:                   AlignIndent,
+			CommaPosition:           CommaEnd,
+			LogicalOperatorPosition: LogicalOperatorStart,
+			JoinOnPosition:          JoinOnInline,
 		},
 		Case: SQLCaseCfg{
 			Break:  BreakPreserve,
@@ -904,6 +935,21 @@ func validate(cfg *Config) error {
 		default:
 			return fmt.Errorf("layout.content.%s.first_item must be break|inline, got %q", nr.Name, nr.Rule.FirstItem)
 		}
+	}
+	switch cfg.Layout.Content.CommaPosition {
+	case CommaEnd, CommaStart, "":
+	default:
+		return fmt.Errorf("layout.content.comma_position must be end|start, got %q", cfg.Layout.Content.CommaPosition)
+	}
+	switch cfg.Layout.Content.LogicalOperatorPosition {
+	case LogicalOperatorStart, LogicalOperatorEnd, "":
+	default:
+		return fmt.Errorf("layout.content.logical_operator_position must be start|end, got %q", cfg.Layout.Content.LogicalOperatorPosition)
+	}
+	switch cfg.Layout.Content.JoinOnPosition {
+	case JoinOnInline, JoinOnNewline, "":
+	default:
+		return fmt.Errorf("layout.content.join_on_position must be inline|newline, got %q", cfg.Layout.Content.JoinOnPosition)
 	}
 	switch cfg.Layout.Union.BlankLine {
 	case UnionBlankLinePreserve, UnionBlankLineNone, UnionBlankLineBefore, UnionBlankLineAfter, UnionBlankLineBoth, "":

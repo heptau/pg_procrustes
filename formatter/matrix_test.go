@@ -74,6 +74,36 @@ var matrixVariants = []matrixVariant{
 	{"aliases_no_as", func(c *config.Config) { c.Aliases.As = config.AliasAsRemove }},
 	{"join_long", func(c *config.Config) { c.JoinForm = config.JoinFormLong }},
 	{"cast_operator", func(c *config.Config) { c.CastStyle = config.CastStyleOperator }},
+	{"comma_start", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+	}},
+	{"comma_start_first_inline", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.FirstItem = config.FirstItemInline
+		c.Layout.Content.CommaPosition = config.CommaStart
+	}},
+	{"operator_end", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.LogicalOperatorPosition = config.LogicalOperatorEnd
+	}},
+	{"join_on_newline", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Clauses.Join.Align = config.AlignIndent
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.JoinOnPosition = config.JoinOnNewline
+	}},
+	{"positions_combined_tabs", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Content.LogicalOperatorPosition = config.LogicalOperatorEnd
+		c.Layout.Content.JoinOnPosition = config.JoinOnNewline
+		c.Layout.Indent.Type = config.IndentTypeTab
+	}},
 	{"capitalize_all", func(c *config.Config) {
 		for _, sec := range []*config.Section{
 			&c.ReservedKeywords, &c.Keywords, &c.Literals, &c.Operators, &c.Schemas, &c.Tables,
@@ -293,6 +323,14 @@ end $$;`,
 	"select a from t left join u on t.id = u.id -- lj\n left join v on v.id = u.id -- lj2\n;",
 	"select (select max(x) -- inner\n from u) as m from t;",
 	"select a from (select 1 as a -- inner\n) s;",
+	"select a from t where x between 1 and 2 and y = 3 or z not between 4 and 5;",
+	"select 1 from a join b on a.id = b.id and a.x between 1 and 2 join (select 1 as id from c join d on c.id = d.id) e on e.id = a.id and e.id > 0 left join f using (id) cross join g;",
+	"select a, b, c from t where a = 1 and (b = 2 or c = 3) and d in (select 1 from u where u.x = 1 and u.y = 2) order by a, b;",
+	"select a from t join u on t.id = u.id -- on1\n and t.x = u.x -- on2\n or t.y = u.y -- on3\n where a = 1 -- w1\n and b = 2 -- w2\n;",
+	"select a -- c1\n, b -- c2\n, c from t group by a -- g1\n, b -- g2\n, c;",
+	"insert into t (a, b, c) values (1, 2, 3), (4, 5, 6) returning a, b;",
+	"update t set a = 1, b = 2 where c = 3 and d = 4 returning a, b;",
+	"with x as (select 1 as a), y as (select 2 as b) select * from x, y;",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 
