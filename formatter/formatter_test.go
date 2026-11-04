@@ -1130,3 +1130,20 @@ func TestCapitalizeCase(t *testing.T) {
 		t.Fatalf("exception ignored:\n%s", out)
 	}
 }
+
+func TestAliasesAsRemoveKeepsAsForNonBareLabels(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Aliases.As = config.AliasAsRemove
+	// Run twice so the second call exercises the cached answer.
+	for i := 0; i < 2; i++ {
+		got := fmtOnce(t, "select a as month, b as year, c as total, d as depth from t as x;", c)
+		for _, want := range []string{"a AS month", "b AS year", "c total", "d depth", "FROM t x"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("pass %d: missing %q in:\n%s", i, want, got)
+			}
+		}
+	}
+}

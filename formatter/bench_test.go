@@ -68,3 +68,18 @@ func BenchmarkFormatPLpgSQLFull(b *testing.B) {
 		_, _ = formatter.Format(src, cfg)
 	}
 }
+
+// benchAliases formats the CTE/window fixture (many column and table aliases) with
+// the given aliases.as mode, to expose the cost of alias handling in isolation.
+func benchAliases(b *testing.B, mode config.AliasAs) {
+	src, cfg := loadBenchFixture(b, "cte_window")
+	cfg.Aliases.As = mode
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = formatter.Format(src, cfg)
+	}
+}
+
+func BenchmarkAliasesPreserve(b *testing.B) { benchAliases(b, config.AliasAsPreserve) }
+func BenchmarkAliasesAdd(b *testing.B)      { benchAliases(b, config.AliasAsAdd) }
+func BenchmarkAliasesRemove(b *testing.B)   { benchAliases(b, config.AliasAsRemove) }

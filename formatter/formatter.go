@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -911,7 +912,7 @@ func Format(sql string, cfg *config.Config) (string, error) {
 				continue
 			}
 			if strings.ToLower(tok.text) == "as" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD {
-				if j := nextVisible(i); j >= 0 && pos.aliases[tokens[j].start] && canOmitAs(tokens[j].text) {
+				if j := nextVisible(i); j >= 0 && pos.aliases[tokens[j].start] && canOmitAs(tokens[j]) {
 					dropText[i] = true
 					suppressGap[j] = true
 				}
@@ -3182,19 +3183,30 @@ func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
 	}
 }
 
-// canOmitAs reports whether alias can follow an expression without AS. Keywords
-// that PostgreSQL does not allow as bare labels (month, year, over, filter, …)
-// parse only with AS, so removing it would produce invalid SQL.
-func canOmitAs(alias string) bool {
-	if alias == "" {
+// canOmitAs reports whether the alias token can follow an expression without AS.
+// Keywords that PostgreSQL does not allow as bare labels (month, year, over, filter, …)
+// parse only with AS, so removing it would produce invalid SQL. Only keyword tokens
+// can be affected, so ordinary identifiers skip the parser, and the answer for a
+// keyword is cached because it depends on the name alone.
+func canOmitAs(tok rawToken) bool {
+	if tok.text == "" {
 		return false
 	}
-	if alias[0] == '"' {
+	if tok.text[0] == '"' || tok.kind == pg_query.KeywordKind_NO_KEYWORD {
 		return true
 	}
-	_, err := pg_query.Parse("SELECT 1 " + alias)
-	return err == nil
+	key := strings.ToLower(tok.text)
+	if v, ok := bareLabelCache.Load(key); ok {
+		return v.(bool)
+	}
+	_, err := pg_query.Parse("SELECT 1 " + tok.text)
+	ok := err == nil
+	bareLabelCache.Store(key, ok)
+	return ok
 }
+
+// bareLabelCache memoises canOmitAs for keyword aliases (lower-cased name → bool).
+var bareLabelCache sync.Map
 
 // layoutConfig returns the layout config with the paren_spacing hint filled in.
 func layoutConfig(cfg *config.Config) *config.LayoutConfig {
@@ -3308,6 +3320,10 @@ func capitalizeWords(s string) string {
 // stripTrailingOutsideTokens removes trailing blanks before newlines in the gaps
 // between tokens of sql, leaving string literals and comments untouched.
 func stripTrailingOutsideTokens(sql string) string {
+	// Scanning is comparatively expensive; most bodies have nothing to strip.
+	if !strings.Contains(sql, " \n") && !strings.Contains(sql, "\t\n") && !strings.Contains(sql, " \r") && !strings.Contains(sql, "\t\r") {
+		return sql
+	}
 	res, err := pg_query.Scan(sql)
 	if err != nil || len(res.Tokens) == 0 {
 		return sql

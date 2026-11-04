@@ -18,6 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Performance: `aliases.as: remove` no longer runs the parser for every alias — only keyword aliases are checked (and cached by name), cutting its overhead from +17% to +3% over `preserve` on the CTE/window fixture (444 → 389 µs/op); dollar-quoted PL/pgSQL bodies skip the trailing-whitespace scan when there is nothing to strip, 333 → 268 µs/op (−20%) and 4445 → 3003 allocs/op on `plpgsql_full`. New benchmarks `BenchmarkAliases{Preserve,Add,Remove}` in `formatter/bench_test.go`
 - `docs/llms.txt` rewritten to follow the llmstxt.org structure: current CLI flags and config keys (adds `trailing_newline`, `inline_spacing`, `cast_style`, `order_asc`, `not_in`, `paren_indent`), editor integrations, and a link to `llms-full.txt`
 - Documentation website footer now reads "© 2026 Zbyněk Vanžura" (linking to https://www.80.cz/) with MIT License, GitHub, and Releases links; the sidebar GitHub and llms.txt links and the footer llms.txt/Sitemap/Security links were removed as noise for human readers
 
