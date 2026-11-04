@@ -363,7 +363,7 @@ func findAliasToken(tokens []rawToken, exprStart int, aliasName string) int {
 			// Implicit alias: identifier that matches the expected name,
 			// not at the expression start, followed by a list separator or
 			// a clause keyword.
-			if i > startIdx && strings.EqualFold(text, aliasName) {
+			if i > startIdx && (strings.EqualFold(text, aliasName) || unquoteIdent(text) == aliasName) {
 				if isFollowedBySeparator(tokens, i) {
 					return i
 				}
@@ -1168,6 +1168,23 @@ func Format(sql string, cfg *config.Config) (string, error) {
 			inner := tokenText[1 : len(tokenText)-1]
 			if safeToUnquote(inner) {
 				// select"a" → SELECT a, not SELECTa: keep a separator after a word.
+				// An unquoted alias still follows aliases.as / aliases.case; other
+				// identifiers follow their own section's case rule when the AST located them.
+				switch {
+				case pos.aliases[tok.start]:
+					if cfg.Aliases.As == config.AliasAsAdd && strings.ToLower(prevTokenText) != "as" {
+						ensureSeparator(&buf)
+						buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
+						buf.WriteByte(' ')
+					}
+					inner = applyCaseEx(inner, cfg.Aliases.Case, cfg.Aliases.Exceptions)
+				case pos.columns[tok.start]:
+					inner = applyCaseEx(inner, cfg.Columns.Case, cfg.Columns.Exceptions)
+				case pos.tables[tok.start]:
+					inner = applyCaseEx(inner, cfg.Tables.Case, cfg.Tables.Exceptions)
+				case pos.schemas[tok.start]:
+					inner = applyCaseEx(inner, cfg.Schemas.Case, cfg.Schemas.Exceptions)
+				}
 				ensureSeparator(&buf)
 				buf.WriteString(inner)
 				prevTokenText = tokenText
@@ -1917,6 +1934,12 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// Apply dollar boundary (newline_after_open, newline_before_close).
 	resultBody = applyDollarBoundary(resultBody, dqCfg.NewlineAfterOpen, dqCfg.NewlineBeforeClose)
 
+	// The restructuring above can leave trailing blanks behind (e.g. a line that is
+	// followed by an inserted blank line); strip them, but never inside tokens.
+	if cfg.TrailingWhitespace == config.TrailingWSStrip {
+		resultBody = stripTrailingOutsideTokens(resultBody)
+	}
+
 	// Keep a single-line trailing gap before the closing delimiter (`end $$`),
 	// which Format() trims; otherwise the last keyword is glued to it (`END$$`).
 	if trimmed := strings.TrimRight(body, " \t"); trimmed != body && !strings.HasSuffix(strings.TrimRight(body, " \t"), "\n") &&
@@ -2015,11 +2038,14 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 	)
 
 	allToks := scanResult.Tokens
+	prevText := ""
 	for i := 0; i < len(allToks); i++ {
 		tok := allToks[i]
 		tokStart := int(tok.Start)
 		tokEnd := int(tok.End)
 		text := strings.ToUpper(body[tokStart:tokEnd])
+		prev := prevText
+		prevText = text
 
 		// peekNext returns the text of the next token without advancing i.
 		peekNextTok := func() string {
@@ -2075,7 +2101,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 						state = secAfterEnd
 					}
 				}
-			} else if text == "EXCEPTION" && blockDepth == 1 {
+			} else if text == "EXCEPTION" && blockDepth == 1 && prev != "RAISE" { // RAISE EXCEPTION is a statement, not the section
 				hasException = true
 				exceptionKwStart = tokStart
 				exceptionKwEnd = tokEnd
@@ -3277,4 +3303,35 @@ func capitalizeWords(s string) string {
 		words[i] = string(unicode.ToUpper(r)) + w[size:]
 	}
 	return strings.Join(words, " ")
+}
+
+// stripTrailingOutsideTokens removes trailing blanks before newlines in the gaps
+// between tokens of sql, leaving string literals and comments untouched.
+func stripTrailingOutsideTokens(sql string) string {
+	res, err := pg_query.Scan(sql)
+	if err != nil || len(res.Tokens) == 0 {
+		return sql
+	}
+	var b strings.Builder
+	cur := 0
+	for _, t := range res.Tokens {
+		start, end := int(t.Start), int(t.End)
+		if start < cur || end > len(sql) {
+			return sql
+		}
+		b.WriteString(stripTrailingFromGap(sql[cur:start]))
+		b.WriteString(sql[start:end])
+		cur = end
+	}
+	b.WriteString(stripTrailingFromGap(sql[cur:]))
+	return b.String()
+}
+
+// unquoteIdent returns the identifier named by a double-quoted token ("a""b" → a"b),
+// or "" when text is not a quoted identifier.
+func unquoteIdent(text string) string {
+	if len(text) < 2 || text[0] != '"' || text[len(text)-1] != '"' {
+		return ""
+	}
+	return strings.ReplaceAll(text[1:len(text)-1], `""`, `"`)
 }

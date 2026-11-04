@@ -20,7 +20,13 @@ func FuzzFormat(f *testing.F) {
 	f.Add("select 1")
 	f.Add("select a from t where b = 1 and c = 2 order by a limit 1")
 
-	variants := []matrixVariant{matrixVariants[2], matrixVariants[13], matrixVariants[14], matrixVariants[11]}
+	var variants []matrixVariant
+	for _, v := range matrixVariants {
+		switch v.name {
+		case "clauses_content_always", "arith_normalize", "arith_compact", "operators_compact", "capitalize_with_layout":
+			variants = append(variants, v)
+		}
+	}
 	f.Fuzz(func(t *testing.T, src string) {
 		if len(src) > 2000 {
 			t.Skip()

@@ -1,6 +1,7 @@
 package formatter_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/heptau/pg_procrustes/config"
@@ -686,5 +687,37 @@ func TestCaseBranchCfgValidationValidValues(t *testing.T) {
 	c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Searched.BodyBreak = config.BreakAuto
 	if err := config.Validate(c); err != nil {
 		t.Fatalf("unexpected error for valid config: %v", err)
+	}
+}
+
+// RAISE EXCEPTION wrapped across lines must not be mistaken for the EXCEPTION
+// section (the keywords were fused into "raiseexception"), and the blank lines
+// that plpgsql settings insert must not leave trailing whitespace behind.
+func TestPLpgSQLRaiseExceptionAcrossLines(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pl := &c.Layout.DollarQuote.PLpgSQL
+	pl.EndSemicolon = config.EndSemicolonAdd
+	pl.DeclareEmpty = config.WhenEmptyAdd
+	pl.BeginBody.BlankLineBefore = config.BlankLineAdd
+	pl.BeginBody.BlankLineAfter = config.BlankLineAdd
+	src := "CREATE FUNCTION f() RETURNS void AS $$\nBEGIN\n  raise\n  exception 'boom %', 1;\nEND;\n$$ LANGUAGE plpgsql;"
+	got, err := formatter.Format(src, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.ToLower(got), "raiseexception") {
+		t.Fatalf("keywords fused:\n%s", got)
+	}
+	for _, ln := range strings.Split(got, "\n") {
+		if strings.TrimRight(ln, " \t") != ln {
+			t.Fatalf("trailing whitespace in %q:\n%s", ln, got)
+		}
+	}
+	again, err := formatter.Format(got, c)
+	if err != nil || again != got {
+		t.Fatalf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
 	}
 }

@@ -518,6 +518,8 @@ func inlineContent(sql string, tokens []rawTok, from, to int, parenMode config.P
 				switch {
 				case strings.HasPrefix(tokens[i-1].text, "--"):
 					sb.WriteByte('\n')
+				case tokens[i].text == ",":
+					// a line break before a leading comma joins to "a, b", not "a , b".
 				case parenMode == config.ParenSpacingRemove && (tokens[i-1].text == "(" || tokens[i].text == ")"):
 					// paren_spacing: remove — no space inside parentheses.
 				default:

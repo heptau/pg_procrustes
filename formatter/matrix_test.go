@@ -1,8 +1,11 @@
 package formatter_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -80,6 +83,87 @@ var matrixVariants = []matrixVariant{
 		c.DataTypes.Case = config.CaseCapitalize
 		c.Aliases.Case = config.CaseCapitalize
 	}},
+	{"plpgsql_indent_all", func(c *config.Config) {
+		pl := &c.Layout.DollarQuote.PLpgSQL
+		pl.KeywordIndent = config.BodyIndentIndent
+		pl.Declare.Indent = config.BodyIndentIndent
+		pl.BeginBody.Indent = config.BodyIndentIndent
+		pl.ControlFlow.If.BodyIndent = config.BodyIndentIndent
+		pl.ControlFlow.Loop.BodyIndent = config.BodyIndentIndent
+	}},
+	{"plpgsql_blank_lines", func(c *config.Config) {
+		pl := &c.Layout.DollarQuote.PLpgSQL
+		pl.ControlFlow.If.BlankLineBefore = config.BlankLineAdd
+		pl.ControlFlow.If.BlankLineAfter = config.BlankLineAdd
+		pl.ControlFlow.Loop.BlankLineBefore = config.BlankLineAdd
+		pl.ControlFlow.Loop.BlankLineAfter = config.BlankLineAdd
+		pl.Declare.BlankLineBefore = config.BlankLineAdd
+		pl.Declare.BlankLineAfter = config.BlankLineAdd
+		pl.BeginBody.BlankLineBefore = config.BlankLineAdd
+		pl.BeginBody.BlankLineAfter = config.BlankLineAdd
+	}},
+	{"plpgsql_case_expanded", func(c *config.Config) {
+		pl := &c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case
+		for _, b := range []*config.CaseBranchCfg{&pl.Simple, &pl.Searched} {
+			b.WhenIndent = config.BodyIndentIndent
+			b.ThenBreak = config.BreakAlways
+			b.ThenIndent = config.BodyIndentIndent
+			b.BodyBreak = config.BreakAlways
+			b.BodyIndent = config.BodyIndentIndent
+			b.BlankLineBefore = config.BlankLineAdd
+			b.BlankLineAfter = config.BlankLineAdd
+		}
+	}},
+	{"plpgsql_end_semicolon_declare", func(c *config.Config) {
+		pl := &c.Layout.DollarQuote.PLpgSQL
+		pl.EndSemicolon = config.EndSemicolonAdd
+		pl.DeclareEmpty = config.WhenEmptyAdd
+	}},
+	{"dollar_boundary", func(c *config.Config) {
+		dq := &c.Layout.DollarQuote
+		dq.NewlineAfterOpen = config.BlankLineAdd
+		dq.NewlineBeforeClose = config.BlankLineAdd
+		dq.SQL.BodyIndent = config.BodyIndentIndent
+		dq.SQL.BlankLineBefore = config.BlankLineAdd
+		dq.SQL.BlankLineAfter = config.BlankLineAdd
+	}},
+	{"dollar_plus_clauses_always", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Case.Break = config.BreakAlways
+		c.Layout.DollarQuote.NewlineAfterOpen = config.BlankLineAdd
+		c.Layout.DollarQuote.NewlineBeforeClose = config.BlankLineAdd
+		c.Layout.DollarQuote.PLpgSQL.KeywordIndent = config.BodyIndentIndent
+		c.Layout.DollarQuote.PLpgSQL.BeginBody.Indent = config.BodyIndentIndent
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.If.BodyIndent = config.BodyIndentIndent
+	}},
+	{"paren_indent", func(c *config.Config) {
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+	}},
+	{"paren_indent_close_after", func(c *config.Config) {
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+		c.Layout.ParenIndent.CloseFirst = config.ParenCloseAfter
+		c.Layout.Clauses.Break = config.BreakAlways
+	}},
+	{"indent_normalize_tabs", func(c *config.Config) {
+		c.Layout.Indent.Type = config.IndentTypeTab
+		c.Layout.Indent.Normalize = config.IndentNormalizeChange
+		c.Layout.Clauses.Break = config.BreakAlways
+	}},
+	{"whitespace_and_blank_lines", func(c *config.Config) {
+		c.TrailingWhitespace = config.TrailingWSPreserve
+		c.BlankLines = config.BlankLinesMax1
+	}},
+	{"semicolons_add", func(c *config.Config) { c.Semicolons = config.SemicolonAdd }},
+	{"quoted_preserve", func(c *config.Config) { c.QuotedIdents = config.QuotedIdentPreserve }},
+	{"capitalize_with_layout", func(c *config.Config) {
+		c.ReservedKeywords.Case = config.CaseCapitalize
+		c.Keywords.Case = config.CaseCapitalize
+		c.Tables.Case = config.CaseCapitalize
+		c.Layout.Clauses.Break = config.BreakAlways
+	}},
 	{"keywords_lower", func(c *config.Config) {
 		c.ReservedKeywords.Case = config.CaseLower
 		c.Keywords.Case = config.CaseLower
@@ -111,6 +195,82 @@ var matrixInline = []string{
 	"insert into t values (1) on conflict (id) do update set a = 2; delete from t using u where t.id = u.id;",
 	"merge into public.Accounts as tgt using (select id, amount from staging where ok) as src on tgt.id = src.id and tgt.active when matched and src.amount > 0 then update set balance = tgt.balance + src.amount, updated = now() when matched then delete when not matched then insert (id, balance) values (src.id, case when src.amount > 0 then src.amount else 0 end) when not matched by source then do nothing;",
 	"merge into t using u on t.id = u.id when matched then update set a = case when u.x then 1 else 2 end -- tail\n when not matched then insert values (u.id, 1);",
+	`create function f(p int) returns int language plpgsql as $$
+declare
+v int := 1;
+begin
+if p > 1 then
+v := v + 1;
+elsif p = 0 then
+raise notice 'x %', p;
+else
+perform now();
+end if;
+return v;
+exception when others then
+return 0;
+end $$;`,
+	`create function g(n int) returns setof int language plpgsql as $$
+begin
+for i in 1..n loop
+return next i;
+end loop;
+while n > 0 loop
+n := n - 1;
+exit when n = 2;
+end loop;
+return;
+end $$;`,
+	`create function h(k text) returns text language plpgsql as $$
+declare
+r text;
+begin
+case k
+when 'a' then
+r := 'x';
+when 'b' then
+r := 'y';
+else
+r := 'z';
+end case;
+case
+when k = 'q' then
+r := 'w';
+else
+null;
+end case;
+return r;
+end $$;`,
+	`create function n() returns void language plpgsql as $$
+begin
+begin
+insert into t values (1);
+exception when unique_violation then
+update t set a = 2 where id = 1;
+end;
+if exists (select 1 from t where a = 1) then
+delete from t where a = 1;
+end if;
+end $$;`,
+	`create function q() returns table (id int, v text) language plpgsql as $$
+begin
+return query select a.id, a.v from t a where a.id > 1 order by 1;
+end $$;`,
+	`create function c() returns int language plpgsql as $$
+begin -- leading comment
+if true then -- inside
+return 1; /* block */
+end if;
+return 0;
+end $$;`,
+	`do $$
+begin
+perform 1;
+if found then
+raise exception 'boom';
+end if;
+end $$;`,
+	"create function s() returns int language sql as $$ select a, b from t where x = 1 order by a $$;",
 	"select f(a => 1, b := 2), x::int, cast(y as text), 'a' || 'b' from t where a != b and c <> d;",
 }
 
@@ -153,6 +313,7 @@ func TestConfigMatrix(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s baseline output does not parse: %v\n%s", name, err, baseOut)
 		}
+		baseShape := plShape(baseOut)
 		for _, v := range matrixVariants {
 			t.Run(name+"/"+v.name, func(t *testing.T) {
 				cfg, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
@@ -168,6 +329,9 @@ func TestConfigMatrix(t *testing.T) {
 				if fp != baseFP {
 					t.Errorf("AST fingerprint changed\n--- input ---\n%s\n--- output ---\n%s", src, out)
 				}
+				if shape := plShape(out); baseShape != "" && shape != baseShape { // an unparseable baseline (e.g. `;;` repaired by layout) has nothing to compare
+					t.Errorf("PL/pgSQL structure changed\n--- input ---\n%s\n--- output ---\n%s", src, out)
+				}
 				out2, err := formatter.Format(out, cfg)
 				if err != nil {
 					t.Fatalf("second pass: %v\n--- first output ---\n%s", err, out)
@@ -178,4 +342,68 @@ func TestConfigMatrix(t *testing.T) {
 			})
 		}
 	}
+}
+
+var wsRE = regexp.MustCompile(`\s+`)
+
+// plShape returns a normalised structural description of the PL/pgSQL functions in
+// sql: statement structure and expressions with line numbers dropped and embedded SQL
+// replaced by its AST fingerprint, so casing/spacing/layout differences vanish but any
+// change in control flow or statements shows up. Empty when sql has no PL/pgSQL function.
+func plShape(sql string) string {
+	raw, err := pg_query.ParsePlPgSqlToJSON(sql)
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	var v any
+	if err := json.Unmarshal([]byte(raw), &v); err != nil {
+		return ""
+	}
+	var norm func(any) any
+	norm = func(x any) any {
+		switch t := x.(type) {
+		case map[string]any:
+			out := map[string]any{}
+			for k, val := range t {
+				switch k {
+				case "lineno", "stmtid", "location":
+					continue
+				case "query":
+					if q, ok := val.(string); ok {
+						out[k] = normQuery(q)
+						continue
+					}
+				}
+				out[k] = norm(val)
+			}
+			return out
+		case string:
+			// identifiers and type names are case-insensitive and carry stray padding
+			return strings.ToLower(strings.TrimSpace(t))
+		case []any:
+			out := make([]any, len(t))
+			for i, e := range t {
+				out[i] = norm(e)
+			}
+			return out
+		}
+		return x
+	}
+	b, _ := json.Marshal(norm(v))
+	return string(b)
+}
+
+// normQuery fingerprints an embedded query/expression/assignment, falling back to
+// lower-cased whitespace-free text when it cannot be parsed standalone.
+func normQuery(q string) string {
+	cands := []string{q, "SELECT " + q}
+	if i := strings.Index(q, ":="); i >= 0 {
+		cands = append(cands, "SELECT "+q[i+2:])
+	}
+	for _, c := range cands {
+		if fp, err := pg_query.Fingerprint(c); err == nil {
+			return "fp:" + fp
+		}
+	}
+	return "txt:" + strings.ToLower(wsRE.ReplaceAllString(q, ""))
 }
