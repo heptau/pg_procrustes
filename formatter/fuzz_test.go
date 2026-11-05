@@ -6,7 +6,6 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/formatter"
 )
 
@@ -41,7 +40,7 @@ func FuzzFormat(f *testing.F) {
 			t.Skip()
 		}
 
-		base, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
+		base, _ := loadStyled("")
 		baseOut, err := formatter.Format(src, base)
 		if err != nil {
 			t.Skip()
@@ -51,7 +50,7 @@ func FuzzFormat(f *testing.F) {
 			t.Fatalf("baseline output does not parse: %v\n--- in ---\n%s\n--- out ---\n%s", err, src, baseOut)
 		}
 		for _, v := range variants {
-			cfg, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
+			cfg, _ := loadStyled("")
 			v.apply(cfg)
 			out, err := formatter.Format(src, cfg)
 			if err != nil {

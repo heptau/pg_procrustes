@@ -9,7 +9,7 @@ import (
 
 func fnCfg(t *testing.T, mutate func(*config.Config)) *config.Config {
 	t.Helper()
-	c, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, _ := loadStyled("")
 	mutate(c)
 	return c
 }

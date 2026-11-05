@@ -11,7 +11,7 @@ import (
 
 func syntaxCfg(t *testing.T, mode config.SyntaxErrorMode) *config.Config {
 	t.Helper()
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func syntaxCfg(t *testing.T, mode config.SyntaxErrorMode) *config.Config {
 const brokenScript = "select 1 from a;\nselect from from;\nselect 2 from b;\nselect 'ž', from c;\n"
 
 func TestSyntaxErrorsDefaultIsFailAndListsEveryStatement(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}

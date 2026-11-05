@@ -694,7 +694,7 @@ func TestCaseBranchCfgValidationValidValues(t *testing.T) {
 // section (the keywords were fused into "raiseexception"), and the blank lines
 // that plpgsql settings insert must not leave trailing whitespace behind.
 func TestPLpgSQLRaiseExceptionAcrossLines(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -756,8 +756,15 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		sb.WriteString(kwText)
 
 		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
+		contentAlign = resolveContentAlign(contentAlign, sql, tokens, cl.kwTok, kwEnd, conEnd)
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
+		if cl.kind == clauseWhen && contentBreakMode == config.BreakPreserve {
+			// preserve: the action stays where the input has it (below THEN or on its line)
+			if thenIdx := findWhenThen(tokens, kwEnd, conEnd); thenIdx >= 0 {
+				doContentBreak = hasNewlineAfter(sql, tokens, thenIdx, conEnd)
+			}
+		}
 		if cl.kind == clauseMerge {
 			doContentBreak = false // a single target name reads best on the keyword line
 		}
@@ -815,7 +822,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				} else if contentFirstItem == config.FirstItemInline {
 					sb.WriteByte('(')
-					colStart := cfg.Content.CommaPosition == config.CommaStart
+					colStart := resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, openIdx+1, closeIdx)
 					for ii, item := range colItems {
 						if ii == 0 {
 							if !colStart && ii < len(colItems)-1 {
@@ -840,7 +847,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				} else {
 					sb.WriteString("(\n")
-					colStart := cfg.Content.CommaPosition == config.CommaStart
+					colStart := resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, openIdx+1, closeIdx)
 					for ii, item := range colItems {
 						if colStart && ii > 0 {
 							sb.WriteString(leadCommaIndent(contentIndent) + ", ")
@@ -868,23 +875,26 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			}
 		}
 
-		joinNewline := cl.kind == clauseJoin && cfg.Content.JoinOnPosition == config.JoinOnNewline &&
-			findTopLevelOn(tokens, kwEnd, conEnd) >= 0
+		joinNewline := cl.kind == clauseJoin && resolveJoinNewline(cfg.Content.JoinOnPosition, sql, tokens, kwEnd, conEnd)
 		if joinNewline {
 			contentFirstItem = config.FirstItemInline // JOIN t stays on the keyword line
 		}
 		items := splitContent(sql, tokens, kwEnd, conEnd, cl.kind, joinNewline)
 		useComma := usesCommaSeparator(cl.kind)
-		commaStart := useComma && cfg.Content.CommaPosition == config.CommaStart
-		if !useComma && cfg.Content.LogicalOperatorPosition == config.LogicalOperatorEnd {
+		commaStart := useComma && resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, kwEnd, conEnd)
+		if !useComma && resolveOperatorEnd(cfg.Content.LogicalOperatorPosition, sql, tokens, kwEnd, conEnd) {
 			items = moveOperatorsToEnd(items)
 		}
 		if contentFirstItem != config.FirstItemInline {
 			switch {
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsAlign:
 				items = alignItems(items, "as")
+			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsNone:
+				items = unpadItems(items, "as")
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsAlign:
 				items = alignItems(items, "=")
+			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsNone:
+				items = unpadItems(items, "=")
 			}
 		}
 		// lineIndent is the indent of line ii: with comma_position: start the comma sits
@@ -1013,7 +1023,7 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 		// deliberately not inherited from content.break.
 		brk, align, first := get(c.WhenActions)
 		if c.WhenActions.Break == "" {
-			brk = config.BreakNever
+			brk = config.BreakPreserve
 		}
 		return brk, align, first
 	case clauseGroupBy:

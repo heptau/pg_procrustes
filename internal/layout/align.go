@@ -48,6 +48,29 @@ func alignItems(items []string, sep string) []string {
 	return out
 }
 
+// unpadItems is the opposite of alignItems: the blanks before the separator of every
+// eligible item shrink to a single space (items spanning lines, with comments or
+// CASE, or without a separator stay as they are).
+func unpadItems(items []string, sep string) []string {
+	out := make([]string, len(items))
+	for i, it := range items {
+		out[i] = it
+		if strings.ContainsAny(it, "\n") || strings.Contains(it, "--") || strings.Contains(it, "/*") {
+			continue
+		}
+		at := topLevelSeparator(it, sep)
+		if at <= 0 {
+			continue
+		}
+		head := strings.TrimRight(it[:at], " \t")
+		if head == "" {
+			continue
+		}
+		out[i] = head + " " + it[at:]
+	}
+	return out
+}
+
 // topLevelSeparator returns the byte offset of the last parenthesis-depth-0 token
 // equal to sep (case-insensitive; "=" for symbols), or -1. Items with CASE or
 // brackets are rejected, as are items where the separator is a symbol that is

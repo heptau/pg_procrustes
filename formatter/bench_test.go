@@ -14,7 +14,7 @@ func loadBenchFixture(b *testing.B, dir string) (string, *config.Config) {
 	if err != nil {
 		b.Fatalf("read fixture: %v", err)
 	}
-	cfg, err := config.Load("testdata/" + dir + "/config.yaml")
+	cfg, err := loadStyled("testdata/" + dir + "/config.yaml")
 	if err != nil {
 		b.Fatalf("load config: %v", err)
 	}

@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `none` for the alignment options `comments.align_trailing`, `layout.content.align_aliases` and `layout.content.align_set`: removes the padding and leaves exactly one space before the trailing `--` comment / `AS` / `=` (`layout.ddl.create_table.align` already had `none`)
+- `preserve` for `layout.content.comma_position`, `logical_operator_position`, `join_on_position` and `layout.content.align`, now the **default**: the layout keeps the style the input uses (leading commas, `AND`/`OR` ending a line, `ON` on its own line, items level with the keyword) and falls back to the classic style (trailing comma, leading `AND`, `ON` inline, indented items) when the input shows none; explicit values still force a style
+
+### Changed
+
+- `layout.content.when_actions.break` now defaults to `preserve` (the MERGE action stays below `THEN` or on its line exactly as in the input; before, the default was `never`). It still does not inherit `layout.content.break`
+- **Breaking:** an empty `.pg_procrustes.yaml` (or no config file) is now a true no-op — every rule defaults to `preserve` (casing, `data_types.form`, `aliases.as`, `trailing_whitespace`, `inequality_op`, `operator_spacing`, `paren_spacing`, `quoted_identifiers`, `comma_spacing`), matching what README and the website already stated. Previously the built-in defaults upper-cased keywords, stripped trailing whitespace, etc.; set those options explicitly (see the reference `.pg_procrustes.yaml`) to keep the old output. New test `TestEmptyConfigIsNoop`; the formatter tests now layer their style on top of `loadStyled` (`formatter/style_test.go`)
+- Config builder (`docs/config-builder.html`) help panel: the sample is shown as a single Meld-style diff — changed source lines in light red, result lines in light green, and the characters that actually changed (`s` of `Select`, the whole `SELECT`) in a darker shade; the separate sample-input block is gone, and every select now lists `preserve (default)` for the true defaults
+- Config builder (`docs/config-builder.html`): confirmation and error messages use in-page dialogs instead of native `confirm()`/`alert()`; "Load config file" and "Paste YAML" are merged into one "Load config" dialog (paste or load a file into the text box, review or replace it, nothing applies until Apply); the options are regrouped (new "General" group with `syntax_errors`, `line_endings`, `trailing_newline`), `blank_lines` and `blank_lines_between_statements` have distinct labels and descriptions (cap vs. exact number), the YAML preview moved into a "Preview file" dialog (copy / save / close); the settings column has a fixed width and the help column takes the rest; the "pg_procrustes defaults" button is gone and "No changes" asks before discarding existing settings; every select shows the real default value (`upper (default)`, inherited options show the inherited value); option labels, descriptions and value hints are translated into all six site languages (`docs/config-builder-i18n-<lang>.js`, loaded on demand); the help panel shows a sample input and its result for the selected value as a red/green diff, with results generated from the real formatter by `make builder-examples` (`scripts/gen_builder_examples.go`, `docs/config-builder-options.js` → `docs/config-builder-examples.js`)
+
 ## [0.3.0] — 2026-11-05
 
 ### Added

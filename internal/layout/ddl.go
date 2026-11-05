@@ -180,8 +180,7 @@ func hasLineComment(tokens []rawTok, from, to int) bool {
 
 // emitDDLItems writes items one per line after the current text, honouring
 // content.comma_position, and returns nothing; sb ends right after the last item.
-func emitDDLItems(sb *strings.Builder, items []string, cfg *config.LayoutConfig, indent string) {
-	commaStart := cfg.Content.CommaPosition == config.CommaStart
+func emitDDLItems(sb *strings.Builder, items []string, commaStart bool, indent string) {
 	for i, item := range items {
 		if commaStart && i > 0 {
 			item = writeLeadingComments(sb, item, indent)
@@ -267,7 +266,7 @@ func rebuildCreateTable(sql string, tokens []rawTok, stmt statement, open int, c
 	itemIndent := baseIndent + indentUnit
 	items = alignColumns(items, cfg.DDL.CreateTable.Align)
 	sb.WriteString(ddlHead(sql, tokens, stmt, open))
-	emitDDLItems(&sb, items, cfg, itemIndent)
+	emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, open+1, closeIdx), itemIndent)
 	sb.WriteByte('\n')
 	sb.WriteString(baseIndent)
 	sb.WriteByte(')')
@@ -316,7 +315,7 @@ func rebuildAlterTable(sql string, tokens []rawTok, stmt statement, start int, c
 	baseIndent := strings.Repeat(indentUnit, depth)
 	var sb strings.Builder
 	sb.WriteString(ddlHead(sql, tokens, stmt, start-1))
-	emitDDLItems(&sb, items, cfg, baseIndent+indentUnit)
+	emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, start, stmt.endTok), baseIndent+indentUnit)
 	finishDDL(&sb, tokens, stmt)
 	return sb.String(), true
 }
@@ -722,7 +721,7 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 		case !isSet(pm):
 			sb.WriteString(originalText(sql, tokens, open+1, closeIdx))
 		case shouldBreak(flat, pm, cfg.LineLength):
-			emitDDLItems(&sb, items, cfg, baseIndent+indentUnit)
+			emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, open+1, closeIdx), baseIndent+indentUnit)
 			sb.WriteByte('\n')
 			sb.WriteString(baseIndent)
 		default:

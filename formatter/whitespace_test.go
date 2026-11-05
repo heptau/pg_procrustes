@@ -11,7 +11,7 @@ import (
 
 func wsCfg(t *testing.T, mutate func(*config.Config)) *config.Config {
 	t.Helper()
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,10 +113,31 @@ func TestWhitespaceOptionsValidated(t *testing.T) {
 			c.BlankLinesBetweenStatements = "many"
 		},
 	} {
-		c, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
+		c, _ := loadStyled("")
 		mutate(c)
 		if config.Validate(c) == nil {
 			t.Errorf("%s: expected a validation error", name)
 		}
+	}
+}
+
+func TestCommentAlignNoneCollapsesGap(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Comments.AlignTrailing = config.CommentAlignNone
+	in := "select a,      -- one\n  b          -- two\n-- own line\nfrom t;\n"
+	want := "select a, -- one\n  b -- two\n-- own line\nfrom t;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	again, _ := formatter.Format(got, c)
+	if again != got {
+		t.Errorf("not idempotent: %q", again)
 	}
 }

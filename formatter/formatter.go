@@ -1600,6 +1600,9 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
 		result = alignTrailingComments(result)
 	}
+	if cfg.Comments.AlignTrailing == config.CommentAlignNone {
+		result = collapseTrailingCommentGap(result)
+	}
 
 	return result, nil
 }
@@ -2149,6 +2152,9 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
 		resultBody = alignTrailingComments(resultBody)
+	}
+	if cfg.Comments.AlignTrailing == config.CommentAlignNone {
+		resultBody = collapseTrailingCommentGap(resultBody)
 	}
 
 	// Keep a single-line trailing gap before the closing delimiter (`end $$`),

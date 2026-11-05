@@ -202,3 +202,37 @@ func normalizeLead(s string, n int) string {
 	}
 	return keep + strings.Repeat("\n", n+1) + indent + s[q:]
 }
+
+// collapseTrailingCommentGap leaves exactly one space between code and a trailing
+// "--" comment (comments on a line of their own are untouched).
+func collapseTrailingCommentGap(text string) string {
+	if !strings.Contains(text, "--") {
+		return text
+	}
+	res, err := pg_query.Scan(text)
+	if err != nil {
+		return text
+	}
+	var b strings.Builder
+	cur := 0
+	for _, t := range res.Tokens {
+		start := int(t.Start)
+		if !strings.HasPrefix(text[start:t.End], "--") {
+			continue
+		}
+		ls := strings.LastIndexByte(text[:start], '\n') + 1
+		code := strings.TrimRight(text[ls:start], " \t")
+		if strings.TrimSpace(code) == "" {
+			continue // comment on a line of its own
+		}
+		codeEnd := ls + len(code)
+		if start-codeEnd == 1 && text[codeEnd] == ' ' {
+			continue
+		}
+		b.WriteString(text[cur:codeEnd])
+		b.WriteByte(' ')
+		cur = start
+	}
+	b.WriteString(text[cur:])
+	return b.String()
+}

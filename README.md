@@ -368,8 +368,8 @@ line_endings: preserve       # preserve | lf | crlf
 
 comments:
   space_after_marker: preserve   # preserve | add     (--note → -- note; "-----", "--+", "--!" are left alone)
-  align_trailing: preserve       # preserve | align   (trailing -- comments of consecutive lines start in one column;
-                                 #                     a single trailing comment is left alone)
+  align_trailing: preserve       # preserve | align | none   (align: trailing -- comments of consecutive lines start in one column;
+                                 #                     a single trailing comment is left alone; none: exactly one space before each)
 
 paren_spacing: remove        # preserve | add | remove
 call_paren_spacing: preserve # preserve | add | remove  (space between a function name and "(":
@@ -418,26 +418,29 @@ layout:
 
   content:
     break: preserve          # preserve | never | always | auto
-    align: indent            # same | indent
+    align: preserve          # preserve | same | indent   (preserve: keep the indent the input uses; indent when it has none)
     first_item: break        # break | inline
                              #   break:  first item on new indented line (default)
                              #   inline: first item stays on keyword line, rest indented below
-    align_aliases: preserve     # preserve | align   (SELECT list: pad expressions so every AS lines up)
-    align_set: preserve         # preserve | align   (SET list: pad targets so every = lines up)
+    align_aliases: preserve     # preserve | align | none   (SELECT list: align pads so every AS lines up, none leaves one space)
+    align_set: preserve         # preserve | align | none   (SET list: align pads so every = lines up, none leaves one space)
                                 #   both act on lists the layout puts one item per line (first_item: break);
                                 #   multi-line items and items with comments or CASE are left alone
     wrap_expressions: preserve  # preserve | wrap   (items longer than line_length: one element per line inside the
                                 #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line.
                                 #   Acts on lists the layout puts one item per line; CASE, subqueries and comments are left alone)
-    comma_position: end         # end | start   (applies when a list is broken over lines)
+    comma_position: preserve    # preserve | end | start   (applies when a list is broken over lines;
+                                #   preserve keeps leading commas if the list has them, trailing otherwise)
                                 #   end:   a,        start:   a
                                 #          b,                , b
                                 #          c                 , c      (items stay aligned)
-    logical_operator_position: start   # start | end   (AND / OR in broken conditions)
+    logical_operator_position: preserve   # preserve | start | end   (AND / OR in broken conditions;
+                                #   preserve: end of line if the input ends a line with AND / OR, start otherwise)
                                 #   start: a = 1             end:   a = 1 AND
                                 #          AND b = 2                b = 2 OR
                                 #          OR  c = 3                c = 3
-    join_on_position: inline    # inline | newline   (ON of a broken JOIN)
+    join_on_position: preserve    # preserve | inline | newline   (ON of a broken JOIN;
+                                #   preserve: newline if the input starts a line with ON, inline otherwise)
                                 #   inline:  JOIN t ON a = b       newline: JOIN t
                                 #            AND c = d                          ON a = b
                                 #                                               AND c = d
@@ -456,7 +459,7 @@ layout:
     #   with_list      — WITH CTE definitions (comma-split)
     #   merge_on       — MERGE ON conditions (AND/OR split)
     #   when_actions   — MERGE WHEN … THEN: action on its own line below THEN
-    #                    (default: never — does not inherit content.break)
+    #                    (default: preserve — the action stays where the input has it; does not inherit content.break)
     # Example:
     # where_conds:    { break: always }
     # having_conds:   { break: always, first_item: inline }

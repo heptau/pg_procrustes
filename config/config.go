@@ -155,12 +155,13 @@ type CommentAlignMode string
 const (
 	CommentAlignPreserve CommentAlignMode = "preserve"
 	CommentAlignAlign    CommentAlignMode = "align" // trailing -- comments of consecutive lines start in one column
+	CommentAlignNone     CommentAlignMode = "none"  // exactly one space before every trailing -- comment
 )
 
 // CommentsCfg configures line comments.
 type CommentsCfg struct {
 	SpaceAfterMarker CommentSpaceMode `yaml:"space_after_marker"` // preserve | add
-	AlignTrailing    CommentAlignMode `yaml:"align_trailing"`     // preserve | align
+	AlignTrailing    CommentAlignMode `yaml:"align_trailing"`     // preserve | align | none
 }
 
 // TrailingNewlineMode controls the trailing newline at end of output.
@@ -257,8 +258,9 @@ const (
 type AlignMode string
 
 const (
-	AlignSame   AlignMode = "same"
-	AlignIndent AlignMode = "indent"
+	AlignSame     AlignMode = "same"
+	AlignIndent   AlignMode = "indent"
+	AlignPreserve AlignMode = "preserve" // content.align only: keep the indent the input uses
 )
 
 type IndentTypeVal string
@@ -361,8 +363,8 @@ type ContentCfg struct {
 	// AlignAliases pads SELECT expressions so every AS lines up; AlignSet pads SET
 	// targets so every = lines up. Both only act on lists the layout puts one item
 	// per line (first_item: newline) and leave multi-line items alone.
-	AlignAliases AlignItemsMode `yaml:"align_aliases"` // preserve | align
-	AlignSet     AlignItemsMode `yaml:"align_set"`     // preserve | align
+	AlignAliases AlignItemsMode `yaml:"align_aliases"` // preserve | align | none
+	AlignSet     AlignItemsMode `yaml:"align_set"`     // preserve | align | none
 
 	// WrapExpressions breaks list items longer than line_length at the commas of their
 	// first parenthesised group (function arguments, IN lists, rows).
@@ -383,6 +385,7 @@ type AlignItemsMode string
 const (
 	AlignItemsPreserve AlignItemsMode = "preserve" // leave the spacing as written (default)
 	AlignItemsAlign    AlignItemsMode = "align"    // pad so the AS / = of every item line up
+	AlignItemsNone     AlignItemsMode = "none"     // remove padding: exactly one space before AS / =
 )
 
 // NamedClauseRule pairs a per-clause rule with its config path.
@@ -426,24 +429,27 @@ func (c ContentCfg) ContentRules() []NamedContentRule {
 type CommaPosition string
 
 const (
-	CommaEnd   CommaPosition = "end"   // a, b, c — comma ends the line (default)
-	CommaStart CommaPosition = "start" // , b — comma opens the line, items stay aligned
+	CommaPreserve CommaPosition = "preserve" // keep what the list uses (default; trailing commas when it has no leading ones)
+	CommaEnd      CommaPosition = "end"      // a, b, c — comma ends the line
+	CommaStart    CommaPosition = "start"    // , b — comma opens the line, items stay aligned
 )
 
 // LogicalOperatorPosition controls where AND / OR go when conditions are broken over lines.
 type LogicalOperatorPosition string
 
 const (
-	LogicalOperatorStart LogicalOperatorPosition = "start" // AND b — operator opens the line (default)
-	LogicalOperatorEnd   LogicalOperatorPosition = "end"   // a AND — operator ends the line
+	LogicalOperatorPreserve LogicalOperatorPosition = "preserve" // keep what the conditions use (default; operator first when none ends a line)
+	LogicalOperatorStart    LogicalOperatorPosition = "start"    // AND b — operator opens the line
+	LogicalOperatorEnd      LogicalOperatorPosition = "end"      // a AND — operator ends the line
 )
 
 // JoinOnPosition controls where ON goes when a JOIN's content is broken over lines.
 type JoinOnPosition string
 
 const (
-	JoinOnInline  JoinOnPosition = "inline"  // JOIN t ON a = b — ON stays after the table (default)
-	JoinOnNewline JoinOnPosition = "newline" // ON a = b on its own indented line below JOIN t
+	JoinOnPreserve JoinOnPosition = "preserve" // keep what the JOIN uses (default; inline when ON never starts a line)
+	JoinOnInline   JoinOnPosition = "inline"   // JOIN t ON a = b — ON stays after the table
+	JoinOnNewline  JoinOnPosition = "newline"  // ON a = b on its own indented line below JOIN t
 )
 
 // ColumnAlignMode controls how column definitions of a broken CREATE TABLE are aligned.
@@ -656,10 +662,10 @@ func defaultLayout() LayoutConfig {
 		Union: UnionCfg{BlankLine: UnionBlankLinePreserve},
 		Content: ContentCfg{
 			Break:                   BreakPreserve,
-			Align:                   AlignIndent,
-			CommaPosition:           CommaEnd,
-			LogicalOperatorPosition: LogicalOperatorStart,
-			JoinOnPosition:          JoinOnInline,
+			Align:                   AlignPreserve,
+			CommaPosition:           CommaPreserve,
+			LogicalOperatorPosition: LogicalOperatorPreserve,
+			JoinOnPosition:          JoinOnPreserve,
 			AlignAliases:            AlignItemsPreserve,
 			AlignSet:                AlignItemsPreserve,
 			WrapExpressions:         WrapPreserve,
@@ -783,36 +789,38 @@ type Config struct {
 	Layout                      LayoutConfig          `yaml:"layout"`
 }
 
+// defaultConfig is what an empty .pg_procrustes.yaml means: every rule is
+// "preserve", so formatting changes nothing until a rule is switched on.
 func defaultConfig() *Config {
 	return &Config{
-		ReservedKeywords:            Section{Case: CaseUpper},
-		Keywords:                    Section{Case: CaseUpper},
-		DataTypes:                   DataTypesSection{Case: CaseLower, Form: TypeFormLong},
-		Literals:                    Section{Case: CaseUpper},
-		Operators:                   Section{Case: CaseUpper},
-		Schemas:                     Section{Case: CaseLower},
-		Tables:                      Section{Case: CaseLower},
-		Functions:                   Section{Case: CaseLower},
-		ConditionalFunctions:        Section{Case: CaseUpper},
-		SystemFunctions:             Section{Case: CaseUpper},
-		Aliases:                     AliasSection{Case: CaseLower, As: AliasAsAdd},
-		Columns:                     Section{Case: CaseLower},
-		TrailingWhitespace:          TrailingWSStrip,
+		ReservedKeywords:            Section{Case: CasePreserve},
+		Keywords:                    Section{Case: CasePreserve},
+		DataTypes:                   DataTypesSection{Case: CasePreserve, Form: TypeFormPreserve},
+		Literals:                    Section{Case: CasePreserve},
+		Operators:                   Section{Case: CasePreserve},
+		Schemas:                     Section{Case: CasePreserve},
+		Tables:                      Section{Case: CasePreserve},
+		Functions:                   Section{Case: CasePreserve},
+		ConditionalFunctions:        Section{Case: CasePreserve},
+		SystemFunctions:             Section{Case: CasePreserve},
+		Aliases:                     AliasSection{Case: CasePreserve, As: AliasAsPreserve},
+		Columns:                     Section{Case: CasePreserve},
+		TrailingWhitespace:          TrailingWSPreserve,
 		Semicolons:                  SemicolonPreserve,
-		InequalityOp:                InequalityC,
+		InequalityOp:                InequalityPreserve,
 		JoinForm:                    JoinFormPreserve,
-		OperatorSpacing:             OperatorSpacingNormalize,
+		OperatorSpacing:             OperatorSpacingPreserve,
 		BlankLines:                  BlankLinesPreserve,
-		ParenSpacing:                ParenSpacingRemove,
+		ParenSpacing:                ParenSpacingPreserve,
 		CallParenSpacing:            ParenSpacingPreserve,
-		QuotedIdents:                QuotedIdentRemoveSafe,
+		QuotedIdents:                QuotedIdentPreserve,
 		TrailingNewline:             TrailingNewlinePreserve,
 		SyntaxErrors:                SyntaxErrorFail,
 		LineEndings:                 LineEndingPreserve,
 		Comments:                    CommentsCfg{SpaceAfterMarker: CommentSpacePreserve, AlignTrailing: CommentAlignPreserve},
 		BlankLinesBetweenStatements: "preserve",
 		ArithmeticSpacing:           ArithmeticSpacingPreserve,
-		CommaSpacing:                CommaSpacingNormalize,
+		CommaSpacing:                CommaSpacingPreserve,
 		OrderAsc:                    OrderAscPreserve,
 		CastStyle:                   CastStylePreserve,
 		NotIn:                       NotInPreserve,
@@ -954,9 +962,9 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("comments.space_after_marker must be preserve|add, got %q", cfg.Comments.SpaceAfterMarker)
 	}
 	switch cfg.Comments.AlignTrailing {
-	case CommentAlignPreserve, CommentAlignAlign, "":
+	case CommentAlignPreserve, CommentAlignAlign, CommentAlignNone, "":
 	default:
-		return fmt.Errorf("comments.align_trailing must be preserve|align, got %q", cfg.Comments.AlignTrailing)
+		return fmt.Errorf("comments.align_trailing must be preserve|align|none, got %q", cfg.Comments.AlignTrailing)
 	}
 	if _, err := cfg.BlankLinesBetween(); err != nil {
 		return err
@@ -1090,9 +1098,14 @@ func validate(cfg *Config) error {
 	for name, m := range map[string]AlignItemsMode{
 		"align_aliases": cfg.Layout.Content.AlignAliases, "align_set": cfg.Layout.Content.AlignSet,
 	} {
-		if m != AlignItemsPreserve && m != AlignItemsAlign && m != "" {
-			return fmt.Errorf("layout.content.%s must be preserve|align, got %q", name, m)
+		if m != AlignItemsPreserve && m != AlignItemsAlign && m != AlignItemsNone && m != "" {
+			return fmt.Errorf("layout.content.%s must be preserve|align|none, got %q", name, m)
 		}
+	}
+	switch cfg.Layout.Content.Align {
+	case AlignPreserve, AlignSame, AlignIndent, "":
+	default:
+		return fmt.Errorf("layout.content.align must be preserve|same|indent, got %q", cfg.Layout.Content.Align)
 	}
 	switch cfg.Layout.Content.WrapExpressions {
 	case WrapPreserve, WrapWrap, "":
@@ -1100,19 +1113,19 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("layout.content.wrap_expressions must be preserve|wrap, got %q", cfg.Layout.Content.WrapExpressions)
 	}
 	switch cfg.Layout.Content.CommaPosition {
-	case CommaEnd, CommaStart, "":
+	case CommaPreserve, CommaEnd, CommaStart, "":
 	default:
-		return fmt.Errorf("layout.content.comma_position must be end|start, got %q", cfg.Layout.Content.CommaPosition)
+		return fmt.Errorf("layout.content.comma_position must be preserve|end|start, got %q", cfg.Layout.Content.CommaPosition)
 	}
 	switch cfg.Layout.Content.LogicalOperatorPosition {
-	case LogicalOperatorStart, LogicalOperatorEnd, "":
+	case LogicalOperatorPreserve, LogicalOperatorStart, LogicalOperatorEnd, "":
 	default:
-		return fmt.Errorf("layout.content.logical_operator_position must be start|end, got %q", cfg.Layout.Content.LogicalOperatorPosition)
+		return fmt.Errorf("layout.content.logical_operator_position must be preserve|start|end, got %q", cfg.Layout.Content.LogicalOperatorPosition)
 	}
 	switch cfg.Layout.Content.JoinOnPosition {
-	case JoinOnInline, JoinOnNewline, "":
+	case JoinOnPreserve, JoinOnInline, JoinOnNewline, "":
 	default:
-		return fmt.Errorf("layout.content.join_on_position must be inline|newline, got %q", cfg.Layout.Content.JoinOnPosition)
+		return fmt.Errorf("layout.content.join_on_position must be preserve|inline|newline, got %q", cfg.Layout.Content.JoinOnPosition)
 	}
 	for name, b := range map[string]BreakMode{
 		"layout.ddl.create_table.break":      cfg.Layout.DDL.CreateTable.Break,

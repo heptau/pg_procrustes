@@ -960,7 +960,7 @@ func assertFormat(t *testing.T, got, want string, err error) {
 }
 
 func TestQuotedIdentifiersKeepCase(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml") // defaults
+	c, err := loadStyled("") // defaults
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -986,7 +986,7 @@ func fmtOnce(t *testing.T, sql string, c *config.Config) string {
 }
 
 func TestTriggerKeywordVsPseudoType(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -999,7 +999,7 @@ func TestTriggerKeywordVsPseudoType(t *testing.T) {
 }
 
 func TestSubselectAliasAndAssignmentSpacing(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1015,7 +1015,7 @@ func TestSubselectAliasAndAssignmentSpacing(t *testing.T) {
 }
 
 func TestDollarQuoteKeepsGapBeforeClose(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1027,7 +1027,7 @@ func TestDollarQuoteKeepsGapBeforeClose(t *testing.T) {
 
 func arithCfg(t *testing.T, mode config.ArithmeticSpacingMode) *config.Config {
 	t.Helper()
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1038,7 +1038,7 @@ func arithCfg(t *testing.T, mode config.ArithmeticSpacingMode) *config.Config {
 const arithSQL = "SELECT a+1, b - 2, c*d, -1, x = -1, a - -1, count(*), t.*, (a+b)*(c-d), f(x)-1 FROM t WHERE q*2 > 1;"
 
 func TestArithmeticSpacingDefaultPreserves(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1089,7 +1089,7 @@ func TestArithmeticSpacingLeavesPLpgSQLTypeAndWildcard(t *testing.T) {
 }
 
 func TestDDLColumnNamesAreNotKeywordCased(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1102,7 +1102,7 @@ func TestDDLColumnNamesAreNotKeywordCased(t *testing.T) {
 }
 
 func TestCapitalizeCase(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1132,7 +1132,7 @@ func TestCapitalizeCase(t *testing.T) {
 }
 
 func TestAliasesAsRemoveKeepsAsForNonBareLabels(t *testing.T) {
-	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	c, err := loadStyled("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1157,7 +1157,7 @@ func TestNotInConversionsProduceValidSQL(t *testing.T) {
 		{config.NotInNotEqualsAll, []string{"a <> ALL (ARRAY['x', 'y'])", "b <> ALL (SELECT id FROM u)"}},
 		{config.NotInNotIn, []string{"c NOT IN ('p', 'q')", "e NOT IN (SELECT 1)", "d != ALL (array_col)"}},
 	} {
-		c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+		c, err := loadStyled("")
 		if err != nil {
 			t.Fatal(err)
 		}

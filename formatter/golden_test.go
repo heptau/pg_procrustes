@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/formatter"
 )
 
@@ -46,7 +45,7 @@ func TestGolden(t *testing.T) {
 
 			// config.Load accepts an explicit path; returns defaultConfig() when
 			// the file does not exist, so a missing config.yaml is fine.
-			cfg, err := config.Load(filepath.Join(dir, "config.yaml"))
+			cfg, err := loadStyled(filepath.Join(dir, "config.yaml"))
 			if err != nil {
 				t.Fatalf("config.yaml: %v", err)
 			}

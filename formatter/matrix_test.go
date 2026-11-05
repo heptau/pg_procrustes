@@ -82,6 +82,20 @@ var matrixVariants = []matrixVariant{
 	{"aliases_no_as", func(c *config.Config) { c.Aliases.As = config.AliasAsRemove }},
 	{"join_long", func(c *config.Config) { c.JoinForm = config.JoinFormLong }},
 	{"cast_operator", func(c *config.Config) { c.CastStyle = config.CastStyleOperator }},
+	{"align_none_comments_none", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.AlignAliases = config.AlignItemsNone
+		c.Layout.Content.AlignSet = config.AlignItemsNone
+		c.Comments.AlignTrailing = config.CommentAlignNone
+	}},
+	{"positions_explicit", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.LogicalOperatorPosition = config.LogicalOperatorEnd
+		c.Layout.Content.JoinOnPosition = config.JoinOnNewline
+		c.Layout.Content.Align = config.AlignSame
+	}},
 	{"align_aliases_set", func(c *config.Config) {
 		c.Layout.Clauses.Break = config.BreakAlways
 		c.Layout.Content.Break = config.BreakAlways
@@ -490,7 +504,7 @@ func TestConfigMatrix(t *testing.T) {
 		if _, err := pg_query.Parse(src); err != nil {
 			continue // PL/pgSQL-only or partial snippets: semantic checks need a parseable input
 		}
-		base, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+		base, err := loadStyled("")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -505,7 +519,7 @@ func TestConfigMatrix(t *testing.T) {
 		baseShape := plShape(baseOut)
 		for _, v := range matrixVariants {
 			t.Run(name+"/"+v.name, func(t *testing.T) {
-				cfg, _ := config.Load("/nonexistent/.pg_procrustes.yaml")
+				cfg, _ := loadStyled("")
 				v.apply(cfg)
 				out, err := formatter.Format(src, cfg)
 				if err != nil {
