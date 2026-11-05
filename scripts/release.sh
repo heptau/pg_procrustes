@@ -5,7 +5,7 @@ set -euo pipefail
 #              every platform natively, creates the GitHub release and updates
 #              the Homebrew tap.
 #
-# Called by: make release VERSION=X.Y.Z  (version already bumped by prepare-release)
+# Called by: make release  (version already bumped by prepare_release.sh)
 #            make release-local          (builds the current platform only, no git)
 # =============================================================================
 
@@ -20,9 +20,11 @@ echo "pg_procrustes release — v${VERSION} (${MODE:-full})"
 echo ""
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
-echo "==> Running tests..."
-go test ./... -count=1
-echo ""
+if [[ -z "${SKIP_TESTS:-}" ]]; then
+  echo "==> Running tests..."
+  go test ./... -count=1
+  echo ""
+fi
 
 # ── Local mode ────────────────────────────────────────────────────────────────
 if [[ "$MODE" == "--local" ]]; then
@@ -43,7 +45,7 @@ if [[ "$MODE" == "--local" ]]; then
   echo "    OK  $ARCHIVE"
   echo ""
   echo "Local build ready. Inspect dist/ before running:"
-  echo "  make release VERSION=${VERSION}"
+  echo "  make release"
   exit 0
 fi
 
@@ -51,7 +53,7 @@ fi
 
 # Guard: uncommitted changes (prepare-release should have committed)
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Error: uncommitted changes present. Run 'make prepare-release VERSION=${VERSION}'" >&2
+  echo "Error: uncommitted changes present. Run 'make prepare-release'" >&2
   echo "first, or commit/stash manually." >&2
   exit 1
 fi

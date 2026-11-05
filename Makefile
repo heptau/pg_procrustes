@@ -2,9 +2,12 @@ BIN    := pg_procrustes
 CMD    := ./cmd/pg_procrustes
 OUTDIR := build
 
-VERSION ?= $(shell cat VERSION)
+# Version baked into local builds comes from the VERSION file. `make release`
+# / `make prepare-release` ask for the NEW version interactively (or take
+# VERSION=X.Y.Z from the command line / environment).
+APP_VERSION := $(shell cat VERSION)
 
-LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
+LDFLAGS := -ldflags "-s -w -X main.version=$(APP_VERSION)"
 
 .DEFAULT_GOAL := help
 
@@ -79,14 +82,15 @@ build-all: build-darwin-arm64 build-darwin-amd64 \
 
 # ── release ───────────────────────────────────────────────────────────────────
 
-prepare-release: ## Bump VERSION + roll CHANGELOG [Unreleased] into a dated entry, commit and push
-	@VERSION=$(VERSION) scripts/prepare_release.sh
+prepare-release: ## Ask for the new VERSION, test, roll CHANGELOG, bump VERSION, commit and push (no tag)
+	@VERSION="$(VERSION)" scripts/prepare_release.sh
 
 release-local: ## Test, build current platform archive, verify — no git, no push
-	@VERSION=$(VERSION) scripts/release.sh --local
+	@VERSION="$(APP_VERSION)" scripts/release.sh --local
 
-release: clean prepare-release ## Bump, build all platforms locally, tag, publish GitHub release, update tap
-	@VERSION=$(VERSION) scripts/release.sh
+release: clean ## One step: ask for VERSION, test, bump + CHANGELOG, commit, tag, push (CI builds and publishes)
+	@VERSION="$(VERSION)" scripts/prepare_release.sh
+	@SKIP_TESTS=1 scripts/release.sh
 
 llms: ## Regenerate docs/llms-full.txt from README.md and .pg_procrustes.yaml
 	@scripts/gen_llms_full.sh
