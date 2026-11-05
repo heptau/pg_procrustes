@@ -309,7 +309,7 @@ window.CB_EXAMPLES = {
    "t": "select case when status = 'active' then 1 when status = 'pending' then 2 else 0 end as s from t;\n\nselect case\n   when x = 1 then 'a'\n   else 'b'\nend from t;"
   },
   "always": {
-   "t": "select case\n  When status = 'active' Then 1\n  When status = 'pending' Then 2\n  Else 0\nEnd as s from t;\n\nselect case\n  When x = 1 Then 'a'\n  Else 'b'\nEnd from t;"
+   "t": "select case\n  when status = 'active' then 1\n  when status = 'pending' then 2\n  else 0\nend as s from t;\n\nselect case\n  when x = 1 then 'a'\n  else 'b'\nend from t;"
   },
   "auto": {
    "t": "select case when status = 'active' then 1 when status = 'pending' then 2 else 0 end as s from t;\n\nselect case when x = 1 then 'a' else 'b' end from t;"
@@ -323,16 +323,16 @@ window.CB_EXAMPLES = {
  },
  "layout.case.indent": {
   "": {
-   "t": "select case\n  When x = 1 Then 'a'\n  Else 'b'\nEnd from t;"
+   "t": "select case\n  when x = 1 then 'a'\n  else 'b'\nend from t;"
   },
   "indent": {
-   "t": "select case\n  When x = 1 Then 'a'\n  Else 'b'\nEnd from t;"
+   "t": "select case\n  when x = 1 then 'a'\n  else 'b'\nend from t;"
   },
   "none": {
-   "t": "select case\nWhen x = 1 Then 'a'\nElse 'b'\nEnd from t;"
+   "t": "select case\nwhen x = 1 then 'a'\nelse 'b'\nend from t;"
   },
   "preserve": {
-   "t": "select case\n  When x = 1 Then 'a'\n  Else 'b'\nEnd from t;"
+   "t": "select case\n  when x = 1 then 'a'\n  else 'b'\nend from t;"
   }
  },
  "layout.clauses.align": {

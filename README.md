@@ -262,6 +262,7 @@ Shipped templates (more can be added by dropping a file into `templates/`):
 |---|---|
 | `postgresql` | Roughly what PostgreSQL itself prints (pg_dump, `psql \d+`): upper-case keywords, lower-case identifiers and types, `::` casts, `<>`, four-space indent, first list item on the keyword line. |
 | `ai` | Lean for LLM prompts and context: lower case, short type names, no padding or alignment, two-space indent, redundant words (`AS`, `ASC`, `public.`) removed. |
+| `modern` | Readable with syntax highlighting on a wide screen, friendly to git and AI: lower-case keywords, one column per line with leading commas and `AND`/`OR` (a change touches one line), no alignment padding, short types, `::` casts, `!=`, two-space indent, 140 columns. |
 
 The [Config Builder](https://pg_procrustes.80.cz/config-builder.html) offers the same templates and can write a short file (`template: ai` plus your differences).
 

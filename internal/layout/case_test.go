@@ -316,3 +316,10 @@ func TestSQLCaseCombinedClauseAndCaseBreak(t *testing.T) {
 		t.Errorf("combined not idempotent:\npass1: %q\npass2: %q", got, pass2)
 	}
 }
+
+// Expanding a CASE keeps the case of WHEN/THEN/ELSE/END as written (no capitalising).
+func TestSQLCaseExpandKeepsKeywordCase(t *testing.T) {
+	cfg := caseCfg(config.BreakAlways, config.BodyIndentIndent, 80)
+	assertLayoutFormat(t, "select case when a then 1 else 2 end from t", cfg,
+		"select case\n  when a then 1\n  else 2\nend from t")
+}

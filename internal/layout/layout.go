@@ -1438,13 +1438,11 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 
 			sb.WriteByte('\n')
 			sb.WriteString(whenIndent)
-			sb.WriteString(strings.ToUpper(toks[i].text[:1]))
-			sb.WriteString(toks[i].text[1:]) // preserve casing of WHEN
+			sb.WriteString(toks[i].text) // preserve casing of WHEN
 			sb.WriteByte(' ')
 			sb.WriteString(cond)
 			sb.WriteByte(' ')
-			sb.WriteString(strings.ToUpper(toks[thenIdx].text[:1]))
-			sb.WriteString(toks[thenIdx].text[1:]) // THEN
+			sb.WriteString(toks[thenIdx].text) // THEN
 			sb.WriteByte(' ')
 			sb.WriteString(body)
 
@@ -1456,8 +1454,7 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 			body := strings.TrimSpace(originalText(item, toks, i+1, endIdx))
 			sb.WriteByte('\n')
 			sb.WriteString(whenIndent)
-			sb.WriteString(strings.ToUpper(toks[i].text[:1]))
-			sb.WriteString(toks[i].text[1:]) // ELSE
+			sb.WriteString(toks[i].text) // ELSE
 			sb.WriteByte(' ')
 			sb.WriteString(body)
 			i = endIdx
@@ -1469,8 +1466,7 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 
 	sb.WriteByte('\n')
 	sb.WriteString(baseIndent)
-	sb.WriteString(strings.ToUpper(toks[endIdx].text[:1]))
-	sb.WriteString(toks[endIdx].text[1:]) // END
+	sb.WriteString(toks[endIdx].text) // END
 
 	return sb.String()
 }

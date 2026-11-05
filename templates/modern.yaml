@@ -1,0 +1,91 @@
+# pg_procrustes template: modern
+# title: Modern
+# title.cs: Moderní
+# title.es: Moderno
+# title.de: Modern
+# title.fr: Moderne
+# title.pt: Moderno
+# title.it: Moderno
+# description: Readable with syntax highlighting on a wide screen and friendly to git and AI: lower-case
+#   keywords (colour does the shouting), one item per line with leading commas and AND/OR so a change
+#   touches one line, no alignment padding, short types, :: casts, != and 2-space indent.
+#
+# Use it from a config file with   template: modern   — your own settings in that file win.
+
+reserved_keywords:
+  case: lower
+keywords:
+  case: lower
+literals:
+  case: lower
+operators:
+  case: lower
+conditional_functions:
+  case: lower
+system_functions:
+  case: lower
+data_types:
+  case: lower
+  form: short
+schemas:
+  case: lower
+tables:
+  case: lower
+columns:
+  case: lower
+functions:
+  case: lower
+aliases:
+  case: lower
+  as: add
+plpgsql_variables:
+  case: lower
+plpgsql_keywords:
+  case: lower
+inequality_op: c
+cast_style: operator
+join_form: short
+order_asc: remove
+operator_spacing: normalize
+arithmetic_spacing: normalize
+comma_spacing: normalize
+paren_spacing: remove
+call_paren_spacing: remove
+inline_spacing: normalize
+trailing_whitespace: strip
+trailing_newline: add
+line_endings: lf
+semicolons: add
+comments:
+  align_trailing: none
+blank_lines: max_1
+blank_lines_between_statements: 1
+statement_break: always
+layout:
+  line_length: 140
+  indent:
+    size: 2
+  clauses:
+    break: always
+  union:
+    blank_line: both
+  content:
+    break: auto              # short WHERE / GROUP BY / ORDER BY stay on the keyword's line
+    select_list:
+      break: always          # one column per line: a change touches one line
+    set_list:
+      break: always
+    first_item: break
+    align_aliases: none
+    align_set: none
+    comma_position: start
+    logical_operator_position: start
+    join_on_position: inline
+    wrap_expressions: wrap
+  case:
+    break: always
+    indent: indent
+  ddl:
+    create_table:
+      break: always
+      align: none
