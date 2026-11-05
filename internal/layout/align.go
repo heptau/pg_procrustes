@@ -10,12 +10,13 @@ import (
 // SELECT aliases, "=" for SET assignments) so the separators line up. Items that
 // span lines, carry comments, contain CASE or have no separator are returned as
 // they are; with fewer than two alignable items nothing changes.
-func alignItems(items []string, sep string) []string {
+func alignItems(items []string, sep string, indentLen, limit int) []string {
 	type split struct{ head, tail string }
 	parts := make([]split, len(items))
 	ok := make([]bool, len(items))
 	n, width := 0, 0
-	for i, it := range items {
+	for i, full := range items {
+		_, it, _ := splitCommentLines(full)
 		if strings.ContainsAny(it, "\n") || strings.Contains(it, "--") || strings.Contains(it, "/*") {
 			continue
 		}
@@ -25,6 +26,11 @@ func alignItems(items []string, sep string) []string {
 		}
 		head := strings.TrimRight(it[:at], " \t")
 		if head == "" {
+			continue
+		}
+		if limit > 0 && indentLen+runeLen(head)+1+runeLen(it[at:]) > limit {
+			// line wrapping will break this item up; its width must not set the column of the
+			// others (the next run finds it on several lines and leaves it out)
 			continue
 		}
 		parts[i], ok[i] = split{head, it[at:]}, true
@@ -43,7 +49,8 @@ func alignItems(items []string, sep string) []string {
 			continue
 		}
 		p := parts[i]
-		out[i] = p.head + strings.Repeat(" ", width-runeLen(p.head)+1) + p.tail
+		lead, _, trail := splitCommentLines(it)
+		out[i] = lead + p.head + strings.Repeat(" ", width-runeLen(p.head)+1) + p.tail + trail
 	}
 	return out
 }
@@ -53,8 +60,9 @@ func alignItems(items []string, sep string) []string {
 // CASE, or without a separator stay as they are).
 func unpadItems(items []string, sep string) []string {
 	out := make([]string, len(items))
-	for i, it := range items {
-		out[i] = it
+	for i, full := range items {
+		out[i] = full
+		lead, it, trail := splitCommentLines(full)
 		if strings.ContainsAny(it, "\n") || strings.Contains(it, "--") || strings.Contains(it, "/*") {
 			continue
 		}
@@ -66,7 +74,7 @@ func unpadItems(items []string, sep string) []string {
 		if head == "" {
 			continue
 		}
-		out[i] = head + " " + it[at:]
+		out[i] = lead + head + " " + it[at:] + trail
 	}
 	return out
 }
@@ -101,4 +109,35 @@ func topLevelSeparator(item, sep string) int {
 		}
 	}
 	return found
+}
+
+// splitCommentLines splits the whole comment lines an item starts and ends with from the code
+// between them: which item such a line belongs to depends on where the input put it (and on
+// comma_position), so it must not decide whether the item takes part in the alignment.
+func splitCommentLines(item string) (lead, body, trail string) {
+	lead, rest := splitLeadingCommentLines(item)
+	if strings.TrimSpace(rest) == "" {
+		return "", item, ""
+	}
+	body, trail = splitTrailingCommentLines(rest)
+	if trail != "" {
+		// splitTrailingCommentLines trims what it takes; the line break before it stays here
+		trail = "\n" + strings.TrimSuffix(trail, "\n")
+	}
+	return lead, body, trail
+}
+
+// collapseSeparatorPadding shrinks the blanks before the top-level separator of an item that
+// spans several lines to one space: it was aligned while it still fitted on one line and the
+// line wrapping broke it up afterwards, leaving padding behind that the next run would not find.
+func collapseSeparatorPadding(item, sep string) string {
+	at := topLevelSeparator(item, sep)
+	if at <= 0 {
+		return item
+	}
+	head := strings.TrimRight(item[:at], " \t")
+	if head == "" || strings.HasSuffix(head, "\n") {
+		return item
+	}
+	return head + " " + item[at:]
 }

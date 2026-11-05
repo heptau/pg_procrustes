@@ -123,6 +123,7 @@ func resolveContentAlign(mode config.AlignMode, sql string, tokens []rawTok, kwT
 	kwIndent := lineIndent(sql, tokens[kwTok].start)
 	isInsert := strings.EqualFold(tokens[kwTok].text, "insert")
 	depth := 0
+	seenContent := false // a token other than a comment has been seen
 	for i := from; i < to && i < len(tokens); i++ {
 		switch tokens[i].text {
 		case "(", "[":
@@ -140,6 +141,16 @@ func resolveContentAlign(mode config.AlignMode, sql string, tokens []rawTok, kwT
 			// the column list's "(" is not an item; where it stands (paren_indent.open) says
 			// nothing about the style of the items
 			continue
+		}
+		if strings.HasPrefix(tokens[i].text, "--") || strings.HasPrefix(tokens[i].text, "/*") {
+			if seenContent {
+				// a comment after the first item belongs to what follows it: it is indented however
+				// its author liked and stays where it is when the keyword moves, so the next run
+				// would judge differently
+				continue
+			}
+		} else {
+			seenContent = true
 		}
 		if tokenStartsLine(sql, tokens[i]) {
 			if lineIndent(sql, tokens[i].start) == kwIndent {

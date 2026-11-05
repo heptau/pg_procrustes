@@ -781,6 +781,16 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		sb.WriteString(kwText)
 
 		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
+		// (decided before the alignment is read: a JOIN whose table comes onto the keyword line has
+		// no first item on a line of its own to read the style from, whatever the input looked like)
+		joinNewline := cl.kind == clauseJoin && resolveJoinNewline(cfg.Content.JoinOnPosition, sql, tokens, kwEnd, conEnd)
+		if joinNewline {
+			contentFirstItem = config.FirstItemInline // JOIN t stays on the keyword line
+		} else if cl.kind == clauseJoin && cfg.Content.JoinOn.FirstItem == "" && hasJoinCondition(tokens, kwEnd, conEnd) {
+			// JOIN t ON a = b: the table and its condition stay on the keyword line
+			// unless join_on.first_item asks for the first item on a line of its own.
+			contentFirstItem = config.FirstItemInline
+		}
 		if contentFirstItem == config.FirstItemInline && contentAlign == config.AlignPreserve {
 			// With the first item on the keyword line there is no first item to read the style
 			// from (and the first line that starts a line may be a continuation of that item):
@@ -911,14 +921,6 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			}
 		}
 
-		joinNewline := cl.kind == clauseJoin && resolveJoinNewline(cfg.Content.JoinOnPosition, sql, tokens, kwEnd, conEnd)
-		if joinNewline {
-			contentFirstItem = config.FirstItemInline // JOIN t stays on the keyword line
-		} else if cl.kind == clauseJoin && cfg.Content.JoinOn.FirstItem == "" && hasJoinCondition(tokens, kwEnd, conEnd) {
-			// JOIN t ON a = b: the table and its condition stay on the keyword line
-			// unless join_on.first_item asks for the first item on a line of its own.
-			contentFirstItem = config.FirstItemInline
-		}
 		items := splitContent(sql, tokens, kwEnd, conEnd, cl.kind, joinNewline)
 		useComma := usesCommaSeparator(cl.kind)
 		commaStart := useComma && resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, kwEnd, conEnd)
@@ -928,11 +930,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if contentFirstItem != config.FirstItemInline {
 			switch {
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsAlign:
-				items = alignItems(items, "as")
+				items = alignItems(items, "as", runeLen(contentIndent), wrapLimit(cfg))
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsNone:
 				items = unpadItems(items, "as")
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsAlign:
-				items = alignItems(items, "=")
+				items = alignItems(items, "=", runeLen(contentIndent), wrapLimit(cfg))
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsNone:
 				items = unpadItems(items, "=")
 			}
@@ -959,21 +961,44 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// the first newline must not make every pass add another level of indent.
 			// Lone parentheses say little about the item's indent (paren_indent.open: own_line
 			// puts "(" at the indent of its ")"), so a line with real content is preferred.
-			judge := ""
-			for _, ln := range strings.Split(item[firstNewline+1:], "\n") {
-				t := strings.TrimSpace(ln)
-				if t == "" {
-					continue
+			// A line inside a parenthesis the item opened on an earlier line (a subquery body,
+			// an argument list) is judged only when no line outside one exists: those lines get
+			// laid out again by their own rules, and what is left of the item after them (a USING
+			// clause, an alias) says more.
+			judgeOf := func(onlyOuter bool) string {
+				depth, _ := parenScanLine(item[:firstNewline])
+				first := ""
+				for _, ln := range strings.Split(item[firstNewline+1:], "\n") {
+					inner := depth > 0
+					d, _ := parenScanLine(ln)
+					if depth += d; depth < 0 {
+						depth = 0
+					}
+					t := strings.TrimSpace(ln)
+					if t == "" || onlyOuter && inner {
+						continue
+					}
+					if first == "" {
+						first = ln
+					}
+					if t != "(" && !strings.HasPrefix(t, ")") {
+						return ln
+					}
 				}
-				if judge == "" {
-					judge = ln
+				if onlyOuter {
+					return "" // lone parentheses alone: judge by all the lines instead
 				}
-				if t != "(" && !strings.HasPrefix(t, ")") {
-					judge = ln
-					break
-				}
+				return first
+			}
+			judge := judgeOf(true)
+			if judge == "" {
+				judge = judgeOf(false)
 			}
 			if judge != "" && strings.HasPrefix(judge, contentIndent) {
+				return item
+			}
+			if cfg.ParenIndent.Open == config.ParenOpenOwnLine && strings.HasPrefix(strings.TrimSpace(judge), "(") {
+				// own_line puts such a "(" at the indent of the line it came from, not of the items
 				return item
 			}
 			parts := strings.Split(item, "\n")
@@ -988,11 +1013,12 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if contentFirstItem == config.FirstItemInline {
 			// first_item: inline — first item on the keyword line, subsequent items on new lines.
 			for ii, item := range items {
+				item = reindentItem(item)
 				item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
 				if cfg.Content.WrapExpressions == config.WrapWrap {
 					item = wrapLongItem(item, contentIndent, indentUnit, cfg.LineLength-1)
 				}
-				item = reindentItem(item)
+				item = collapseAlignedPadding(item, cl.kind, cfg)
 				if ii == 0 {
 					sb.WriteByte(' ')
 				} else {
@@ -1016,17 +1042,15 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			}
 			sb.WriteByte('\n')
 			sb.WriteString(lineLead(ii))
+			// (reindented first: the CASE rewrite below lays out its own lines absolutely, and
+			// judging them afterwards by the line that holds CASE re-indents them once more
+			// when that line's indent is spelled differently, e.g. with tabs)
+			item = reindentItem(item)
 			item = reformatCaseExprs(item, contentIndent, cfg.Case, indentUnit, cfg.LineLength)
 			if cfg.Content.WrapExpressions == config.WrapWrap {
 				item = wrapLongItem(item, contentIndent, indentUnit, cfg.LineLength-1)
 			}
-			// When an item spans multiple lines and its continuation lines are NOT
-			// already indented to contentIndent level (e.g. case.break=preserve keeps
-			// WHEN/END at zero indent, or the source had the expression broken across
-			// lines), add contentIndent to each continuation line so that reindentLines
-			// (applied by applyLayoutToSQL) produces the correct absolute indentation
-			// for the whole item without disrupting the relative structure.
-			item = reindentItem(item)
+			item = collapseAlignedPadding(item, cl.kind, cfg)
 			if useComma && !commaStart && ii < len(items)-1 {
 				item = withTrailingComma(item)
 			}
@@ -1044,6 +1068,28 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	}
 
 	return sb.String()
+}
+
+// wrapLimit is the line length items are wrapped at (0 when they are not wrapped).
+func wrapLimit(cfg *config.LayoutConfig) int {
+	if cfg.Content.WrapExpressions == config.WrapWrap {
+		return cfg.LineLength - 1
+	}
+	return 0
+}
+
+// collapseAlignedPadding undoes the alignment padding of an item that ended up on several lines.
+func collapseAlignedPadding(item string, kind clauseKind, cfg *config.LayoutConfig) string {
+	if !strings.Contains(item, "\n") {
+		return item
+	}
+	switch {
+	case kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsAlign:
+		return collapseSeparatorPadding(item, "as")
+	case kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsAlign:
+		return collapseSeparatorPadding(item, "=")
+	}
+	return item
 }
 
 func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMode, config.AlignMode, config.FirstItemMode) {
@@ -1893,22 +1939,106 @@ func splitLeadingOperator(item string) (op, rest string, ok bool) {
 func moveOperatorsToEnd(items []string) []string {
 	out := append([]string(nil), items...)
 	for i := 1; i < len(out); i++ {
-		if op, rest, ok := splitLeadingOperator(out[i]); ok {
-			out[i-1] = appendBeforeComment(out[i-1], " "+op)
-			// A comment right after the operator ("AND -- why") ends the line the operator
-			// now ends, so it travels with it.
-			if strings.HasPrefix(rest, "--") {
-				comment, remaining := rest, ""
-				if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
-					comment, remaining = rest[:nl], strings.TrimLeft(rest[nl+1:], " \t\n")
-				}
-				out[i-1] += " " + strings.TrimRight(comment, " \t\r")
-				rest = remaining
-			}
-			out[i] = rest
+		// comment lines in front of the operator describe the condition after it: they stay
+		// in front of that condition
+		lead, body := splitLeadingCommentLines(out[i])
+		lead = trimLines(lead)
+		op, rest, ok := splitLeadingOperator(body)
+		if !ok {
+			continue
 		}
+		// whole comment lines at the end of the previous item belong to the condition below
+		prev, trail := splitTrailingCommentLines(out[i-1])
+		lead = trail + lead
+		out[i-1] = appendBeforeComment(prev, " "+op)
+		// A comment right after the operator on its line ("AND -- why") ends the line the
+		// operator now ends, so it travels with it; one on a line of its own stays with the
+		// condition below it.
+		if strings.HasPrefix(rest, "--") && !strings.Contains(body[len(op):len(body)-len(rest)], "\n") {
+			comment, remaining := rest, ""
+			if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
+				comment, remaining = rest[:nl], strings.TrimLeft(rest[nl+1:], " \t\n")
+			}
+			out[i-1] += " " + strings.TrimRight(comment, " \t\r")
+			rest = remaining
+		}
+		out[i] = lead + rest
 	}
 	return out
+}
+
+// isCommentLine reports whether the line holds nothing but a comment (a -- comment, or block
+// comments that start and end on it).
+func isCommentLine(line string) bool {
+	t := strings.TrimSpace(line)
+	if strings.HasPrefix(t, "--") {
+		return true
+	}
+	for strings.HasPrefix(t, "/*") {
+		end := strings.Index(t, "*/")
+		if end < 0 {
+			return false
+		}
+		t = strings.TrimSpace(t[end+2:])
+	}
+	return t == "" && strings.HasPrefix(strings.TrimSpace(line), "/*")
+}
+
+// trimLines trims the blanks around every line of s (each line keeps its line break).
+func trimLines(s string) string {
+	if s == "" {
+		return s
+	}
+	var sb strings.Builder
+	for _, ln := range strings.SplitAfter(s, "\n") {
+		if ln == "" {
+			continue
+		}
+		sb.WriteString(strings.TrimSpace(ln))
+		if strings.HasSuffix(ln, "\n") {
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
+}
+
+// splitTrailingCommentLines splits the whole -- comment lines an item ends with (starting at the
+// line break before them) from the rest.
+func splitTrailingCommentLines(item string) (rest, trail string) {
+	cut := len(item)
+	for cut > 0 {
+		nl := strings.LastIndexByte(item[:cut], '\n')
+		if nl < 0 || !isCommentLine(item[nl+1:cut]) {
+			break
+		}
+		cut = nl
+	}
+	if cut == len(item) {
+		return item, ""
+	}
+	var sb strings.Builder
+	for _, ln := range strings.Split(item[cut+1:], "\n") {
+		sb.WriteString(strings.TrimSpace(ln)) // the indent of the line they leave is not theirs
+		sb.WriteByte('\n')
+	}
+	return item[:cut], sb.String()
+}
+
+// splitLeadingCommentLines splits the whole -- comment lines an item starts with (kept with
+// their line break) from the rest.
+func splitLeadingCommentLines(item string) (lead, rest string) {
+	pos := 0
+	for pos < len(item) {
+		nl := strings.IndexByte(item[pos:], '\n')
+		if nl < 0 {
+			break
+		}
+		if !isCommentLine(item[pos : pos+nl]) {
+			break
+		}
+		pos += nl + 1
+	}
+	return item[:pos], item[pos:]
 }
 
 // findTopLevelOn returns the index of the first ON outside parentheses in tokens[from:to], or -1.
