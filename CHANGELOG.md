@@ -21,6 +21,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `quoted_identifiers: remove_safe` keeps the quotes of a keyword-spelled name (`"year"`, `"name"`) that the parser could not place — inside a PL/pgSQL expression such as `xmlforest(… AS "year")` — because unquoted it was upper-cased as a keyword on the next run
 - Output that PostgreSQL rejects, found by parsing the PL/pgSQL bodies of ~9,200 real functions after formatting: `aliases.as: remove` no longer drops the AS of `INSERT INTO t AS x` (it is required there); `semicolons: add` puts the missing `;` after the last code token, not behind a trailing `/* … */` comment (`end` / `/*DOCU … */;` closed the body with a stray `;`); `data_types.form: long` leaves `timestamptz(0)` / `timetz(2)` alone instead of writing `timestamp with time zone(0)`; a `CASE` that contains a `--` comment is no longer rebuilt by `layout.case.break` (it put `THEN …` behind the comment)
 - `quoted_identifiers: remove_safe` keeps the quotes of names that are column-name or function-name keywords (`"substring"(…)`, `"float"`, `"left"`): unquoted they were cased as keywords on the next run
 - Table-function aliases (`FROM unnest(a, b) AS t(x, y)`) are recognised: `aliases.as: remove` / the function-name case now apply to them in the first run, and aliases of subqueries that start with a comment (`FROM ( -- note` / `SELECT …) AS x`) are found

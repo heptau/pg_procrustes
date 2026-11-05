@@ -464,3 +464,23 @@ func TestTableFunctionAliasAsRemoved(t *testing.T) {
 		t.Errorf("not idempotent: %q vs %q", once, again)
 	}
 }
+
+// A quoted name spelled like a keyword that the parser cannot place (inside a PL/pgSQL
+// expression) keeps its quotes: unquoted it was upper-cased as a keyword on the next run.
+func TestQuotedKeywordNameInPLpgSQLExpressionIsStable(t *testing.T) {
+	c, err := config.Load("../templates/postgresql.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := "create function f(_year text) returns text language plpgsql as $$\nbegin\n  _xml := common.to_text(xmlforest(nullif(_year, '') as \"year\"));\n  return _xml;\nend;\n$$;\n"
+	once, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(once, `AS "year"`) {
+		t.Errorf("quotes were removed:\n%s", once)
+	}
+	if again, _ := formatter.Format(once, c); again != once {
+		t.Errorf("not idempotent:\n%s\n---\n%s", once, again)
+	}
+}

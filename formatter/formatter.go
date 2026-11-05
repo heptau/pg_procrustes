@@ -753,6 +753,12 @@ func safeToUnquote(inner string) bool {
 	return true
 }
 
+// isKeywordName reports whether name, unquoted, is a PostgreSQL keyword of any kind.
+func isKeywordName(name string) bool {
+	res, err := pg_query.Scan(name)
+	return err == nil && len(res.Tokens) == 1 && res.Tokens[0].KeywordKind != pg_query.KeywordKind_NO_KEYWORD
+}
+
 // collapseBlankLines replaces runs of excess consecutive newlines.
 func collapseBlankLines(s string, mode config.BlankLinesMode) string {
 	var max int
@@ -1401,7 +1407,11 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		if cfg.QuotedIdents == config.QuotedIdentRemoveSafe &&
 			len(tokenText) >= 2 && tokenText[0] == '"' && tokenText[len(tokenText)-1] == '"' {
 			inner := tokenText[1 : len(tokenText)-1]
-			if safeToUnquote(inner) {
+			located := pos.aliases[tok.start] || pos.columns[tok.start] || pos.tables[tok.start] || pos.schemas[tok.start]
+			// A keyword-spelled name ("year", "name") the AST did not place (inside a PL/pgSQL
+			// expression, say) would be read — and cased — as the keyword on the next run:
+			// its quotes stay.
+			if safeToUnquote(inner) && (located || !isKeywordName(inner)) {
 				// select"a" → SELECT a, not SELECTa: keep a separator after a word.
 				// An unquoted alias still follows aliases.as / aliases.case; other
 				// identifiers follow their own section's case rule when the AST located them.
