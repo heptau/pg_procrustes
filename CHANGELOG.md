@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-05
+
 ### Added
 
 - Layout: `layout.content.wrap_expressions: preserve | wrap` breaks a list item longer than `line_length` at the commas of its first parenthesised group (function arguments, `IN` lists, rows) with one element per line and `)` on its own line; nested groups wrap recursively, `CASE`, subqueries and items with comments are left alone.
