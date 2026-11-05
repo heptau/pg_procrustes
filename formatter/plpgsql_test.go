@@ -37,8 +37,15 @@ func plCfg() *config.Config {
 		CastStyle:            config.CastStylePreserve,
 		NotIn:                config.NotInPreserve,
 		SchemaQual:           config.SchemaQualPreserve,
-		Layout:               config.DefaultLayout(),
+		Layout:               plLayout(),
 	}
+}
+
+// plLayout is the default layout with the 3-space indent these tests were written for.
+func plLayout() config.LayoutConfig {
+	l := config.DefaultLayout()
+	l.Indent.Size = 3
+	return l
 }
 
 func wrap(body string) string {

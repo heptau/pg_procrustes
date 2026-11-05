@@ -1,0 +1,77 @@
+# pg_procrustes template: ai
+# title: AI compact
+# title.cs: AI kompaktní
+# title.es: IA compacto
+# title.de: KI kompakt
+# title.fr: IA compact
+# title.pt: IA compacto
+# title.it: IA compatto
+# description: Lean for LLM prompts and context: everything lower case, short type names, no padding
+#   or alignment, two-space indent, redundant words removed (AS, ASC, public., spaces around operators).
+#
+# Use it from a config file with   template: ai   — your own settings in that file win.
+
+reserved_keywords:
+  case: lower
+keywords:
+  case: lower
+literals:
+  case: lower
+operators:
+  case: lower
+conditional_functions:
+  case: lower
+system_functions:
+  case: lower
+data_types:
+  case: lower
+  form: short
+schemas:
+  case: lower
+tables:
+  case: lower
+columns:
+  case: lower
+functions:
+  case: lower
+aliases:
+  case: lower
+  as: remove
+plpgsql_variables:
+  case: lower
+plpgsql_keywords:
+  case: lower
+inequality_op: c
+cast_style: operator
+join_form: short
+order_asc: remove
+schema_qualification: remove_public
+quoted_identifiers: remove_safe
+operator_spacing: compact
+arithmetic_spacing: compact
+comma_spacing: compact
+paren_spacing: remove
+call_paren_spacing: remove
+inline_spacing: normalize
+trailing_whitespace: strip
+trailing_newline: strip
+line_endings: lf
+comments:
+  align_trailing: none
+blank_lines: max_1
+blank_lines_between_statements: 0
+statement_break: always
+layout:
+  line_length: 100
+  indent:
+    size: 2
+  clauses:
+    break: always
+  content:
+    break: auto
+    align_aliases: none
+    align_set: none
+  ddl:
+    create_table:
+      break: auto
+      align: none

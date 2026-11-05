@@ -141,3 +141,68 @@ func TestCommentAlignNoneCollapsesGap(t *testing.T) {
 		t.Errorf("not idempotent: %q", again)
 	}
 }
+
+func TestStatementBreakAlways(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := "select 1; select 2; -- note\nselect 3;\n\n\nselect 4; /* c */ select 5;   select 6\n"
+	// preserve (default) leaves everything as written
+	if got, err := formatter.Format(in, c); err != nil || got != in {
+		t.Fatalf("preserve changed the input: %q (%v)", got, err)
+	}
+	c.StatementBreak = config.StatementBreakAlways
+	want := "select 1;\nselect 2; -- note\nselect 3;\n\n\nselect 4; /* c */\nselect 5;\nselect 6\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent: %q", again)
+	}
+}
+
+func TestTrailingNewlineStripLeavesDollarBodyAlone(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.TrailingNewline = config.TrailingNewlineStrip
+	in := "create function g() returns int as $$\nbegin\n  return 1;\nend;\n$$ language plpgsql;\n"
+	want := "create function g() returns int as $$\nbegin\n  return 1;\nend;\n$$ language plpgsql;"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+}
+
+func TestCompactCommasSurviveLayoutRejoin(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.CommaSpacing = config.CommaSpacingCompact
+	c.Layout.Clauses.Break = config.BreakAlways
+	for _, in := range []string{
+		"select id,\n name from users;",
+		"create function f() returns int as $$\nbegin\n  select id,\n    name from users;\n  return 1;\nend\n$$ language plpgsql;",
+	} {
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again, _ := formatter.Format(got, c); again != got {
+			t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+		}
+		if strings.Contains(got, ", ") {
+			t.Errorf("comma gap left in %q", got)
+		}
+	}
+}

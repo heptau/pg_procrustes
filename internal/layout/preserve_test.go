@@ -11,6 +11,7 @@ import (
 // their defaults (preserve).
 func brokenCfg(mod func(*config.LayoutConfig)) *config.LayoutConfig {
 	cfg := config.DefaultLayout()
+	cfg.Indent.Size = 3
 	cfg.Clauses.Break = config.BreakAlways
 	cfg.Content.Break = config.BreakAlways
 	if mod != nil {
@@ -75,7 +76,7 @@ func TestJoinOnPositionPreserve(t *testing.T) {
 		t.Errorf("ON on its own line not kept:\n%s", got)
 	}
 	got = applyTwice(t, "select 1 from a join b on b.id = a.id and b.ok;", cfg)
-	if want := "select\n   1\nfrom\n   a\njoin\n   b on b.id = a.id\n   and b.ok;"; got != want {
+	if want := "select\n   1\nfrom\n   a\njoin b on b.id = a.id\n   and b.ok;"; got != want {
 		t.Errorf("ON inline expected without a signal:\n%s", got)
 	}
 }
@@ -111,5 +112,34 @@ func TestAlignNoneRemovesPadding(t *testing.T) {
 	}
 	if got := applyTwice(t, "update t set\n   a         = 1,\n   long_name = 2;", cfg); got != "update\n   t\nset\n   a = 1,\n   long_name = 2;" {
 		t.Errorf("SET padding not removed:\n%s", got)
+	}
+}
+
+func TestJoinOnInlineJoinsOnToTable(t *testing.T) {
+	cfg := brokenCfg(func(c *config.LayoutConfig) { c.Content.JoinOnPosition = config.JoinOnInline })
+	got := applyTwice(t, "select 1 from a\njoin b\n   on b.id = a.id\n   and b.ok;", cfg)
+	if want := "select\n   1\nfrom\n   a\njoin b on b.id = a.id\n   and b.ok;"; got != want {
+		t.Errorf("explicit inline did not put ON after the table:\n%s", got)
+	}
+}
+
+func TestJoinUsingStaysInTheJoin(t *testing.T) {
+	cfg := brokenCfg(nil)
+	got := applyTwice(t, "select 1 from a join b using (id) left join c using (id, x);", cfg)
+	if want := "select\n   1\nfrom\n   a\njoin b using (id)\nleft join c using (id, x);"; got != want {
+		t.Errorf("JOIN … USING was split:\n%s", got)
+	}
+	// DELETE … USING still opens a clause of its own
+	got = applyTwice(t, "delete from t using a join b using (id) where t.id = a.id;", cfg)
+	if want := "delete from\n   t\nusing\n   a\njoin b using (id)\nwhere\n   t.id = a.id;"; got != want {
+		t.Errorf("DELETE … USING changed:\n%s", got)
+	}
+}
+
+func TestJoinFirstItemExplicitBreak(t *testing.T) {
+	cfg := brokenCfg(func(c *config.LayoutConfig) { c.Content.JoinOn.FirstItem = config.FirstItemBreak })
+	got := applyTwice(t, "select 1 from a join b on b.id = a.id;", cfg)
+	if want := "select\n   1\nfrom\n   a\njoin\n   b on b.id = a.id;"; got != want {
+		t.Errorf("explicit join_on.first_item: break not honoured:\n%s", got)
 	}
 }

@@ -58,10 +58,13 @@ class PgProcrustes < Formula
 
   def install
     bin.install "pg_procrustes"
+    # `template: name` in a config is looked up in ../share/pg_procrustes/templates next to the binary
+    (share/"pg_procrustes").install "templates"
   end
 
   test do
     system bin/"pg_procrustes", "--version"
+    assert_match "postgresql", shell_output("#{bin}/pg_procrustes --list-templates")
   end
 end
 EOF

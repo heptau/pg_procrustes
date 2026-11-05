@@ -26,6 +26,9 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Config builder templates are up to date
+        run: go run scripts/gen_builder_templates.go -check
+
       - name: Test
         run: go test ./... -count=1
 

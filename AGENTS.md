@@ -237,6 +237,10 @@ Dollar-quoted blocks are processed inside step 5: the body is extracted, `reform
 5. Update `layout.IsNoop()` if the new option lives in `LayoutConfig`.
 6. Add a golden test case in `formatter/testdata/<name>/` with `input.sql` + optional `config.yaml` + `want.sql`.
 
+## Templates
+
+`templates/*.yaml` are ordinary config files shipped with the program (not embedded in the binary): they are installed next to it (`make install`, release archives, Homebrew formula) and referenced from a config as `template: name` (`config/template.go` resolves names, files, chains and merging). The Config Builder is generated from that folder: `make builder-templates` (also run by `make build`) writes `docs/config-builder-templates.js`; CI runs `go run scripts/gen_builder_templates.go -check`. To add or remove a template just add or remove a file — header comments `# title:`, `# title.<lang>:` and `# description:` give its label. `TestShippedTemplatesLoad` and `TestShippedTemplatesFormatSafely` cover every file in the folder.
+
 ## Changelog discipline
 
 Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.md` under `[Unreleased]`. When a feature or fix touches multiple turns/edits, keep it to **one bullet per logical change**, not one bullet per edit:

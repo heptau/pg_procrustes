@@ -163,6 +163,53 @@ func separateStatements(text string, n int) string {
 	return b.String()
 }
 
+// breakSameLineStatements starts every statement that shares a line with the previous
+// one on a line of its own. A comment on the same line as the previous ';' stays with
+// that statement; blank lines and statements that already start a line are untouched.
+func breakSameLineStatements(text string) string {
+	chunks, err := splitStatements(text)
+	if err != nil || len(chunks) < 2 {
+		return text
+	}
+	var b strings.Builder
+	for i, ch := range chunks {
+		s := ch.text
+		if i > 0 && !chunks[i-1].meta && strings.HasSuffix(strings.TrimRight(chunks[i-1].text, " \t\r\n"), ";") {
+			s = breakLead(s)
+		}
+		b.WriteString(s)
+	}
+	return b.String()
+}
+
+func breakLead(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return s
+	}
+	p := 0
+	for p < len(s) && (s[p] == ' ' || s[p] == '\t') {
+		p++
+	}
+	keep := ""
+	if strings.HasPrefix(s[p:], "--") {
+		return s // the comment ends the line, whatever follows is on the next one
+	} else if strings.HasPrefix(s[p:], "/*") {
+		end := strings.Index(s[p:], "*/")
+		if end >= 0 && !strings.Contains(s[p:p+end], "\n") {
+			keep = s[:p+end+2]
+			s = s[p+end+2:]
+		}
+	}
+	q := 0
+	for q < len(s) && (s[q] == ' ' || s[q] == '\t') {
+		q++
+	}
+	if q < len(s) && s[q] != '\n' && s[q] != '\r' {
+		return keep + "\n" + s[q:]
+	}
+	return keep + s
+}
+
 // normalizeLead rewrites the whitespace at the start of a statement chunk (after the
 // previous statement's ';') so that exactly n blank lines precede the statement.
 func normalizeLead(s string, n int) string {
@@ -232,6 +279,35 @@ func collapseTrailingCommentGap(text string) string {
 		b.WriteString(text[cur:codeEnd])
 		b.WriteByte(' ')
 		cur = start
+	}
+	b.WriteString(text[cur:])
+	return b.String()
+}
+
+// compactCommaGaps removes the blanks after a comma that layout re-joined onto one line
+// ("a,\n b" → "a, b"): comma_spacing: compact must hold for the final text, not just for
+// the token pass that ran before the layout. A comma at the end of a line is left alone.
+func compactCommaGaps(text string) string {
+	if !strings.Contains(text, ",") {
+		return text
+	}
+	res, err := pg_query.Scan(text)
+	if err != nil {
+		return text
+	}
+	var b strings.Builder
+	cur := 0
+	toks := res.Tokens
+	for i, t := range toks {
+		if i+1 >= len(toks) || text[t.Start:t.End] != "," {
+			continue
+		}
+		gapStart, gapEnd := int(t.End), int(toks[i+1].Start)
+		if gapEnd <= gapStart || !isOnlyHorizontalWS(text[gapStart:gapEnd]) {
+			continue
+		}
+		b.WriteString(text[cur:gapStart])
+		cur = gapEnd
 	}
 	b.WriteString(text[cur:])
 	return b.String()

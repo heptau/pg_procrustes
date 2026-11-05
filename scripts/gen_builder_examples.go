@@ -1,0 +1,244 @@
+//go:build ignore
+
+// Generates docs/config-builder-examples.js: for every option of the Config
+// Builder and every value it offers, the sample SQL formatted by the real
+// formatter. Run with `make builder-examples` (or `go run scripts/gen_builder_examples.go`).
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/heptau/pg_procrustes/config"
+	"github.com/heptau/pg_procrustes/formatter"
+)
+
+type sample struct {
+	In   string            `json:"in"`
+	With map[string]string `json:"with"`
+}
+
+type opt struct {
+	Key     string     `json:"key"`
+	Type    string     `json:"type"`
+	Def     string     `json:"def"`
+	Values  [][]string `json:"values"`
+	Nums    []string   `json:"nums"`
+	Inherit string     `json:"inherit"`
+	Sample  *sample    `json:"sample"`
+}
+
+type result struct {
+	T string `json:"t,omitempty"` // formatted text
+	E string `json:"e,omitempty"` // error message (syntax_errors: fail)
+}
+
+func yamlFor(kv map[string]string) string {
+	type node map[string]any
+	root := node{}
+	for k, v := range kv {
+		parts := strings.Split(k, ".")
+		cur := root
+		for _, p := range parts[:len(parts)-1] {
+			next, ok := cur[p].(node)
+			if !ok {
+				next = node{}
+				cur[p] = next
+			}
+			cur = next
+		}
+		cur[parts[len(parts)-1]] = v
+	}
+	var sb strings.Builder
+	var walk func(n node, depth int)
+	walk = func(n node, depth int) {
+		keys := make([]string, 0, len(n))
+		for k := range n {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			pad := strings.Repeat("  ", depth)
+			if sub, ok := n[k].(node); ok {
+				fmt.Fprintf(&sb, "%s%s:\n", pad, k)
+				walk(sub, depth+1)
+			} else {
+				fmt.Fprintf(&sb, "%s%s: %v\n", pad, k, n[k])
+			}
+		}
+	}
+	walk(root, 0)
+	return sb.String()
+}
+
+func main() {
+	raw, err := os.ReadFile("docs/config-builder-options.js")
+	check(err)
+	s := string(raw)
+	s = s[strings.Index(s, "window.CB_OPTIONS = ")+len("window.CB_OPTIONS = "):]
+	s = strings.TrimSuffix(strings.TrimSpace(s), ";")
+	var data struct {
+		Groups []struct {
+			Opts []opt `json:"opts"`
+		} `json:"groups"`
+	}
+	check(json.Unmarshal([]byte(s), &data))
+
+	// baseline: every enum that has a "preserve" value is switched to it, so a
+	// sample only shows the effect of the one option under test.
+	baseline := map[string]string{}
+	var all []opt
+	for _, g := range data.Groups {
+		for _, o := range g.Opts {
+			all = append(all, o)
+			for _, v := range o.Values {
+				if v[0] == "preserve" && o.Inherit == "" {
+					baseline[o.Key] = "preserve"
+				}
+			}
+		}
+	}
+
+	dir, err := os.MkdirTemp("", "cbex")
+	check(err)
+	defer os.RemoveAll(dir)
+
+	run := func(sql string, kv map[string]string) result {
+		path := filepath.Join(dir, ".pg_procrustes.yaml")
+		y := yamlFor(kv)
+		if os.Getenv("CBDEBUG") != "" && kv["layout.clauses.break"] == "always" {
+			fmt.Fprintln(os.Stderr, y)
+		}
+		check(os.WriteFile(path, []byte(y), 0o644))
+		cfg, err := config.Load(path)
+		if err != nil {
+			return result{E: "config: " + err.Error()}
+		}
+		out, err := formatter.Format(sql, cfg)
+		if err != nil {
+			return result{E: err.Error()}
+		}
+		return result{T: out}
+	}
+
+	examples := map[string]map[string]result{}
+	for _, o := range all {
+		if o.Sample == nil {
+			continue
+		}
+		vals := []string{}
+		if o.Type == "number" {
+			vals = o.Nums
+		} else {
+			for _, v := range o.Values {
+				vals = append(vals, v[0])
+			}
+		}
+		base := map[string]string{}
+		for k, v := range baseline {
+			base[k] = v
+		}
+		delete(base, o.Key)
+		// content breaks only act inside clauses that start on their own line
+		if strings.HasPrefix(o.Key, "layout.content.") || strings.HasPrefix(o.Key, "layout.ddl.") ||
+			o.Key == "layout.line_length" || o.Key == "layout.indent.size" || o.Key == "layout.indent.type" || o.Key == "layout.clauses.align" {
+			base["layout.clauses.break"] = "always"
+		}
+		for k, v := range o.Sample.With {
+			base[k] = v
+		}
+		res := map[string]result{}
+		for _, v := range vals {
+			kv := map[string]string{}
+			for k, x := range base {
+				kv[k] = x
+			}
+			kv[o.Key] = v
+			res[v] = run(o.Sample.In, kv)
+		}
+		// effective value when the option is left out of the config
+		if o.Def != "" && o.Type != "number" {
+			res[""] = res[o.Def]
+		} else {
+			res[""] = run(o.Sample.In, base)
+		}
+		examples[o.Key] = res
+
+		for _, v := range vals {
+			if v != "preserve" && res[v].E == "" && res[v].T == o.Sample.In {
+				fmt.Fprintf(os.Stderr, "no-change: %s = %s\n", o.Key, v)
+			}
+		}
+		same := true
+		for _, v := range vals {
+			if res[v] != res[vals[0]] {
+				same = false
+			}
+		}
+		if same {
+			fmt.Fprintf(os.Stderr, "warning: %s: all values give the same output\n", o.Key)
+		}
+	}
+
+	checkPresets(all, run)
+
+	buf, err := json.MarshalIndent(examples, "", " ")
+	check(err)
+	check(os.WriteFile("docs/config-builder-examples.js",
+		[]byte("// GENERATED by scripts/gen_builder_examples.go — do not edit.\nwindow.CB_EXAMPLES = "+string(buf)+";\n"), 0o644))
+	fmt.Println("wrote docs/config-builder-examples.js:", len(examples), "options")
+}
+
+func check(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// checkPresets validates every template in templates/ the way users meet it: the file must
+// load (templates are resolved, values validated), only name options the builder knows, and
+// is shown applied to a small statement.
+func checkPresets(all []opt, _ func(string, map[string]string) result) {
+	known := map[string]bool{}
+	for _, o := range all {
+		known[o.Key] = true
+	}
+	files, _ := filepath.Glob("templates/*.yaml")
+	sort.Strings(files)
+	const demo = "Select U.Id, Count(*) As N, Cast(U.Price As Double Precision) From Public.Users As U Join Orders O On O.Uid = U.Id And O.Paid Where U.Active = True And U.Kind <> 'x' Group By U.Id Order By U.Id Asc; select 1; select 2"
+	for _, f := range files {
+		cfg, err := config.Load(f)
+		if err != nil {
+			check(fmt.Errorf("template %s: %w", f, err))
+		}
+		merged, _, err := config.MergedSettings(f)
+		check(err)
+		flat := map[string]string{}
+		flattenSettings(merged, "", flat)
+		for k := range flat {
+			if !known[k] {
+				check(fmt.Errorf("template %s: the config builder does not know option %s", f, k))
+			}
+		}
+		out, err := formatter.Format(demo, cfg)
+		check(err)
+		fmt.Printf("--- template %s ---\n%s\n", strings.TrimSuffix(filepath.Base(f), ".yaml"), out)
+	}
+}
+
+func flattenSettings(m map[string]any, prefix string, out map[string]string) {
+	for k, v := range m {
+		switch t := v.(type) {
+		case map[string]any:
+			flattenSettings(t, prefix+k+".", out)
+		case []any: // lists (exceptions) are not builder options
+		default:
+			out[prefix+k] = fmt.Sprint(t)
+		}
+	}
+}

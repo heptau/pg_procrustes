@@ -1597,6 +1597,9 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		}
 	}
 
+	if cfg.CommaSpacing == config.CommaSpacingCompact && !layout.IsNoop(&cfg.Layout) {
+		result = compactCommaGaps(result)
+	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
 		result = alignTrailingComments(result)
 	}
@@ -2118,6 +2121,9 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// Apply casing/spacing without layout first.
 	cfgInner := *cfg
 	cfgInner.Layout = config.LayoutConfig{}
+	// A body is a fragment of the file: whole-file settings must not touch its edges
+	// (trailing_newline: strip would glue the closing delimiter to the last line).
+	cfgInner.TrailingNewline = config.TrailingNewlinePreserve
 	formatted, err := formatTolerant(body, &cfgInner)
 	if err != nil {
 		formatted = body
@@ -2149,6 +2155,9 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// followed by an inserted blank line); strip them, but never inside tokens.
 	if cfg.TrailingWhitespace == config.TrailingWSStrip {
 		resultBody = stripTrailingOutsideTokens(resultBody)
+	}
+	if cfg.CommaSpacing == config.CommaSpacingCompact && !layout.IsNoop(&cfg.Layout) {
+		resultBody = compactCommaGaps(resultBody)
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
 		resultBody = alignTrailingComments(resultBody)
@@ -3575,6 +3584,9 @@ func finishWholeText(result string, cfg *config.Config, addSemicolon bool) strin
 		}
 	}
 
+	if cfg.StatementBreak == config.StatementBreakAlways {
+		result = breakSameLineStatements(result)
+	}
 	if n, err := cfg.BlankLinesBetween(); err == nil && n >= 0 {
 		result = separateStatements(result, n)
 	}

@@ -11,7 +11,7 @@ LDFLAGS := -ldflags "-s -w -X main.version=$(APP_VERSION)"
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build test test-update bench lint fmt install clean \
+.PHONY: builder-templates builder-examples help build test test-update bench lint fmt install clean \
         build-darwin-arm64 build-darwin-amd64 \
         build-linux-amd64 build-linux-arm64 \
         build-windows-amd64 build-windows-arm64 \
@@ -26,12 +26,18 @@ help: ## Show this help
 
 # ── local build ───────────────────────────────────────────────────────────────
 
-build: ## Build binary for the current platform → build/pg_procrustes
+build: builder-templates ## Build binary for the current platform → build/pg_procrustes
 	@mkdir -p $(OUTDIR)
 	go build $(LDFLAGS) -o $(OUTDIR)/$(BIN) $(CMD)
 
-install: ## Install binary to $GOPATH/bin
-	go install $(LDFLAGS) $(CMD)
+# The binary finds installed templates in ../share/pg_procrustes/templates (and templates/ next
+# to it), so `template: name` works wherever PREFIX points.
+PREFIX ?= $(shell go env GOPATH)
+
+install: ## Install the binary and templates/ under PREFIX (default $GOPATH): bin/ and share/pg_procrustes/templates/
+	@mkdir -p $(PREFIX)/bin $(PREFIX)/share/pg_procrustes/templates
+	go build $(LDFLAGS) -o $(PREFIX)/bin/$(BIN) $(CMD)
+	cp templates/*.yaml $(PREFIX)/share/pg_procrustes/templates/
 
 # ── tests / quality ───────────────────────────────────────────────────────────
 
@@ -79,7 +85,7 @@ build-windows-arm64: ## Windows ARM64       → build/pg_procrustes-windows-arm6
 	@mkdir -p $(OUTDIR)
 	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o $(OUTDIR)/$(BIN)-windows-arm64.exe $(CMD)
 
-build-all: build-darwin-arm64 build-darwin-amd64 \
+build-all: builder-templates build-darwin-arm64 build-darwin-amd64 \
            build-linux-amd64 build-linux-arm64 \
            build-windows-amd64 build-windows-arm64 ## Build raw binaries for all platforms → build/
 
@@ -94,6 +100,12 @@ release-local: ## Test, build current platform archive, verify — no git, no pu
 release: clean ## One step: ask for VERSION, test, bump + CHANGELOG, commit, tag, push (CI builds and publishes)
 	@VERSION="$(VERSION)" scripts/prepare_release.sh
 	@SKIP_TESTS=1 scripts/release.sh
+
+builder-templates: ## Regenerate docs/config-builder-templates.js from templates/*.yaml (add or remove a file there)
+	@go run scripts/gen_builder_templates.go
+
+builder-examples: builder-templates ## Regenerate docs/config-builder-examples.js with the real formatter
+	@go run scripts/gen_builder_examples.go
 
 llms: ## Regenerate docs/llms-full.txt from README.md and .pg_procrustes.yaml
 	@scripts/gen_llms_full.sh

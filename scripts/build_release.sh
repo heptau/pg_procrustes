@@ -32,24 +32,31 @@ mkdir -p "$DIST"
 BIN_NAME="$BIN"
 [[ "$TARGET_OS" == "windows" ]] && BIN_NAME="${BIN}.exe"
 
+# The archive holds the binary and templates/ side by side: the binary finds the templates
+# there (or in ../share/pg_procrustes/templates after a package install).
+STAGE="${DIST}/stage"
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+
 # pg_query_go is cgo-based; Go disables cgo by default when cross-compiling,
 # so force it on (host clang handles macOS arm64->amd64 fine).
 CGO_ENABLED=1 GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" \
-  go build -ldflags "$LDFLAGS" -o "${DIST}/${BIN_NAME}" "$CMD"
+  go build -ldflags "$LDFLAGS" -o "${STAGE}/${BIN_NAME}" "$CMD"
+cp -R templates "${STAGE}/templates"
 
 ARCHIVE_NAME="pg_procrustes-${VERSION}-${TARGET_OS}-${TARGET_ARCH}"
 if [[ "$TARGET_OS" == "windows" ]]; then
   ARCHIVE="${DIST}/${ARCHIVE_NAME}.zip"
   if command -v 7z &>/dev/null; then
-    (cd "$DIST" && 7z a -tzip "${ARCHIVE_NAME}.zip" "${BIN_NAME}" > /dev/null && rm "${BIN_NAME}")
+    (cd "$STAGE" && 7z a -tzip "../${ARCHIVE_NAME}.zip" "${BIN_NAME}" templates > /dev/null)
   else
-    (cd "$DIST" && zip -q "${ARCHIVE_NAME}.zip" "${BIN_NAME}" && rm "${BIN_NAME}")
+    (cd "$STAGE" && zip -qr "../${ARCHIVE_NAME}.zip" "${BIN_NAME}" templates)
   fi
 else
   ARCHIVE="${DIST}/${ARCHIVE_NAME}.tar.gz"
-  COPYFILE_DISABLE=1 tar -czf "$ARCHIVE" -C "$DIST" "${BIN_NAME}"
-  rm "${DIST}/${BIN_NAME}"
+  COPYFILE_DISABLE=1 tar -czf "$ARCHIVE" -C "$STAGE" "${BIN_NAME}" templates
 fi
+rm -rf "$STAGE"
 
 # sha256sum (Linux/Windows Git Bash) or shasum (macOS)
 if command -v sha256sum &>/dev/null; then

@@ -56,16 +56,52 @@ func reorderArgs(args []string) []string {
 	return append(flags, positional...)
 }
 
+// printTemplates lists the installed templates and where they come from.
+func printTemplates() {
+	found := config.ListTemplates()
+	if len(found) == 0 {
+		fmt.Println("no templates found; looked in:")
+		for _, d := range config.TemplateDirs() {
+			fmt.Println("  " + d)
+		}
+		return
+	}
+	for _, name := range config.SortedTemplateNames(found) {
+		fmt.Printf("%-16s %s\n", name, found[name])
+	}
+}
+
+// printEffectiveConfig prints every option with the value that is in effect, preceded by
+// the files it came from.
+func printEffectiveConfig(cfg *config.Config) {
+	fmt.Printf("# pg_procrustes %s — effective configuration\n", version)
+	if len(cfg.Sources) == 0 {
+		fmt.Println("# no config file found: built-in defaults (every rule is preserve)")
+	} else {
+		fmt.Println("# files, in the order they were applied (later ones win):")
+		for _, f := range cfg.Sources {
+			fmt.Println("#   " + f)
+		}
+	}
+	out, err := cfg.YAML()
+	if err != nil {
+		die("print-config: %v", err)
+	}
+	fmt.Print(string(out))
+}
+
 func main() {
 	var (
-		writeInPlace bool
-		checkMode    bool
-		diffMode     bool
-		showVersion  bool
-		configPath   string
-		backupExt    string
-		outDir       string
-		syntaxErrors string
+		writeInPlace  bool
+		checkMode     bool
+		diffMode      bool
+		showVersion   bool
+		configPath    string
+		backupExt     string
+		outDir        string
+		syntaxErrors  string
+		printConfig   bool
+		listTemplates bool
 	)
 	flag.BoolVar(&writeInPlace, "w", false, "write result back to source files (in-place)")
 	flag.BoolVar(&checkMode, "check", false, "exit 1 if any file would be reformatted (CI mode)")
@@ -75,6 +111,8 @@ func main() {
 	flag.StringVar(&configPath, "c", "", "path to config file (default: auto-detect .pg_procrustes.yaml)")
 	flag.StringVar(&backupExt, "backup", "", "before overwriting, save original with this extension (e.g. .bak); requires -w")
 	flag.StringVar(&outDir, "out-dir", "", "write formatted files into this directory instead of stdout")
+	flag.BoolVar(&printConfig, "print-config", false, "print the effective configuration (templates resolved, every option) and exit")
+	flag.BoolVar(&listTemplates, "list-templates", false, "list the installed templates and exit")
 	flag.StringVar(&syntaxErrors, "syntax-errors", "", "what to do with SQL that does not parse: fail | skip | ignore (default: syntax_errors from the config, else fail)")
 	flag.Usage = usage
 	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
@@ -109,6 +147,11 @@ func main() {
 		}
 	}
 
+	if listTemplates {
+		printTemplates()
+		return
+	}
+
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		die("config: %v", err)
@@ -118,6 +161,11 @@ func main() {
 		if err := config.Validate(cfg); err != nil {
 			die("--syntax-errors: %v", err)
 		}
+	}
+
+	if printConfig {
+		printEffectiveConfig(cfg)
+		return
 	}
 
 	// Expand globs from args.
@@ -475,6 +523,8 @@ Flags:
                      fail:   report every bad statement (file:line:col) and exit 1
                      skip:   format the valid statements, leave bad ones as written, warn
                      ignore: format everything at token level without checking
+  --print-config     print the effective configuration (templates resolved, every option) and exit
+  --list-templates   list the installed templates (use one with "template: name" in the config) and exit
 
 Examples:
   pg_procrustes query.sql

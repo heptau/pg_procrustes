@@ -1,3 +1,8 @@
+# Start from other config files (installed template name, or a file path relative to this one;
+# your settings in this file win). See README → Templates.
+#   template: ai
+#   template: [postgresql, ../shared/team.yaml]
+
 reserved_keywords:
   case: upper     # upper | lower | capitalize | preserve  (SELECT, FROM, WHERE, CREATE, TABLE, JOIN, ...)
   # exceptions:   # pin specific words to exact casing regardless of the case setting
@@ -102,6 +107,11 @@ blank_lines_between_statements: preserve   # preserve | 0 .. 10
                              #   N: exactly N blank lines between statements (after the ';', and after a
                              #      comment on the same line); comments directly above a statement stay with
                              #      it. psql meta-commands and the text after the last statement are not touched.
+statement_break: preserve                 # preserve | always
+                             #   always: statements that share a line (select 1; select 2;) start on a line of
+                             #           their own; a comment on the line of a ';' stays with its statement,
+                             #           blank lines are not touched (blank_lines_between_statements also
+                             #           separates them and takes precedence)
 
 line_endings: preserve       # preserve | lf | crlf
                              #   preserve: keep the input's style (CRLF if most line breaks are CRLF)
@@ -141,7 +151,7 @@ syntax_errors: fail          # fail | skip | ignore
 layout:
   line_length: 128              # target line length for auto-break decisions
   indent:
-    size: 3                     # number of spaces per indent level (ignored when type: tab)
+    size: 2                     # number of spaces per indent level (ignored when type: tab)
     type: spaces                # spaces | tab
     normalize: preserve         # preserve | change  (convert existing indentation to configured type)
     remainder: keep             # keep | add | remove | round  (handle leftover spaces when converting to tabs)

@@ -23,8 +23,9 @@ brew install heptau/tap/pg-procrustes
 ```bash
 go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest
 ```
+This installs the binary only. For the shipped [templates](#templates), clone the repository and run `make install` instead (it installs the binary and `templates/`), or copy the files of [`templates/`](templates) to `~/.config/pg_procrustes/templates` (`~/Library/Application Support/pg_procrustes/templates` on macOS).
 
-**Binary download**: grab the archive for your platform from [GitHub Releases](https://github.com/heptau/pg_procrustes/releases), extract, and place the binary on your `PATH`.
+**Binary download**: grab the archive for your platform from [GitHub Releases](https://github.com/heptau/pg_procrustes/releases), extract, and place the binary on your `PATH`. Keep the `templates/` folder next to the binary, or move it to `../share/pg_procrustes/templates` relative to the binary.
 
 ### Editor integration
 
@@ -222,6 +223,12 @@ pg_procrustes -w --backup=.orig query.sql
 
 # Write formatted files to a different directory
 pg_procrustes --out-dir formatted/ migrations/*.sql
+
+# Show the configuration that is in effect (templates resolved, every option, which files it came from)
+pg_procrustes --print-config
+
+# List the installed templates
+pg_procrustes --list-templates
 ```
 
 ## Configuration
@@ -229,6 +236,34 @@ pg_procrustes --out-dir formatted/ migrations/*.sql
 pg_procrustes looks for `.pg_procrustes.yaml` starting in the current directory and walking up to the filesystem root. Specify a custom path with `-c path/to/config.yaml`. All settings default to `preserve` (no change).
 
 > **Note:** The `.pg_procrustes.yaml` in this repository is the configuration used to format pg_procrustes' own source files — not a default template. Copy and adjust it for your own project.
+
+### Templates
+
+A config file can start from other config files with `template:`; its own settings are applied last, so they always win.
+
+```yaml
+template: ai                          # a template installed with pg_procrustes, by name
+# template: ../shared/team.yaml       # or a file, relative to the file that names it
+# template: [postgresql, ../shared/team.yaml]   # several, applied in this order (later ones win)
+
+layout:
+  indent:
+    size: 4                           # your own differences from the template
+```
+
+- A value with no `/` and no `.yaml` suffix is the **name of an installed template** (`ai` → `ai.yaml`). They live in the [`templates/`](templates) folder of the repository and are installed next to the binary (Homebrew and the release archives do this; `make install` too), so you never need to know where. Lookup order: `$PG_PROCRUSTES_TEMPLATES` (a directory or a `:`-separated list), your user directory (`~/.config/pg_procrustes/templates`, `~/Library/Application Support/pg_procrustes/templates` on macOS, `%AppData%\pg_procrustes\templates` on Windows), then `templates/` next to the binary and `../share/pg_procrustes/templates`.
+- Anything else is a **file**; relative paths are taken from the file that contains the `template:` line, so a shared company template is just a file you keep in a repository of your own (a submodule or a copy works too). Templates are ordinary config files and may use `template:` themselves; cycles are reported as errors.
+- Maps are merged key by key; any other value, lists such as `exceptions` included, is replaced.
+- `pg_procrustes --list-templates` shows what is installed, `pg_procrustes --print-config` shows the result with every option and the files it was built from.
+
+Shipped templates (more can be added by dropping a file into `templates/`):
+
+| Name | What it is |
+|---|---|
+| `postgresql` | Roughly what PostgreSQL itself prints (pg_dump, `psql \d+`): upper-case keywords, lower-case identifiers and types, `::` casts, `<>`, four-space indent, first list item on the keyword line. |
+| `ai` | Lean for LLM prompts and context: lower case, short type names, no padding or alignment, two-space indent, redundant words (`AS`, `ASC`, `public.`) removed. |
+
+The [Config Builder](https://pg_procrustes.80.cz/config-builder.html) offers the same templates and can write a short file (`template: ai` plus your differences).
 
 ### Keyword and identifier casing
 
@@ -361,6 +396,11 @@ blank_lines_between_statements: preserve   # preserve | 0 .. 10
                              #   N: exactly N blank lines between statements (after the ';', and after a
                              #      comment on the same line); comments directly above a statement stay with
                              #      it. psql meta-commands and the text after the last statement are not touched.
+statement_break: preserve                 # preserve | always
+                             #   always: statements that share a line (select 1; select 2;) start on a line of
+                             #           their own; a comment on the line of a ';' stays with its statement,
+                             #           blank lines are not touched (blank_lines_between_statements also
+                             #           separates them and takes precedence)
 
 line_endings: preserve       # preserve | lf | crlf
                              #   preserve: keep the input's style (CRLF if most line breaks are CRLF)
@@ -400,7 +440,7 @@ layout:
   line_length: 128           # target line length for auto-break decisions
 
   indent:
-    size: 3                  # spaces per indent level (ignored when type: tab)
+    size: 2                  # spaces per indent level (ignored when type: tab)
     type: spaces             # spaces | tab
     normalize: preserve      # preserve | change  (convert existing indent to configured type)
     remainder: keep          # keep | add | remove | round  (when converting spaces → tabs)

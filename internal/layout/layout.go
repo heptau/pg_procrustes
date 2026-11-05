@@ -413,7 +413,7 @@ func indentUnitStr(cfg *config.LayoutConfig) string {
 	}
 	size := cfg.Indent.Size
 	if size <= 0 {
-		size = 3
+		size = 2
 	}
 	return strings.Repeat(" ", size)
 }
@@ -878,6 +878,10 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		joinNewline := cl.kind == clauseJoin && resolveJoinNewline(cfg.Content.JoinOnPosition, sql, tokens, kwEnd, conEnd)
 		if joinNewline {
 			contentFirstItem = config.FirstItemInline // JOIN t stays on the keyword line
+		} else if cl.kind == clauseJoin && cfg.Content.JoinOn.FirstItem == "" && hasJoinCondition(tokens, kwEnd, conEnd) {
+			// JOIN t ON a = b: the table and its condition stay on the keyword line
+			// unless join_on.first_item asks for the first item on a line of its own.
+			contentFirstItem = config.FirstItemInline
 		}
 		items := splitContent(sql, tokens, kwEnd, conEnd, cl.kind, joinNewline)
 		useComma := usesCommaSeparator(cl.kind)
@@ -1058,6 +1062,11 @@ func splitContent(sql string, tokens []rawTok, from, to int, kind clauseKind, jo
 		prefix := ""
 		if onIdx > from {
 			prefix = strings.TrimSpace(originalText(sql, tokens, from, onIdx))
+			// inline: ON follows the table on the same line, whatever the input did
+			// (a line comment right before ON must keep its newline, or it would swallow ON)
+			if onTok > from && !strings.HasPrefix(tokens[onTok-1].text, "--") {
+				prefix = strings.TrimSpace(originalText(sql, tokens, from, onTok)) + " " + tokens[onTok].text
+			}
 		}
 		conds := splitAtAndOr(sql, tokens, onIdx, to)
 		if joinOnNewline && onTok >= 0 && len(conds) > 0 {
@@ -1858,6 +1867,24 @@ func moveOperatorsToEnd(items []string) []string {
 }
 
 // findTopLevelOn returns the index of the first ON outside parentheses in tokens[from:to], or -1.
+// hasJoinCondition reports whether the JOIN content has a top-level ON or USING.
+func hasJoinCondition(tokens []rawTok, from, to int) bool {
+	depth := 0
+	for i := from; i < to; i++ {
+		switch t := strings.ToLower(tokens[i].text); {
+		case t == "(" || t == "[":
+			depth++
+		case t == ")" || t == "]":
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0 && (t == "on" || t == "using"):
+			return true
+		}
+	}
+	return false
+}
+
 func findTopLevelOn(tokens []rawTok, from, to int) int {
 	depth := 0
 	for i := from; i < to; i++ {
@@ -1955,11 +1982,16 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		// UPDATE … SET and ON CONFLICT … DO UPDATE SET only.
 		return has(clauseUpdate, clauseOnConflict)
 	case clauseUsing:
-		// JOIN … USING (cols), DELETE … USING tables and MERGE … USING source only.
+		// DELETE … USING tables and MERGE … USING source only (JOIN … USING stays in the join).
 		if has(clauseMerge) {
 			return !has(clauseUsing, clauseWhen)
 		}
-		return has(clauseJoin, clauseDelete)
+		// A USING right after a JOIN belongs to that join (JOIN b USING (id)) and stays
+		// part of its content; only DELETE … USING opens a clause of its own.
+		if n := len(stmt.clauses); n > 0 && stmt.clauses[n-1].kind == clauseJoin {
+			return false
+		}
+		return has(clauseDelete)
 	case clauseMergeOn:
 		// The ON of a MERGE (after USING, before the first WHEN); an ON that belongs to a
 		// JOIN in the source stays part of that join.

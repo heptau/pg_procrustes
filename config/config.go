@@ -164,6 +164,14 @@ type CommentsCfg struct {
 	AlignTrailing    CommentAlignMode `yaml:"align_trailing"`     // preserve | align | none
 }
 
+// StatementBreakMode controls statements that share a line (select 1; select 2;).
+type StatementBreakMode string
+
+const (
+	StatementBreakPreserve StatementBreakMode = "preserve" // leave them where they are (default)
+	StatementBreakAlways   StatementBreakMode = "always"   // every statement starts on its own line
+)
+
 // TrailingNewlineMode controls the trailing newline at end of output.
 type TrailingNewlineMode string
 
@@ -650,7 +658,7 @@ func defaultLayout() LayoutConfig {
 	return LayoutConfig{
 		LineLength: 128,
 		Indent: IndentCfg{
-			Size:      3,
+			Size:      2,
 			Type:      IndentTypeSpaces,
 			Normalize: IndentNormalizePreserve,
 			Remainder: IndentRemainderKeep,
@@ -745,6 +753,9 @@ type AliasSection struct {
 }
 
 type Config struct {
+	// Sources lists the config files that were read, in the order they were applied
+	// (templates first, the file itself last). Empty when no file was found.
+	Sources              []string         `yaml:"-"`
 	ReservedKeywords     Section          `yaml:"reserved_keywords"`
 	Keywords             Section          `yaml:"keywords"`
 	DataTypes            DataTypesSection `yaml:"data_types"`
@@ -778,15 +789,17 @@ type Config struct {
 	Comments         CommentsCfg         `yaml:"comments"`
 	// BlankLinesBetweenStatements is "preserve" (default) or the exact number of blank
 	// lines (0-10) to put between statements.
-	BlankLinesBetweenStatements string                `yaml:"blank_lines_between_statements"`
-	ArithmeticSpacing           ArithmeticSpacingMode `yaml:"arithmetic_spacing"`
-	CommaSpacing                CommaSpacingMode      `yaml:"comma_spacing"`
-	OrderAsc                    OrderAscMode          `yaml:"order_asc"`
-	CastStyle                   CastStyleMode         `yaml:"cast_style"`
-	NotIn                       NotInMode             `yaml:"not_in"`
-	SchemaQual                  SchemaQualMode        `yaml:"schema_qualification"`
-	InlineSpacing               InlineSpacingMode     `yaml:"inline_spacing"`
-	Layout                      LayoutConfig          `yaml:"layout"`
+	BlankLinesBetweenStatements string `yaml:"blank_lines_between_statements"`
+	// StatementBreak puts statements that share a line on lines of their own.
+	StatementBreak    StatementBreakMode    `yaml:"statement_break"`
+	ArithmeticSpacing ArithmeticSpacingMode `yaml:"arithmetic_spacing"`
+	CommaSpacing      CommaSpacingMode      `yaml:"comma_spacing"`
+	OrderAsc          OrderAscMode          `yaml:"order_asc"`
+	CastStyle         CastStyleMode         `yaml:"cast_style"`
+	NotIn             NotInMode             `yaml:"not_in"`
+	SchemaQual        SchemaQualMode        `yaml:"schema_qualification"`
+	InlineSpacing     InlineSpacingMode     `yaml:"inline_spacing"`
+	Layout            LayoutConfig          `yaml:"layout"`
 }
 
 // defaultConfig is what an empty .pg_procrustes.yaml means: every rule is
@@ -819,6 +832,7 @@ func defaultConfig() *Config {
 		LineEndings:                 LineEndingPreserve,
 		Comments:                    CommentsCfg{SpaceAfterMarker: CommentSpacePreserve, AlignTrailing: CommentAlignPreserve},
 		BlankLinesBetweenStatements: "preserve",
+		StatementBreak:              StatementBreakPreserve,
 		ArithmeticSpacing:           ArithmeticSpacingPreserve,
 		CommaSpacing:                CommaSpacingPreserve,
 		OrderAsc:                    OrderAscPreserve,
@@ -849,6 +863,19 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg := defaultConfig()
+	sources := []string{path}
+	if hasTemplate(data) {
+		var files []string
+		merged, err := loadMerged(path, data, nil, &files)
+		if err != nil {
+			return nil, err
+		}
+		if data, err = yaml.Marshal(merged); err != nil {
+			return nil, err
+		}
+		sources = files
+	}
+	cfg.Sources = sources
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
@@ -965,6 +992,11 @@ func validate(cfg *Config) error {
 	case CommentAlignPreserve, CommentAlignAlign, CommentAlignNone, "":
 	default:
 		return fmt.Errorf("comments.align_trailing must be preserve|align|none, got %q", cfg.Comments.AlignTrailing)
+	}
+	switch cfg.StatementBreak {
+	case StatementBreakPreserve, StatementBreakAlways, "":
+	default:
+		return fmt.Errorf("statement_break must be preserve|always, got %q", cfg.StatementBreak)
 	}
 	if _, err := cfg.BlankLinesBetween(); err != nil {
 		return err

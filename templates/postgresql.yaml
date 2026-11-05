@@ -1,0 +1,67 @@
+# pg_procrustes template: postgresql
+# title: PostgreSQL
+# title.cs: PostgreSQL
+# title.es: PostgreSQL
+# title.de: PostgreSQL
+# title.fr: PostgreSQL
+# title.pt: PostgreSQL
+# title.it: PostgreSQL
+# description: Roughly what PostgreSQL itself prints (pg_dump, psql \d+, pg_get_viewdef):
+#   upper-case keywords, lower-case identifiers and types, :: casts, <>, four-space indent,
+#   first list item on the keyword line, lines wrapped at about 80 columns.
+#
+# Use it from a config file with   template: postgresql   — your own settings in that file win.
+
+reserved_keywords:
+  case: upper
+keywords:
+  case: upper
+literals:
+  case: upper
+operators:
+  case: upper
+conditional_functions:
+  case: upper
+system_functions:
+  case: upper
+data_types:
+  case: lower
+  form: long
+schemas:
+  case: lower
+tables:
+  case: lower
+columns:
+  case: lower
+functions:
+  case: lower
+aliases:
+  case: lower
+  as: add
+inequality_op: ansi
+cast_style: operator
+join_form: short
+operator_spacing: normalize
+comma_spacing: normalize
+arithmetic_spacing: normalize
+paren_spacing: remove
+call_paren_spacing: remove
+quoted_identifiers: remove_safe
+trailing_whitespace: strip
+trailing_newline: add
+semicolons: add
+blank_lines: max_1
+statement_break: always
+layout:
+  line_length: 80
+  indent:
+    size: 4
+  clauses:
+    break: always
+  content:
+    break: auto
+    first_item: inline
+  ddl:
+    create_table:
+      break: always
+      align: none

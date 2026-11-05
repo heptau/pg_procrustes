@@ -99,8 +99,12 @@ fi
 echo "==> Running tests..."
 go test ./... -count=1
 
+echo "==> Regenerating the config builder templates from templates/..."
+go run scripts/gen_builder_templates.go
+
 echo "==> Bumping VERSION to ${VERSION}..."
 echo "${VERSION}" > VERSION
+sed -i.bak "s/^const PGP_VERSION = .*/const PGP_VERSION = '${VERSION}';/" docs/config-builder.html && rm -f docs/config-builder.html.bak
 
 echo "==> Rolling CHANGELOG.md's [Unreleased] section into [${VERSION}]..."
 DATE="$(date +%Y-%m-%d)"
@@ -114,7 +118,7 @@ awk -v ver="$VERSION" -v date="$DATE" '
   { print }
 ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
 
-git add VERSION CHANGELOG.md
+git add VERSION CHANGELOG.md docs/config-builder.html docs/config-builder-templates.js
 git commit -m "chore(release): v${VERSION}"
 git push origin HEAD
 

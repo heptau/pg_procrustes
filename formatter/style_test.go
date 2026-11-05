@@ -32,6 +32,7 @@ operator_spacing: normalize
 paren_spacing: remove
 quoted_identifiers: remove_safe
 comma_spacing: normalize
+layout: {indent: {size: 3}}
 `
 
 func mergeMaps(dst, src map[string]any) {
