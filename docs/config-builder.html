@@ -590,9 +590,9 @@
     .form-row .key-hint { word-break: break-all; }
     .side-panel {
       position: fixed; left: var(--nav-w); right: 0; bottom: 0; top: auto;
-      height: var(--dock-h); z-index: 80; display: block;
+      height: var(--dock-h); z-index: 80; display: flex; flex-direction: column;
       border-left: none; border-top: 1px solid var(--border);
-      box-shadow: 0 -6px 20px rgba(0,0,0,.15); overflow-y: auto;
+      box-shadow: 0 -6px 20px rgba(0,0,0,.15); overflow: hidden;
     }
     .detail-box {
       display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr); gap: 0 2rem; align-items: start;
@@ -631,6 +631,53 @@
       flex: 1; min-height: 240px; overflow: auto; padding: 1rem 1.25rem;
       border: 1px solid var(--border); border-radius: var(--radius);
     }
+    /* ── search / filter ── */
+    .header-search { display: flex; align-items: center; justify-content: center; gap: 0.7rem; flex: 1 1 100%; order: 3; }
+    .header-search[hidden] { display: none; }
+    .header-search #opt-search { flex: 0 1 34rem; }
+    .btn-icon { display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.7rem; flex: 0 0 auto; }
+    .btn-icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: rgba(91,141,238,.12); }
+    body.search-open .form-group { scroll-margin-top: 9rem; }
+    #opt-search {
+      flex: 1 1 auto; min-width: 0; max-width: none; width: auto;
+      background-color: var(--code-bg); border: 1px solid var(--border); color: var(--text); font-family: inherit;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a7f99' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 0.55rem center;
+      padding: 0.45rem 0.7rem 0.45rem 2rem; font-size: 0.85rem; border-radius: var(--radius);
+    }
+    .only-changed { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none; }
+    .only-changed:hover { color: var(--text); }
+    .search-count { font-size: 0.74rem; color: var(--muted); white-space: nowrap; min-width: 3.2rem; }
+    .form-row[hidden], .form-group[hidden] { display: none; }
+    .filter-empty { padding: 2rem 0.6rem; color: var(--muted); font-size: 0.9rem; }
+    .filter-empty[hidden] { display: none; }
+    mark.find { background: rgba(255, 200, 0, .35); color: inherit; border-radius: 2px; padding: 0 1px; }
+    #opt-search:focus { outline: none; border-color: var(--accent); }
+    #opt-search::-webkit-search-cancel-button { cursor: pointer; }
+    nav a.nav-dim { opacity: .35; }
+
+    /* ── resizable dock: drag the top edge ── */
+    .dock-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    .dock-resizer {
+      flex: 0 0 auto; height: 12px; cursor: ns-resize; position: relative; touch-action: none;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .dock-resizer::before {
+      content: ''; position: absolute; left: 50%; top: 4px; width: 44px; height: 4px; margin-left: -22px;
+      border-radius: 2px; background: var(--muted); opacity: .45; transition: opacity .15s;
+    }
+    .dock-resizer:hover::before, .dock-resizer:focus-visible::before, body.dock-dragging .dock-resizer::before { opacity: 1; background: var(--accent); }
+    .dock-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    body.dock-dragging { cursor: ns-resize; user-select: none; }
+    .code-pane { max-height: calc(var(--dock-h) - 8rem); }
+    @media (max-width: 900px) {
+      .header-search { margin-left: -3.75rem; width: calc(100% + 3.75rem); }
+      .header-search #opt-search { flex: 1 1 auto; }
+      .header-actions .btn-icon { flex: 0 0 auto; }
+      body.search-open .form-group { scroll-margin-top: 12rem; }
+    }
+
     @media (max-width: 900px) {
       :root { --dock-h: 45vh; }
       /* header stays fixed on narrow screens too; h1 clears the menu button, actions get their own row */
@@ -640,6 +687,10 @@
       .header-actions button { flex: 1 1 auto; }
       .form-group { scroll-margin-top: 9rem; }
       .form-row { grid-template-columns: 1fr; }
+      /* the option's key sits on the label's line, against the right edge, instead of below it */
+      .form-label { display: flex; align-items: baseline; justify-content: space-between; gap: 0.2rem 0.75rem; flex-wrap: wrap; min-width: 0; }
+      .form-label label { flex: 0 1 auto; min-width: 0; }
+      .form-label .key-hint { margin-top: 0; margin-left: auto; text-align: right; flex: 0 1 auto; max-width: 100%; }
       .side-panel { left: 0; position: fixed; height: var(--dock-h); border-top: 1px solid var(--border); }
       .detail-box { grid-template-columns: 1fr; padding: 1rem 1.25rem; max-height: none; }
       .form-panel { padding: 1.5rem 1.25rem calc(var(--dock-h) + 2rem); }
@@ -717,6 +768,14 @@
       <select id="preset-select" class="preset-select" onchange="choosePreset(this.value)" title="Start from a template (replaces the current settings)" data-i18n-title="cb_tip_preset"></select>
       <button class="btn-ghost" onclick="openPasteModal()" title="Load a configuration from a file or paste it" data-i18n="cb_btn_load" data-i18n-title="cb_tip_load">Load</button>
       <button class="btn-primary" id="preview-open" onclick="openPreview()" title="Show the generated file; copy or save it" data-i18n="cb_btn_preview" data-i18n-title="cb_tip_preview">Preview</button>
+      <button class="btn-ghost btn-icon" id="search-toggle" aria-pressed="false" aria-controls="header-search" title="Search the options" data-i18n-title="cb_tip_search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
+    </div>
+    <div class="header-search" id="header-search" hidden>
+      <input type="search" id="opt-search" autocomplete="off" spellcheck="false">
+      <label class="only-changed"><input type="checkbox" id="only-changed"><span id="only-changed-label"></span></label>
+      <span class="search-count" id="search-count" aria-live="polite"></span>
     </div>
   </div>
 
@@ -779,9 +838,12 @@
       <!-- rendered by JS -->
     </div>
 
-    <div class="side-panel">
-      <div class="detail-box" id="detail-box">
-        <p class="detail-empty" data-i18n="cb_detail_empty">Click or focus any option on the left to see its description and examples here.</p>
+    <div class="side-panel" id="side-panel">
+      <div class="dock-resizer" id="dock-resizer" role="separator" aria-orientation="horizontal" tabindex="0"></div>
+      <div class="dock-body" id="dock-body">
+        <div class="detail-box" id="detail-box">
+          <p class="detail-empty" data-i18n="cb_detail_empty">Click or focus any option on the left to see its description and examples here.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -820,6 +882,12 @@ const UI_EN = {
   cb_tip_preset: 'Start from a template (replaces the current settings)',
   cb_ref_template: 'Reference the “{0}” template (short file)',
   cb_tmpl_unknown: 'Template “{0}” is not available in the builder (only the templates shipped with pg_procrustes are); its settings were skipped.',
+  cb_search_ph: 'Search options…  ( / )',
+  cb_tip_search: 'Search the options',
+  cb_only_changed: 'Changed only',
+  cb_search_count: '{0} of {1}',
+  cb_search_none: 'No option matches “{0}”.',
+  cb_tip_resize: 'Drag to resize the panel (double-click: collapse / restore)',
 };
 function ui(key, arg) {
   const d = (window.cbDict && window.cbDict()) || {};
@@ -1252,7 +1320,13 @@ function renderForm() {
 
     panel.appendChild(div);
   }
+  const none = document.createElement('div');
+  none.className = 'filter-empty';
+  none.id = 'filter-empty';
+  none.hidden = true;
+  panel.appendChild(none);
   panel.scrollTop = scroll;
+  applyFilter();
 }
 
 // text of the "(default)" entries depends on other options (inherited values) — keep them current
@@ -1512,13 +1586,219 @@ function downloadConfig() {
   URL.revokeObjectURL(url);
 }
 
+// ── search / filter ────────────────────────────────────────────────────────
+// Type to narrow the list: every word must occur in the option's key, label, description or
+// value names (accents and case ignored, any language the page is shown in).
+
+const filterState = { q: '', changed: false };
+let haystackCache = { lang: null, map: {} };
+
+function normText(str) { return str.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+function haystack(o) {
+  const lang = window.cbLang || 'en';
+  if (haystackCache.lang !== lang) haystackCache = { lang, map: {} };
+  let h = haystackCache.map[o.key];
+  if (h === undefined) {
+    const parts = [o.key, o.key.replace(/[._]/g, ' '), optLabel(o), optDesc(o), o.label, o.desc];
+    for (const v of o.values || []) { parts.push(v[0]); if (v[1]) parts.push(hintText(v[1])); }
+    h = normText(parts.join(' \n '));
+    haystackCache.map[o.key] = h;
+  }
+  return h;
+}
+
+function escapeHTML(t) { return t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// text with the search words marked (matching is accent / case insensitive, marks are on the original text)
+function highlight(text, terms) {
+  if (!terms.length) return escapeHTML(text);
+  let norm = '';
+  const map = [];                       // normalised index → original index
+  for (let i = 0; i < text.length; i++) {
+    const n = normText(text[i]);
+    for (let k = 0; k < n.length; k++) { norm += n[k]; map.push(i); }
+  }
+  const mark = new Array(text.length).fill(false);
+  for (const t of terms) {
+    for (let at = norm.indexOf(t); at >= 0; at = norm.indexOf(t, at + 1)) {
+      for (let k = at; k < at + t.length; k++) mark[map[k]] = true;
+    }
+  }
+  let out = '', open = false;
+  for (let i = 0; i < text.length; i++) {
+    if (mark[i] !== open) { out += open ? '</mark>' : '<mark class="find">'; open = mark[i]; }
+    out += escapeHTML(text[i]);
+  }
+  return out + (open ? '</mark>' : '');
+}
+
+function applyFilter() {
+  const terms = normText(filterState.q.trim()).split(/\s+/).filter(Boolean);
+  const filtering = terms.length > 0 || filterState.changed;
+  let shown = 0;
+  for (const g of GROUPS) {
+    const sec = document.getElementById(g.id);
+    if (!sec) continue;
+    let inGroup = 0;
+    for (const o of g.opts) {
+      const row = sec.querySelector('.form-row[data-key="' + o.key + '"]');
+      if (!row) continue;
+      let ok = terms.every(t => haystack(o).includes(t));
+      if (ok && filterState.changed && state[o.key] === '') ok = false;
+      row.hidden = !ok;
+      if (ok) {
+        inGroup++; shown++;
+        row.querySelector('label').innerHTML = highlight(optLabel(o), terms);
+        row.querySelector('.key-hint').innerHTML = highlight(o.key, terms);
+      }
+    }
+    sec.hidden = inGroup === 0;
+    const link = document.querySelector('nav a[href="#' + g.id + '"]');
+    if (link) link.classList.toggle('nav-dim', filtering && inGroup === 0);
+  }
+  const count = document.getElementById('search-count');
+  if (count) count.textContent = filtering ? ui('cb_search_count', shown).replace('{1}', ALL_OPTS.length) : '';
+  const none = document.getElementById('filter-empty');
+  if (none) {
+    none.hidden = shown !== 0;
+    none.textContent = shown === 0 ? ui('cb_search_none', filterState.q.trim() || '…') : '';
+  }
+}
+
+function updateSearchUi() {
+  const input = document.getElementById('opt-search');
+  if (!input) return;
+  const ph = ui('cb_search_ph');
+  input.placeholder = ph;
+  input.setAttribute('aria-label', ph.replace(/\s*\(.*$/, ''));
+  document.getElementById('only-changed-label').textContent = ui('cb_only_changed');
+  const dock = document.getElementById('dock-resizer');
+  if (dock) { dock.title = ui('cb_tip_resize'); dock.setAttribute('aria-label', ui('cb_tip_resize')); }
+  applyFilter();
+}
+
+// The search row is hidden until the magnifier button is pressed; pressing it again hides the
+// row and clears whatever was typed or switched on.
+function resetFilter() {
+  const input = document.getElementById('opt-search');
+  const changed = document.getElementById('only-changed');
+  input.value = ''; changed.checked = false;
+  filterState.q = ''; filterState.changed = false;
+  applyFilter();
+}
+function setSearchOpen(open) {
+  const row = document.getElementById('header-search');
+  const btn = document.getElementById('search-toggle');
+  row.hidden = !open;
+  btn.setAttribute('aria-pressed', open ? 'true' : 'false');
+  document.body.classList.toggle('search-open', open);
+  if (open) { const input = document.getElementById('opt-search'); input.focus(); input.select(); }
+  else resetFilter();
+}
+
+function initSearch() {
+  const input = document.getElementById('opt-search');
+  const changed = document.getElementById('only-changed');
+  const btn = document.getElementById('search-toggle');
+  btn.addEventListener('click', () => setSearchOpen(document.getElementById('header-search').hidden));
+  input.addEventListener('input', () => { filterState.q = input.value; applyFilter(); });
+  changed.addEventListener('change', () => { filterState.changed = changed.checked; applyFilter(); });
+  // Esc: first clears what is set, then closes the row
+  document.getElementById('header-search').addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    if (input.value || changed.checked) resetFilter(); else setSearchOpen(false);
+  });
+  // "/" opens the row and jumps to the box (unless a field is being edited)
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    e.preventDefault();
+    if (document.getElementById('header-search').hidden) setSearchOpen(true); else { input.focus(); input.select(); }
+  });
+  updateSearchUi();
+}
+
+// ── resizable bottom panel ─────────────────────────────────────────────────
+// Drag the grip on its top edge (or use ↑ / ↓ on it); double-click collapses / restores it.
+const DOCK_KEY = 'pgp-builder-dock-h';
+const DOCK_MIN = 12;                    // just the grip
+let dockBeforeCollapse = null;
+
+function dockMax() {
+  const head = document.querySelector('.page-header').getBoundingClientRect().height;
+  return Math.max(160, window.innerHeight - head - 60);
+}
+function dockHeight() { return document.getElementById('side-panel').getBoundingClientRect().height; }
+function setDockHeight(px, save) {
+  px = Math.round(Math.min(dockMax(), Math.max(DOCK_MIN, px)));
+  document.documentElement.style.setProperty('--dock-h', px + 'px');
+  const h = document.getElementById('dock-resizer');
+  h.setAttribute('aria-valuenow', String(px));
+  h.setAttribute('aria-valuemin', String(DOCK_MIN));
+  h.setAttribute('aria-valuemax', String(Math.round(dockMax())));
+  if (save) { try { localStorage.setItem(DOCK_KEY, String(px)); } catch (e) {} }
+  return px;
+}
+function toggleDockCollapse() {
+  const cur = dockHeight();
+  if (cur > DOCK_MIN + 4) { dockBeforeCollapse = cur; setDockHeight(DOCK_MIN, true); }
+  else setDockHeight(dockBeforeCollapse || window.innerHeight * 0.38, true);
+}
+
+function initDock() {
+  const handle = document.getElementById('dock-resizer');
+  let startY = 0, startH = 0, dragging = false;
+  let saved = null;
+  try { saved = parseFloat(localStorage.getItem(DOCK_KEY)); } catch (e) {}
+  if (saved && isFinite(saved)) setDockHeight(saved, false);
+  else {                                // keep the stylesheet's responsive default until the user drags
+    handle.setAttribute('aria-valuenow', String(Math.round(dockHeight())));
+    handle.setAttribute('aria-valuemin', String(DOCK_MIN));
+    handle.setAttribute('aria-valuemax', String(Math.round(dockMax())));
+  }
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    dragging = true; startY = e.clientY; startH = dockHeight();
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add('dock-dragging');
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (dragging) setDockHeight(startH + (startY - e.clientY), false);
+  });
+  const stop = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('dock-dragging');
+    try { handle.releasePointerCapture(e.pointerId); } catch (err) {}
+    setDockHeight(dockHeight(), true);
+  };
+  handle.addEventListener('pointerup', stop);
+  handle.addEventListener('pointercancel', stop);
+  handle.addEventListener('dblclick', toggleDockCollapse);
+  handle.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 120 : 24;
+    if (e.key === 'ArrowUp') { setDockHeight(dockHeight() + step, true); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { setDockHeight(dockHeight() - step, true); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === ' ') { toggleDockCollapse(); e.preventDefault(); }
+  });
+  // keep the panel inside the window when it shrinks
+  window.addEventListener('resize', () => {
+    if (dockHeight() > dockMax()) setDockHeight(dockMax(), false);
+  });
+}
+
 // ── nav scroll spy ─────────────────────────────────────────────────────────
 
 function initScrollSpy() {
   const links = document.querySelectorAll('nav a[href^="#"]');
   const onScroll = () => {
     // looked up on every scroll: renderForm() replaces the section elements (language switch)
-    const sections = [...links].map(l => document.getElementById(l.getAttribute('href').slice(1))).filter(Boolean);
+    const sections = [...links].map(l => document.getElementById(l.getAttribute('href').slice(1))).filter(el => el && !el.hidden);
     let active = sections[0];
     for (const s of sections) {
       if (s.getBoundingClientRect().top - 120 <= 0) active = s;
@@ -1532,7 +1812,7 @@ function initScrollSpy() {
 // ── language hook (called by the language switcher below) ───────────────────
 
 window.cbRerender = function (lang) {
-  const done = () => { renderForm(); refreshAll(); };
+  const done = () => { renderForm(); refreshAll(); updateSearchUi(); };
   if (lang === 'en' || (window.CB_I18N && window.CB_I18N[lang])) { done(); return; }
   const s = document.createElement('script');
   s.src = 'config-builder-i18n-' + lang + '.js';
@@ -1548,6 +1828,8 @@ refreshPresetSelect();
 renderForm();
 renderYAML();
 initScrollSpy();
+initSearch();
+initDock();
 currentOpt = GROUPS[0].opts[0];
 document.querySelector('.form-row').classList.add('focused');
 showDetail(currentOpt);
@@ -1622,6 +1904,12 @@ document.addEventListener('keydown', (e) => {
     cb_tip_preset: `Začít ze šablony (nahradí aktuální nastavení)`,
     cb_ref_template: `Odkazovat na šablonu „{0}“ (krátký soubor)`,
     cb_tmpl_unknown: `Šablona „{0}“ není v konfigurátoru dostupná (jen šablony dodávané s pg_procrustes); její nastavení byla přeskočena.`,
+    cb_search_ph: `Hledat volby…  ( / )`,
+    cb_tip_search: `Hledat ve volbách`,
+    cb_only_changed: `Jen změněné`,
+    cb_search_count: `{0} z {1}`,
+    cb_search_none: `Žádná volba neodpovídá „{0}“.`,
+    cb_tip_resize: `Tažením změníte výšku panelu (dvojklik: sbalit / obnovit)`,
     cb_prev_save: `Uložit`,
     cb_prev_close: `Zavřít`,
     cb_copied: `Zkopírováno!`,
@@ -1683,6 +1971,12 @@ document.addEventListener('keydown', (e) => {
     cb_tip_preset: `Empezar desde una plantilla (sustituye los ajustes actuales)`,
     cb_ref_template: `Referenciar la plantilla «{0}» (archivo corto)`,
     cb_tmpl_unknown: `La plantilla «{0}» no está disponible en el configurador (solo las que se distribuyen con pg_procrustes); se omitieron sus ajustes.`,
+    cb_search_ph: `Buscar opciones…  ( / )`,
+    cb_tip_search: `Buscar en las opciones`,
+    cb_only_changed: `Solo cambiadas`,
+    cb_search_count: `{0} de {1}`,
+    cb_search_none: `Ninguna opción coincide con «{0}».`,
+    cb_tip_resize: `Arrastre para cambiar el tamaño del panel (doble clic: contraer / restaurar)`,
     cb_prev_save: `Guardar`,
     cb_prev_close: `Cerrar`,
     cb_copied: `¡Copiado!`,
@@ -1743,6 +2037,12 @@ document.addEventListener('keydown', (e) => {
     cb_tip_preset: `Mit einer Vorlage beginnen (ersetzt die aktuellen Einstellungen)`,
     cb_ref_template: `Auf die Vorlage „{0}“ verweisen (kurze Datei)`,
     cb_tmpl_unknown: `Die Vorlage „{0}“ ist im Konfigurator nicht verfügbar (nur die mit pg_procrustes gelieferten); ihre Einstellungen wurden übersprungen.`,
+    cb_search_ph: `Optionen suchen…  ( / )`,
+    cb_tip_search: `Optionen durchsuchen`,
+    cb_only_changed: `Nur geänderte`,
+    cb_search_count: `{0} von {1}`,
+    cb_search_none: `Keine Option passt zu „{0}“.`,
+    cb_tip_resize: `Ziehen, um die Panelhöhe zu ändern (Doppelklick: einklappen / wiederherstellen)`,
     cb_prev_save: `Speichern`,
     cb_prev_close: `Schließen`,
     cb_copied: `Kopiert!`,
@@ -1803,6 +2103,12 @@ document.addEventListener('keydown', (e) => {
     cb_tip_preset: `Partir d’un modèle (remplace les réglages actuels)`,
     cb_ref_template: `Référencer le modèle « {0} » (fichier court)`,
     cb_tmpl_unknown: `Le modèle « {0} » n’est pas disponible dans le générateur (seuls ceux livrés avec pg_procrustes le sont) ; ses réglages ont été ignorés.`,
+    cb_search_ph: `Rechercher une option…  ( / )`,
+    cb_tip_search: `Rechercher dans les options`,
+    cb_only_changed: `Modifiées seulement`,
+    cb_search_count: `{0} sur {1}`,
+    cb_search_none: `Aucune option ne correspond à « {0} ».`,
+    cb_tip_resize: `Glisser pour redimensionner le panneau (double-clic : réduire / rétablir)`,
     cb_prev_save: `Enregistrer`,
     cb_prev_close: `Fermer`,
     cb_copied: `Copié !`,
@@ -1863,6 +2169,12 @@ document.addEventListener('keydown', (e) => {
     cb_tip_preset: `Começar de um modelo (substitui as configurações atuais)`,
     cb_ref_template: `Referenciar o modelo “{0}” (arquivo curto)`,
     cb_tmpl_unknown: `O modelo “{0}” não está disponível no construtor (apenas os distribuídos com o pg_procrustes); suas configurações foram ignoradas.`,
+    cb_search_ph: `Pesquisar opções…  ( / )`,
+    cb_tip_search: `Pesquisar nas opções`,
+    cb_only_changed: `Só alteradas`,
+    cb_search_count: `{0} de {1}`,
+    cb_search_none: `Nenhuma opção corresponde a “{0}”.`,
+    cb_tip_resize: `Arraste para redimensionar o painel (duplo clique: recolher / restaurar)`,
     cb_prev_save: `Salvar`,
     cb_prev_close: `Fechar`,
     cb_copied: `Copiado!`,
@@ -1923,6 +2235,12 @@ document.addEventListener('keydown', (e) => {
     cb_tip_preset: `Partire da un modello (sostituisce le impostazioni attuali)`,
     cb_ref_template: `Fare riferimento al modello «{0}» (file breve)`,
     cb_tmpl_unknown: `Il modello «{0}» non è disponibile nel configuratore (solo quelli distribuiti con pg_procrustes); le sue impostazioni sono state ignorate.`,
+    cb_search_ph: `Cerca opzioni…  ( / )`,
+    cb_tip_search: `Cerca nelle opzioni`,
+    cb_only_changed: `Solo modificate`,
+    cb_search_count: `{0} su {1}`,
+    cb_search_none: `Nessuna opzione corrisponde a «{0}».`,
+    cb_tip_resize: `Trascina per ridimensionare il pannello (doppio clic: comprimi / ripristina)`,
     cb_prev_save: `Salva`,
     cb_prev_close: `Chiudi`,
     cb_copied: `Copiato!`,
