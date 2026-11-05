@@ -38,10 +38,21 @@ suggest_patch() {
   echo "${a}.${b}.$((c + 1))"
 }
 
-ask() { # ask "prompt" → reads from the terminal, falls back to stdin
-  local reply=""
-  if ! { read -r -p "$1" reply < /dev/tty; } 2>/dev/null; then
-    read -r -p "$1" reply || true
+ask() { # ask "prompt" → answer on stdout; prompt goes to stderr
+  local reply="" rc=0
+  printf '%s' "$1" >&2
+  if [[ -t 0 ]]; then
+    IFS= read -r reply || rc=$?
+  elif { exec 3< /dev/tty; } 2>/dev/null; then
+    IFS= read -r reply <&3 || rc=$?
+    exec 3<&-
+  else
+    IFS= read -r reply || rc=$?
+  fi
+  if [[ $rc -ne 0 && -z "$reply" ]]; then
+    echo "" >&2
+    echo "Error: no input available (no terminal?). Pass VERSION=X.Y.Z and YES=1." >&2
+    exit 1
   fi
   echo "$reply"
 }
