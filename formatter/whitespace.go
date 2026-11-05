@@ -182,13 +182,11 @@ func normalizeLead(s string, n int) string {
 		}
 		keep = s[:p+end]
 		s = s[p+end:]
-		p = 0
 	} else if strings.HasPrefix(s[p:], "/*") {
 		end := strings.Index(s[p:], "*/")
 		if end >= 0 && !strings.Contains(s[p:p+end], "\n") {
 			keep = s[:p+end+2]
 			s = s[p+end+2:]
-			p = 0
 		}
 	}
 	q := 0

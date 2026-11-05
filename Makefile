@@ -44,8 +44,11 @@ test-update: ## Regenerate golden want.sql files (run after intentional formatte
 bench: ## Run benchmarks
 	go test ./formatter/... -run '^$$' -bench=. -benchmem
 
-lint: ## Run linter (requires golangci-lint)
-	golangci-lint run ./...
+GOLANGCI_LINT := $(shell command -v golangci-lint 2>/dev/null || echo $$(go env GOPATH)/bin/golangci-lint)
+
+lint: ## Run linter (installs golangci-lint into $GOPATH/bin if missing)
+	@test -x "$(GOLANGCI_LINT)" || { echo "==> Installing golangci-lint..."; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; }
+	$(GOLANGCI_LINT) run ./...
 
 fmt: ## Format Go source files
 	gofmt -w .
