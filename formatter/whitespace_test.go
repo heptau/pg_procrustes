@@ -250,3 +250,41 @@ func TestSubqueryAlwaysInsideFunctionBody(t *testing.T) {
 		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
 	}
 }
+
+// A subquery in an IF / ELSIF / WHILE condition is opened like any other subquery.
+func TestSubqueryAlwaysInPLpgSQLConditions(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Layout.Subquery.Break = config.BreakAlways
+	c.Layout.Clauses.Break = config.BreakAlways
+	in := "create function f() returns void as $$\nbegin\n  drop table if exists tmp;\n  if exists (select 1 from v) then\n    null;\n  elsif not exists (select 1 from w) then\n    null;\n  end if;\n  while exists (select 1 from q) loop\n    null;\n  end loop;\nend\n$$ language plpgsql;\n"
+	want := "create function f() returns void as $$\nbegin\n  drop table if exists tmp;\n  if exists (\n    select 1\n    from v\n  ) then\n    null;\n  elsif not exists (\n    select 1\n    from w\n  ) then\n    null;\n  end if;\n  while exists (\n    select 1\n    from q\n  ) loop\n    null;\n  end loop;\nend\n$$ language plpgsql;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+func TestSubqueryPreserveLeavesPLpgSQLConditions(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Layout.Clauses.Break = config.BreakAlways
+	in := "create function f() returns void as $$\nbegin\n  if exists (select 1 from v) then\n    null;\n  end if;\nend\n$$ language plpgsql;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != in {
+		t.Errorf("changed:\n%s", got)
+	}
+}

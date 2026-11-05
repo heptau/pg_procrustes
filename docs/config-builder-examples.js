@@ -601,6 +601,23 @@ window.CB_EXAMPLES = {
    "t": "select id\nfrom users where active = true and role = 'admin';"
   }
  },
+ "layout.clauses.window.break": {
+  "": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
+  },
+  "always": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
+  },
+  "auto": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
+  },
+  "never": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t window w as (partition by a order by b), v as (partition by c);"
+  },
+  "preserve": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t window w as (partition by a order by b), v as (partition by c);"
+  }
+ },
  "layout.content.align": {
   "": {
    "t": "select\nid,\nname\nfrom\n  t;\n\nselect\n  id,\n  name\nfrom\n  u;"
@@ -1036,6 +1053,23 @@ window.CB_EXAMPLES = {
   },
   "inline": {
    "t": "select id\nfrom users\nwhere active = true\n  and role = 'admin';"
+  }
+ },
+ "layout.content.window_list.break": {
+  "": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
+  },
+  "always": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow\n  w as (partition by a order by b),\n  v as (partition by c);"
+  },
+  "auto": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
+  },
+  "never": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
+  },
+  "preserve": {
+   "t": "select sum(x) over w, avg(x) over v\nfrom t\nwindow w as (partition by a order by b), v as (partition by c);"
   }
  },
  "layout.content.with_list.break": {

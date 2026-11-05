@@ -331,6 +331,7 @@ type ClausesCfg struct {
 	Where      ClauseRule `yaml:"where"`
 	GroupBy    ClauseRule `yaml:"group_by"`
 	Having     ClauseRule `yaml:"having"`
+	Window     ClauseRule `yaml:"window"` // WINDOW name AS (…) definitions
 	OrderBy    ClauseRule `yaml:"order_by"`
 	Limit      ClauseRule `yaml:"limit"`
 	Offset     ClauseRule `yaml:"offset"`
@@ -356,6 +357,7 @@ type ContentCfg struct {
 	JoinOn        ContentRule   `yaml:"join_on"`
 	GroupList     ContentRule   `yaml:"group_list"`
 	OrderList     ContentRule   `yaml:"order_list"`
+	WindowList    ContentRule   `yaml:"window_list"` // WINDOW definitions (comma-split)
 	SetList       ContentRule   `yaml:"set_list"`
 	InsertColumns ContentRule   `yaml:"insert_columns"`
 	ValuesList    ContentRule   `yaml:"values_list"`
@@ -406,7 +408,7 @@ type NamedClauseRule struct {
 func (c ClausesCfg) ClauseRules() []NamedClauseRule {
 	return []NamedClauseRule{
 		{"into", c.Into}, {"from", c.From}, {"join", c.Join}, {"where", c.Where},
-		{"group_by", c.GroupBy}, {"having", c.Having}, {"order_by", c.OrderBy},
+		{"group_by", c.GroupBy}, {"having", c.Having}, {"window", c.Window}, {"order_by", c.OrderBy},
 		{"limit", c.Limit}, {"offset", c.Offset}, {"values", c.Values},
 		{"on_conflict", c.OnConflict}, {"set", c.Set}, {"using", c.Using},
 		{"returning", c.Returning}, {"with", c.With}, {"exception", c.Exception},
@@ -425,7 +427,7 @@ func (c ContentCfg) ContentRules() []NamedContentRule {
 	return []NamedContentRule{
 		{"select_list", c.SelectList}, {"where_conds", c.WhereConds},
 		{"having_conds", c.HavingConds}, {"join_on", c.JoinOn},
-		{"group_list", c.GroupList}, {"order_list", c.OrderList},
+		{"group_list", c.GroupList}, {"order_list", c.OrderList}, {"window_list", c.WindowList},
 		{"set_list", c.SetList}, {"insert_columns", c.InsertColumns},
 		{"values_list", c.ValuesList}, {"returning_list", c.ReturningList},
 		{"with_list", c.WithList}, {"merge_on", c.MergeOn},
@@ -1073,6 +1075,7 @@ func validate(cfg *Config) error {
 		{cfg.Layout.Content.JoinOn.Break, "layout.content.join_on.break"},
 		{cfg.Layout.Content.GroupList.Break, "layout.content.group_list.break"},
 		{cfg.Layout.Content.OrderList.Break, "layout.content.order_list.break"},
+		{cfg.Layout.Content.WindowList.Break, "layout.content.window_list.break"},
 		{cfg.Layout.Content.SetList.Break, "layout.content.set_list.break"},
 		{cfg.Layout.Content.InsertColumns.Break, "layout.content.insert_columns.break"},
 		{cfg.Layout.Content.ValuesList.Break, "layout.content.values_list.break"},
@@ -1098,6 +1101,7 @@ func validate(cfg *Config) error {
 		{cfg.Layout.Content.JoinOn.FirstItem, "layout.content.join_on.first_item"},
 		{cfg.Layout.Content.GroupList.FirstItem, "layout.content.group_list.first_item"},
 		{cfg.Layout.Content.OrderList.FirstItem, "layout.content.order_list.first_item"},
+		{cfg.Layout.Content.WindowList.FirstItem, "layout.content.window_list.first_item"},
 		{cfg.Layout.Content.SetList.FirstItem, "layout.content.set_list.first_item"},
 		{cfg.Layout.Content.InsertColumns.FirstItem, "layout.content.insert_columns.first_item"},
 		{cfg.Layout.Content.ValuesList.FirstItem, "layout.content.values_list.first_item"},

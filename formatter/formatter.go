@@ -2522,6 +2522,8 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 	sqlStart := -1    // byte position where the current SQL clause keyword starts
 	forInSQL := false // true when tracking a FOR r IN SELECT...LOOP cursor query
 	prevLower := ""   // last non-paren token seen at paren depth 0 (lowercase)
+	condStart := -1   // start of an IF / ELSIF / WHILE condition being scanned
+	condEnd := ""     // keyword that ends that condition (then | loop)
 
 	// cfgNoLayout is used for a re-format pass on each extracted SQL statement.
 	// The outer Format(body, ...) call fails to parse the PL/pgSQL body (pg_query.Parse
@@ -2586,6 +2588,33 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 		}
 
 		lower := strings.ToLower(text)
+
+		// IF / ELSIF / WHILE condition: not a statement, but a subquery in it (exists (select …))
+		// is laid out like any other (layout.subquery.break).
+		if sqlStart < 0 && condStart < 0 && (lower == "if" || lower == "elsif" || lower == "elseif" || lower == "while") &&
+			(prevLower == "" || prevLower == ";" || prevLower == "begin" || prevLower == "then" || prevLower == "else" || prevLower == "loop") {
+			condStart, condEnd = tokStart, "then"
+			if lower == "while" {
+				condEnd = "loop"
+			}
+			prevLower = lower
+			continue
+		}
+		if condStart >= 0 && lower == condEnd {
+			prefix := body[lastEnd:condStart]
+			head := prefix[strings.LastIndexByte(prefix, '\n')+1:]
+			text := head + body[condStart:tokStart]
+			if out := layout.ExpandSubqueries(text, layoutConfig(cfg)); out != text {
+				result.WriteString(prefix[:len(prefix)-len(head)])
+				result.WriteString(out)
+			} else {
+				result.WriteString(body[lastEnd:tokStart])
+			}
+			lastEnd = tokStart
+			condStart = -1
+			prevLower = lower
+			continue
+		}
 
 		if sqlStart < 0 && sqlClauseStarters[lower] {
 			// Found the start of a SQL statement; remember position.

@@ -450,7 +450,7 @@ layout:
     break: preserve          # preserve | never | always | auto
     align: same              # same | indent
     # per-clause overrides (inherit from clauses.break / clauses.align when omitted):
-    # from, join, where, group_by, having, order_by, limit, offset,
+    # from, join, where, group_by, having, window, order_by, limit, offset,
     # values, on_conflict, set, using, returning, with, exception,
     # merge (MERGE INTO), merge_on (MERGE ON), when (MERGE WHEN … THEN)
     # Example:
@@ -493,6 +493,7 @@ layout:
     #   join_on        — JOIN ON conditions (AND/OR split)
     #   group_list     — GROUP BY items (comma-split)
     #   order_list     — ORDER BY items (comma-split)
+    #   window_list    — WINDOW definitions (comma-split)
     #   set_list       — UPDATE SET assignments (comma-split)
     #   insert_columns — INSERT INTO table (col1, col2, …) column list
     #   values_list    — VALUES row tuples (each tuple is one item)

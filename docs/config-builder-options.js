@@ -1313,6 +1313,39 @@ window.CB_OPTIONS = {
      }
     },
     {
+     "key": "layout.clauses.window.break",
+     "label": "window clause break",
+     "type": "select",
+     "def": "",
+     "desc": "Per-clause break override for WINDOW.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "never",
+       "keep on one line"
+      ],
+      [
+       "always",
+       "break every item"
+      ],
+      [
+       "auto",
+       "break if too long"
+      ]
+     ],
+     "inherit": "layout.clauses.break",
+     "sample": {
+      "in": "select sum(x) over w, avg(x) over v from t window w as (partition by a order by b), v as (partition by c);",
+      "with": {
+       "layout.clauses.break": "always",
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
      "key": "layout.clauses.having.break",
      "label": "having clause break",
      "type": "select",
@@ -2204,6 +2237,38 @@ window.CB_OPTIONS = {
       "in": "select 1 from t group by department, year, quarter;",
       "with": {
        "layout.content.group_list.break": "always"
+      }
+     }
+    },
+    {
+     "key": "layout.content.window_list.break",
+     "label": "window list — break",
+     "type": "select",
+     "def": "",
+     "desc": "Whether to break the list of WINDOW definitions.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "never",
+       "keep on one line"
+      ],
+      [
+       "always",
+       "break every item"
+      ],
+      [
+       "auto",
+       "break if too long"
+      ]
+     ],
+     "inherit": "layout.content.break",
+     "sample": {
+      "in": "select sum(x) over w, avg(x) over v from t window w as (partition by a order by b), v as (partition by c);",
+      "with": {
+       "layout.clauses.break": "always"
       }
      }
     },

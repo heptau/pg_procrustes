@@ -541,3 +541,21 @@ func TestDDLOptionsAreNotNoop(t *testing.T) {
 		t.Fatal("ddl.create_table.break must not be a no-op")
 	}
 }
+
+func TestWindowClauseBreaks(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 80)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	sql := "select sum(x) over w from t window w as (partition by a), v as (order by b) order by 1"
+	want := "select\n  sum(x) over w\nfrom\n  t\nwindow\n  w as (partition by a),\n  v as (order by b)\norder by\n  1"
+	assertLayoutFormat(t, sql, cfg, want)
+	assertSubqueryIdempotent(t, sql, cfg)
+}
+
+func TestWindowClauseNotAClauseOutsideQuery(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 80)
+	cfg.Clauses.Break = config.BreakAlways
+	sql := "select sum(x) over (partition by a) from t"
+	want := "select sum(x) over (partition by a)\nfrom t"
+	assertLayoutFormat(t, sql, cfg, want)
+}

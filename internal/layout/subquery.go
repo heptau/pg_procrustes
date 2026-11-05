@@ -191,3 +191,13 @@ func hasSubquery(tokens []rawTok, from, to int) bool {
 	}
 	return false
 }
+
+// ExpandSubqueries applies layout.subquery.break to the subqueries of a fragment that is not
+// a statement on its own — the condition of a PL/pgSQL IF / ELSIF / WHILE. text should start
+// with the line the fragment begins on, so a subquery opens at that line's indent.
+func ExpandSubqueries(text string, cfg *config.LayoutConfig) string {
+	if cfg == nil || subqueryMode(cfg) == config.BreakPreserve {
+		return text
+	}
+	return expandSubqueries(flattenSubqueries(text, cfg), cfg, indentUnitStr(cfg))
+}

@@ -166,6 +166,7 @@ layout:
     # where:      { break: auto, align: same }
     # group_by:   { break: auto, align: same }
     # having:     { break: auto, align: same }
+    # window:     { break: auto, align: same }   — WINDOW name AS (…) definitions
     # order_by:   { break: auto, align: same }
     # limit:      { break: auto, align: same }
     # offset:     { break: auto, align: same }
@@ -223,6 +224,7 @@ layout:
     # join_on:        { break: auto, first_item: break }  — JOIN ON conditions (AND/OR split)
     # group_list:     { break: auto, first_item: break }  — GROUP BY items (comma-split)
     # order_list:     { break: auto, first_item: break }  — ORDER BY items (comma-split)
+    # window_list:    { break: auto, first_item: break }  — WINDOW definitions (comma-split)
     # set_list:       { break: auto, first_item: break }  — UPDATE SET assignments (comma-split)
     # insert_columns: { break: auto, first_item: break }  — INSERT INTO table(col1, col2, …) column list
     # values_list:    { break: auto, first_item: break }  — VALUES row tuples (each tuple is one item)

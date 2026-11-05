@@ -175,6 +175,7 @@ const (
 	clauseMerge   // MERGE INTO target [AS alias]
 	clauseMergeOn // ON join_condition of a MERGE
 	clauseWhen    // WHEN [NOT] MATCHED … THEN action
+	clauseWindow  // WINDOW name AS (…) of a SELECT
 	// clauseWithOption is the trailer of CREATE [MATERIALIZED] VIEW / CREATE TABLE AS:
 	// WITH [NO] DATA and WITH [CASCADED | LOCAL] CHECK OPTION.
 	clauseWithOption
@@ -370,6 +371,8 @@ func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 		}
 	case "having":
 		return clauseHaving, 1
+	case "window":
+		return clauseWindow, 1 // only accepted in a query (see clauseAllowed)
 	case "order":
 		if next() == "by" {
 			return clauseOrderBy, 2
@@ -527,6 +530,8 @@ func clauseBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMo
 		return get(c.GroupBy)
 	case clauseHaving:
 		return get(c.Having)
+	case clauseWindow:
+		return get(c.Window)
 	case clauseOrderBy:
 		return get(c.OrderBy)
 	case clauseLimit:
@@ -1051,6 +1056,8 @@ func contentBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakM
 		return get(c.GroupList)
 	case clauseOrderBy:
 		return get(c.OrderList)
+	case clauseWindow:
+		return get(c.WindowList)
 	case clauseSet:
 		return get(c.SetList)
 	case clauseInsert:
@@ -1991,6 +1998,9 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		return false
 	}
 	switch kind {
+	case clauseWindow:
+		// WINDOW definitions of a query; the word can only follow its FROM/WHERE/HAVING.
+		return has(clauseSelect, clauseFrom)
 	case clauseSet:
 		// UPDATE … SET and ON CONFLICT … DO UPDATE SET only.
 		return has(clauseUpdate, clauseOnConflict)
