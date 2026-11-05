@@ -2124,6 +2124,9 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// A body is a fragment of the file: whole-file settings must not touch its edges
 	// (trailing_newline: strip would glue the closing delimiter to the last line).
 	cfgInner.TrailingNewline = config.TrailingNewlinePreserve
+	if isPLpgSQLBody(body) {
+		body = normalizeAssignments(body, cfg.PLpgSQLAssignment)
+	}
 	formatted, err := formatTolerant(body, &cfgInner)
 	if err != nil {
 		formatted = body

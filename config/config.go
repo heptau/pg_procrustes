@@ -87,6 +87,16 @@ const (
 	InequalityC        InequalityOp = "c"    // !=
 )
 
+// PLpgSQLAssignment normalises the assignment operator of PL/pgSQL statements
+// (x := 1 / x = 1) and of DECLARE defaults (v int := 0 / v int = 0).
+type PLpgSQLAssignment string
+
+const (
+	AssignPreserve    PLpgSQLAssignment = "preserve"
+	AssignColonEquals PLpgSQLAssignment = "colon_equals" // :=
+	AssignEquals      PLpgSQLAssignment = "equals"       // =
+)
+
 // JoinForm controls whether JOIN keywords are written in short or long form.
 type JoinForm string
 
@@ -785,6 +795,7 @@ type Config struct {
 	TrailingWhitespace TrailingWS          `yaml:"trailing_whitespace"`
 	Semicolons         SemicolonMode       `yaml:"semicolons"`
 	InequalityOp       InequalityOp        `yaml:"inequality_op"`
+	PLpgSQLAssignment  PLpgSQLAssignment   `yaml:"plpgsql_assignment"`
 	JoinForm           JoinForm            `yaml:"join_form"`
 	OperatorSpacing    OperatorSpacingMode `yaml:"operator_spacing"`
 	BlankLines         BlankLinesMode      `yaml:"blank_lines"`
@@ -830,6 +841,7 @@ func defaultConfig() *Config {
 		TrailingWhitespace:          TrailingWSPreserve,
 		Semicolons:                  SemicolonPreserve,
 		InequalityOp:                InequalityPreserve,
+		PLpgSQLAssignment:           AssignPreserve,
 		JoinForm:                    JoinFormPreserve,
 		OperatorSpacing:             OperatorSpacingPreserve,
 		BlankLines:                  BlankLinesPreserve,
@@ -940,6 +952,12 @@ func validate(cfg *Config) error {
 	case InequalityPreserve, InequalityANSI, InequalityC, "":
 	default:
 		return fmt.Errorf("inequality_op must be preserve|ansi|c, got %q", cfg.InequalityOp)
+	}
+
+	switch cfg.PLpgSQLAssignment {
+	case AssignPreserve, AssignColonEquals, AssignEquals, "":
+	default:
+		return fmt.Errorf("plpgsql_assignment must be preserve|colon_equals|equals, got %q", cfg.PLpgSQLAssignment)
 	}
 
 	switch cfg.JoinForm {

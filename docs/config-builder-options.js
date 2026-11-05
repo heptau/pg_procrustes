@@ -600,6 +600,31 @@ window.CB_OPTIONS = {
      }
     },
     {
+     "key": "plpgsql_assignment",
+     "label": "PL/pgSQL assignment",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Normalises the assignment operator in PL/pgSQL bodies: statements (x := 1 / x = 1) and DECLARE defaults. Named arguments (f(a := 1)), comparisons, UPDATE … SET and cursor queries are not touched.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "colon_equals",
+       ":="
+      ],
+      [
+       "equals",
+       "="
+      ]
+     ],
+     "sample": {
+      "in": "create function f() returns int language plpgsql as $$\ndeclare\n  v int := 0;\n  w text = 'x';\nbegin\n  v := 1;\n  w = 'y';\n  return v;\nend\n$$;",
+      "with": {}
+     }
+    },
+    {
      "key": "join_form",
      "label": "JOIN form",
      "type": "select",

@@ -1422,6 +1422,20 @@ window.CB_EXAMPLES = {
    "t": "select count(id), f(x) from t where id in (1, 2);"
   }
  },
+ "plpgsql_assignment": {
+  "": {
+   "t": "create function f() returns int language plpgsql as $$\ndeclare\n  v int := 0;\n  w text = 'x';\nbegin\n  v := 1;\n  w = 'y';\n  return v;\nend\n$$;"
+  },
+  "colon_equals": {
+   "t": "create function f() returns int language plpgsql as $$\ndeclare\n  v int := 0;\n  w text := 'x';\nbegin\n  v := 1;\n  w := 'y';\n  return v;\nend\n$$;"
+  },
+  "equals": {
+   "t": "create function f() returns int language plpgsql as $$\ndeclare\n  v int = 0;\n  w text = 'x';\nbegin\n  v = 1;\n  w = 'y';\n  return v;\nend\n$$;"
+  },
+  "preserve": {
+   "t": "create function f() returns int language plpgsql as $$\ndeclare\n  v int := 0;\n  w text = 'x';\nbegin\n  v := 1;\n  w = 'y';\n  return v;\nend\n$$;"
+  }
+ },
  "plpgsql_keywords.case": {
   "": {
    "t": "create function f() returns integer as $$\nbegin\n  raise notice 'a';\n  RAISE NOTICE 'b';\n  Raise Notice 'c';\n  return 1;\nexception when others then\n  RAISE EXCEPTION 'failed';\nend;\n$$ language plpgsql;"

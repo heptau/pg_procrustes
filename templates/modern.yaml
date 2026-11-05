@@ -42,6 +42,7 @@ plpgsql_variables:
   case: lower
 plpgsql_keywords:
   case: lower
+plpgsql_assignment: colon_equals
 inequality_op: c
 cast_style: operator
 join_form: short

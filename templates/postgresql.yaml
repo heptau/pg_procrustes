@@ -38,6 +38,7 @@ functions:
 aliases:
   case: lower
   as: add
+plpgsql_assignment: colon_equals
 inequality_op: ansi
 cast_style: operator
 join_form: short

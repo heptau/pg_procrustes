@@ -368,6 +368,8 @@ trailing_whitespace: strip   # strip | preserve
 semicolons: preserve         # preserve | add | remove
 
 inequality_op: c             # preserve | ansi | c
+plpgsql_assignment: preserve # preserve | colon_equals | equals   (PL/pgSQL x := 1 / x = 1 and DECLARE defaults;
+                             #   named arguments f(a := 1), comparisons, UPDATE … SET and cursor queries are not touched)
                              #   ansi: always use <>
                              #   c:    always use !=
 
