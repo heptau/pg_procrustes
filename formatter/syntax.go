@@ -70,9 +70,16 @@ func FormatWithDiagnostics(sql string, cfg *config.Config) (string, []SyntaxErro
 	}
 	// The formatter works on LF only; the requested line ending is applied at the end.
 	eol := detectEOL(sql)
-	out, diags, err := formatDiagnostics(normalizeEOL(sql), cfg)
+	masked, regions := maskVerbatimRegions(normalizeEOL(sql))
+	out, diags, err := formatDiagnostics(masked, cfg)
 	if err != nil || out == "" {
-		return out, diags, err
+		return out, shiftDiagnostics(diags, regions), err
+	}
+	if len(regions) > 0 {
+		if out, err = restoreVerbatimRegions(out, regions); err != nil {
+			return "", nil, err
+		}
+		diags = shiftDiagnostics(diags, regions)
 	}
 	return applyEOL(out, cfg.LineEndings, eol), diags, nil
 }

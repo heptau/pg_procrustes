@@ -2004,6 +2004,32 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		}
 		return false
 	}
+	// GRANT / REVOKE (also inside ALTER DEFAULT PRIVILEGES) list privileges that are spelled
+	// like clauses (grant select, update on t …; revoke … from role); COPY t FROM stdin and
+	// IS [NOT] DISTINCT FROM are not the FROM of a query either; CREATE POLICY … FOR SELECT
+	// names a command.
+	switch kind {
+	case clauseSelect, clauseUpdate, clauseInsert, clauseDelete, clauseFrom:
+		for k := stmt.startTok; k < i && k < len(tokens); k++ {
+			switch strings.ToLower(tokens[k].text) {
+			case "grant", "revoke":
+				return false
+			}
+		}
+	}
+	switch kind {
+	case clauseSelect:
+		if prev == "for" {
+			return false
+		}
+	case clauseFrom:
+		if prev == "distinct" {
+			return false
+		}
+		if first := firstCodeTok(tokens, stmt.startTok, i); first >= 0 && strings.EqualFold(tokens[first].text, "copy") {
+			return false
+		}
+	}
 	switch kind {
 	case clauseWindow:
 		// WINDOW definitions of a query; the word can only follow its FROM/WHERE/HAVING.

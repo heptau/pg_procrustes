@@ -1,3 +1,8 @@
+# In an SQL file, everything between the comments
+#   -- pg_procrustes: off
+#   -- pg_procrustes: on
+# is left exactly as written (no closing "on": to the end of the file). See README → Leaving a part alone.
+#
 # Start from other config files (installed template name, or a file path relative to this one;
 # your settings in this file win). See README → Templates.
 #   template: ai

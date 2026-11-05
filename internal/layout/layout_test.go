@@ -559,3 +559,21 @@ func TestWindowClauseNotAClauseOutsideQuery(t *testing.T) {
 	want := "select sum(x) over (partition by a)\nfrom t"
 	assertLayoutFormat(t, sql, cfg, want)
 }
+
+// Words that look like clauses but are not: privileges, IS DISTINCT FROM, COPY … FROM, policy commands.
+func TestNotClausesOutsideQueries(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 80)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for _, sql := range []string{
+		"grant select, insert, update on t to r1, r2",
+		"revoke select on t from r1",
+		"alter default privileges in schema s grant select on tables to r",
+		"copy t from stdin",
+		"create policy p on t for select using (a = 1)",
+	} {
+		assertLayoutFormat(t, sql, cfg, sql)
+	}
+	assertLayoutFormat(t, "select a from t where c is not distinct from d", cfg,
+		"select\n  a\nfrom\n  t\nwhere\n  c is not distinct from d")
+}

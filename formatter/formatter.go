@@ -2124,6 +2124,15 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	// A body is a fragment of the file: whole-file settings must not touch its edges
 	// (trailing_newline: strip would glue the closing delimiter to the last line).
 	cfgInner.TrailingNewline = config.TrailingNewlinePreserve
+	// Nor does the blank line between statements: inside a body it would also separate the last
+	// statement from END (the plpgsql blank-line settings are layout.dollar_quote.plpgsql).
+	cfgInner.BlankLinesBetweenStatements = "preserve"
+	// A PL/pgSQL body written on one line (do $$ begin perform 1; end $$) stays compact: there
+	// is no structure to lay out, and breaking its statements would leave it half-formatted.
+	oneLineBody := isPLpgSQLBody(body) && !strings.Contains(strings.TrimSpace(body), "\n")
+	if oneLineBody {
+		cfgInner.StatementBreak = config.StatementBreakPreserve
+	}
 	if isPLpgSQLBody(body) {
 		body = normalizeAssignments(body, cfg.PLpgSQLAssignment)
 	}
@@ -2133,7 +2142,9 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	}
 
 	var resultBody string
-	if isPLpgSQLBody(formatted) {
+	if oneLineBody {
+		resultBody = formatted
+	} else if isPLpgSQLBody(formatted) {
 		// PL/pgSQL body: apply layout per-statement, then apply dollar_quote.plpgsql config.
 		resultBody, err = applyLayoutPerStatement(formatted, cfg)
 		if err != nil {

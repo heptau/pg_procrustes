@@ -288,3 +288,39 @@ func TestSubqueryPreserveLeavesPLpgSQLConditions(t *testing.T) {
 		t.Errorf("changed:\n%s", got)
 	}
 }
+
+// A PL/pgSQL body written on one line stays on one line (nothing to lay out), and the
+// blank line between statements is not added inside a body (it would also precede END).
+func TestOneLinePLpgSQLBodyStaysCompact(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Layout.Clauses.Break = config.BreakAlways
+	c.Layout.Content.Break = config.BreakAlways
+	c.StatementBreak = config.StatementBreakAlways
+	in := "do $$ begin perform 1; end $$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != in {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestNoBlankLineBeforeEndWithBlankLinesBetweenStatements(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.BlankLinesBetweenStatements = "1"
+	in := "create function f() returns void as $$\nbegin\n  x := 1;\n  y := 2;\nend\n$$ language plpgsql;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != in {
+		t.Errorf("body was changed:\n%s", got)
+	}
+}

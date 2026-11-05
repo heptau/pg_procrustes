@@ -243,6 +243,22 @@ pg_procrustes --print-config
 pg_procrustes --list-templates
 ```
 
+### Leaving a part alone
+
+Everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` is copied to the output exactly as written (the two comments included); `/* pg_procrustes: off */` works too. Each directive goes on a line of its own. Without a closing `on` the region runs to the end of the file, and a stray `on` is just a comment.
+
+```sql
+select a, b from t;
+
+-- pg_procrustes: off
+insert into t values
+  (1,   'a'),
+  (22,  'bb');
+-- pg_procrustes: on
+```
+
+It also works between the statements of a function body. Put the directives between statements: a region that cuts a statement in two leaves SQL that does not parse (see `syntax_errors`).
+
 ## Configuration
 
 pg_procrustes looks for `.pg_procrustes.yaml` starting in the current directory and walking up to the filesystem root. Specify a custom path with `-c path/to/config.yaml`. All settings default to `preserve` (no change).
@@ -868,6 +884,11 @@ MIT
 Every option with its default value and all allowed values in comments.
 
 ```yaml
+# In an SQL file, everything between the comments
+#   -- pg_procrustes: off
+#   -- pg_procrustes: on
+# is left exactly as written (no closing "on": to the end of the file). See README → Leaving a part alone.
+#
 # Start from other config files (installed template name, or a file path relative to this one;
 # your settings in this file win). See README → Templates.
 #   template: ai
