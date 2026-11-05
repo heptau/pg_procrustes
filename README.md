@@ -257,7 +257,7 @@ It also works between the statements of a function body. Put the directives betw
 
 pg_procrustes looks for `.pg_procrustes.yaml` starting in the current directory and walking up to the filesystem root. Specify a custom path with `-c path/to/config.yaml`. All settings default to `preserve` (no change).
 
-> **Note:** The `.pg_procrustes.yaml` in this repository is the configuration used to format pg_procrustes' own source files — not a default template. Copy and adjust it for your own project.
+> **Note:** The `.pg_procrustes.yaml` in this repository root is the reference config: every option with its allowed values and a comment, all set to `preserve` where that is possible. It is documentation, not a recommended style — pick a [template](#templates) or copy the options you need.
 
 ### Templates
 

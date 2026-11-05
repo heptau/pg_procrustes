@@ -1,11 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func write(t *testing.T, dir, name, content string) string {
@@ -169,5 +172,28 @@ func TestShippedTemplatesLoad(t *testing.T) {
 		if err := Validate(c); err != nil {
 			t.Errorf("%s: %v", f, err)
 		}
+	}
+}
+
+// The reference config in the repository root documents every option: it must load, validate
+// and name no key the program does not know (a renamed or removed option would otherwise
+// linger in it unnoticed).
+func TestReferenceConfigIsCurrent(t *testing.T) {
+	const path = "../.pg_procrustes.yaml"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(c); err != nil {
+		t.Fatal(err)
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(defaultConfig()); err != nil {
+		t.Errorf("%s names an option the program does not have: %v", path, err)
 	}
 }
