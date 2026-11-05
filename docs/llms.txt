@@ -12,7 +12,9 @@ For the complete documentation in a single file (README + fully commented refere
 - License: MIT
 - Config file: `.pg_procrustes.yaml` (auto-detected from the current directory upward, or `-c <path>`)
 - Platforms: macOS (arm64, amd64), Linux (amd64, arm64), Windows (amd64, arm64)
-- Install: `brew install heptau/tap/pg-procrustes`, `go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest`, or a binary from GitHub Releases
+- Install: `brew install heptau/tap/pg-procrustes`, `go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest` (then `pg_procrustes --install-templates` for the templates), or a binary from GitHub Releases (the archives include `templates/`)
+- Templates: ready-made configs shipped as files (`postgresql` ≈ what PostgreSQL prints, `ai` = lean for LLM prompts, `modern` = lower-case keywords, one item per line with leading commas, friendly to git); a config starts from one with `template: modern` (or a file path, or a list; the file's own settings win)
+- Leaving a part alone: everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` (or `/* … */`) is copied to the output untouched
 - Editor integration: Neovim plugin (conform.nvim formatter, `:PgProcrustesFormat`), plus config-only setups for Zed, VS Code, JetBrains/DataGrip, Emacs, Helix, Vim (ALE)
 
 ## CLI usage
@@ -28,6 +30,9 @@ pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 - `--backup[=.ext]` — save original before overwriting (requires `-w`)
 - `--out-dir <dir>` — write formatted files to a different directory
 - `-c <path>` — explicit config file path
+- `--print-config` — print the effective configuration (templates resolved, every option) and the files it was built from
+- `--list-templates` — list the installed templates
+- `--install-templates [--templates-from <url|zip|folder>]` — download the templates of this release from GitHub into the user templates directory
 - `-v`, `--version` — print version
 
 ## What it formats
@@ -36,12 +41,12 @@ pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 - Data type form: long (`character varying`), short (`varchar`), or long without spaces
 - Alias `AS`: add / remove; `<>` vs `!=`; `NOT IN` vs `<> ALL`; `CAST(x AS t)` vs `x::t`; explicit/implicit `ASC`; short/long JOIN form; removing `public.` and safe double quotes
 - Spacing: operators, commas, parentheses, inline whitespace; trailing whitespace, trailing newline, semicolons, blank lines
-- Layout: clause breaking, content breaking (comma lists, AND/OR conditions), CASE expressions, UNION blank lines, paren-indented blocks, indentation
-- PL/pgSQL: DECLARE/BEGIN/EXCEPTION/END structure, IF/ELSIF/ELSE, LOOP/FOR/WHILE, CASE statements
+- Layout: clause breaking (including WINDOW), content breaking (comma lists, AND/OR conditions, wrapping of long argument lists and OVER (…) specifications), CASE expressions, subqueries and CTE bodies opened on their own lines (`layout.subquery.break`), `(` placed above its `)` (`layout.paren_indent.open`), UNION blank lines, paren-indented blocks, indentation
+- PL/pgSQL: DECLARE/BEGIN/EXCEPTION/END structure, IF/ELSIF/ELSE, LOOP/FOR/WHILE, CASE statements, `:=` vs `=` for assignments (`plpgsql_assignment`)
 
 ## Top-level config keys
 
-`reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `line_endings`, `comments`, `blank_lines_between_statements`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `dollar_quote`, `paren_indent`).
+`template`, `reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `statement_break`, `plpgsql_assignment`, `line_endings`, `comments`, `blank_lines_between_statements`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `subquery`, `dollar_quote`, `paren_indent`).
 
 ## Docs
 

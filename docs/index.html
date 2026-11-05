@@ -637,6 +637,7 @@
   <a href="#usage" data-i18n="nav_usage">Usage</a>
 
   <span class="nav-section" data-i18n="nav_sec_config">Configuration</span>
+  <a href="#templates" data-i18n="nav_templates">Templates</a>
   <a href="#casing" data-i18n="nav_casing">Keyword &amp; identifier casing</a>
   <a href="#plpgsql-vars" data-i18n="nav_plpgsql_vars">PL/pgSQL variables &amp; keywords</a>
   <a href="#punctuation" data-i18n="nav_punctuation">Punctuation &amp; spacing</a>
@@ -644,6 +645,7 @@
   <a href="#clauses" data-i18n="nav_clauses">Clause breaking</a>
   <a href="#content" data-i18n="nav_content">Content breaking</a>
   <a href="#case-sql" data-i18n="nav_case_sql">CASE expressions</a>
+  <a href="#subqueries" data-i18n="nav_subqueries">Subqueries &amp; windows</a>
   <a href="#plpgsql" data-i18n="nav_plpgsql">PL/pgSQL</a>
   <a href="#plpgsql-if" data-i18n="nav_plpgsql_if">IF blocks</a>
   <a href="#plpgsql-loop" data-i18n="nav_plpgsql_loop">LOOP blocks</a>
@@ -708,6 +710,8 @@
 
     <h3 data-i18n="install_goinstall_h3">go install <span style="font-weight:400;font-size:0.85em;color:var(--muted)">(requires Go toolchain)</span></h3>
     <pre><code>go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest</code></pre>
+    <p data-i18n="install_templates_p"><code>go install</code> installs the binary only. Fetch the shipped <a href="#templates">templates</a> with <code>pg_procrustes --install-templates</code> — it downloads the <code>templates.zip</code> of the matching release into your user templates directory and can be run again to update them. Release archives and the Homebrew formula already include them.</p>
+    <pre><code>pg_procrustes --install-templates</code></pre>
 
     <h3 data-i18n="install_source_h3">Build from source</h3>
     <pre><code><span class="cm"># current platform</span>
@@ -921,14 +925,49 @@ pg_procrustes --version</code></pre>
         <tr><td><code>--check</code></td><td data-i18n="usage_flag_check">Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
         <tr><td><code>--syntax-errors &lt;mode&gt;</code></td><td>What to do with SQL that does not parse: <code>fail</code> (default — report <code>file:line:col</code>, exit 1), <code>skip</code> (format the valid statements, leave the rest as written) or <code>ignore</code></td></tr>
         <tr><td><code>--diff</code></td><td data-i18n="usage_flag_diff">Print a unified diff of changes without writing</td></tr>
+        <tr><td><code>--print-config</code></td><td data-i18n="usage_flag_printconfig">Print the effective configuration (templates resolved, every option) and the files it was built from, then exit</td></tr>
+        <tr><td><code>--list-templates</code></td><td data-i18n="usage_flag_listtemplates">List the installed templates and where they are, then exit</td></tr>
+        <tr><td><code>--install-templates</code></td><td data-i18n="usage_flag_installtemplates">Download the templates of this release from GitHub into your user templates directory</td></tr>
+        <tr><td><code>--templates-from &lt;src&gt;</code></td><td data-i18n="usage_flag_templatesfrom">With <code>--install-templates</code>: take them from a URL (zip), a .zip file or a folder instead</td></tr>
       </tbody>
     </table></div>
+
+    <h4 data-i18n="usage_off_h4">Leaving a part alone</h4>
+    <p data-i18n="usage_off_p">Everything between <code>-- pg_procrustes: off</code> and <code>-- pg_procrustes: on</code> is copied to the output exactly as written (<code>/* … */</code> works too; each directive on a line of its own). Without a closing <code>on</code> the region runs to the end of the file. It also works between the statements of a function body — put the directives between statements.</p>
+    <pre><code><span class="kw">SELECT</span> a, b <span class="kw">FROM</span> t;
+
+<span class="cm">-- pg_procrustes: off</span>
+<span class="kw">INSERT INTO</span> t <span class="kw">VALUES</span>
+  (1,   <span class="str">'a'</span>),
+  (22,  <span class="str">'bb'</span>);
+<span class="cm">-- pg_procrustes: on</span></code></pre>
 
     <h4 data-i18n="usage_lookup_h4">Config file lookup</h4>
     <p data-i18n="usage_lookup_p">
       pg_procrustes looks for <code>.pg_procrustes.yaml</code> starting in the current directory and walking up to the filesystem root.
       Use <code>-c</code> to specify a path explicitly. All settings default to <code>preserve</code> — if no config is found, nothing changes.
     </p>
+  </section>
+
+  <!-- ── TEMPLATES ── -->
+  <section id="templates">
+    <h2 data-i18n="tmpl_h2">Templates</h2>
+    <p data-i18n="tmpl_p1">A config file can start from ready-made settings: <code>template: name</code> names an installed template, <code>template: path/to/file.yaml</code> a file (relative to the file that names it), a list applies several in order. The file's own settings always win.</p>
+    <pre><code>template: modern                 <span class="cm"># installed with pg_procrustes</span>
+<span class="cm"># template: [postgresql, ../shared/team.yaml]</span>
+
+layout:
+  indent:
+    size: 4                      <span class="cm"># your differences</span></code></pre>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="tmpl_th_name">Name</th><th data-i18n="tmpl_th_desc">What it is</th></tr></thead>
+      <tbody>
+        <tr><td><code>postgresql</code></td><td data-i18n="tmpl_postgresql">Roughly what PostgreSQL itself prints (pg_dump, psql \d+): upper-case keywords, lower-case identifiers, <code>::</code> casts, <code>&lt;&gt;</code>, four-space indent.</td></tr>
+        <tr><td><code>ai</code></td><td data-i18n="tmpl_ai">Lean for LLM prompts: lower case, short type names, no alignment, redundant words (AS, ASC, public.) removed.</td></tr>
+        <tr><td><code>modern</code></td><td data-i18n="tmpl_modern">Readable with syntax highlighting, friendly to git and AI: lower-case keywords, one item per line with leading commas, no alignment, subqueries opened on their own lines, short types, <code>::</code> casts, <code>!=</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p data-i18n="tmpl_p2"><code>pg_procrustes --list-templates</code> shows what is installed, <code>--print-config</code> the result. The <a href="config-builder.html">Config Builder</a> offers the same templates and can write a short file (<code>template: modern</code> plus your differences).</p>
   </section>
 
   <!-- ── CASING ── -->
@@ -1078,7 +1117,12 @@ quoted_identifiers:   remove_safe
 schema_qualification: preserve   <span class="cm"># preserve | remove_public</span>
 cast_style:           preserve   <span class="cm"># preserve | operator  (CAST(x AS t) → x::t)</span>
 order_asc:            preserve   <span class="cm"># preserve | add | remove</span>
-not_in:               preserve   <span class="cm"># preserve | not_in | not_equals_all</span></code></pre>
+not_in:               preserve   <span class="cm"># preserve | not_in | not_equals_all</span>
+plpgsql_assignment:   preserve   <span class="cm"># preserve | colon_equals (:=) | equals (=)  — PL/pgSQL statements and DECLARE defaults</span>
+statement_break:      preserve   <span class="cm"># preserve | always  (select 1; select 2; → one statement per line)</span>
+blank_lines_between_statements: preserve   <span class="cm"># preserve | 0 … 10</span>
+trailing_newline:     preserve   <span class="cm"># preserve | add | strip</span>
+line_endings:         preserve   <span class="cm"># preserve | lf | crlf</span></code></pre>
   </section>
 
   <!-- ── LAYOUT ── -->
@@ -1100,7 +1144,11 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
   paren_indent:
     mode: preserve         <span class="cm"># preserve | indent | none</span>
-    close_first_on_line: same  <span class="cm"># same | after</span></code></pre>
+    close_first_on_line: before  <span class="cm"># before | after</span>
+    open: preserve         <span class="cm"># preserve | own_line</span>
+
+  subquery:
+    break: preserve        <span class="cm"># preserve | never | always | auto</span></code></pre>
 
     <h4 data-i18n="layout_union_h4">union.blank_line</h4>
     <p data-i18n="layout_union_p">Controls blank lines around <code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, and <code>EXCEPT</code>.</p>
@@ -1116,6 +1164,7 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 
     <h4 data-i18n="layout_paren_h4">paren_indent</h4>
     <p data-i18n="layout_paren_p"><code>mode: indent</code> re-indents content inside multi-line parenthesised blocks (subqueries, <code>IN (…)</code>) to exactly N spaces per depth level. <code>close_first_on_line: after</code> places the closing <code>)</code> on its own line at the inner indentation level.</p>
+    <p data-i18n="layout_paren_open_p"><code>open: own_line</code> moves the <code>(</code> of a block that spans lines from the end of its line onto a line of its own, in the column of the matching <code>)</code>.</p>
   </section>
 
   <!-- ── CLAUSE BREAKING ── -->
@@ -1286,6 +1335,47 @@ not_in:               preserve   <span class="cm"># preserve | not_in | not_equa
 <span class="kw">FROM</span> t</code></pre>
       </div>
     </div>
+  </section>
+
+  <!-- ── SUBQUERIES ── -->
+  <section id="subqueries">
+    <h2 data-i18n="sub_h2">Subqueries &amp; windows</h2>
+    <p data-i18n="sub_p1"><code>layout.subquery.break</code> lays out parenthesised subqueries and CTE bodies — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — with the same rules, one level deeper: <code>(</code> stays on its line, the body goes below it, <code>)</code> gets a line of its own. <code>never</code> joins them onto one line, <code>auto</code> opens only those on a line longer than <code>line_length</code>, <code>preserve</code> (default) leaves them alone.</p>
+    <div class="ba-stack">
+      <div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
+        <pre><code><span class="kw">SELECT</span> * <span class="kw">FROM</span> (<span class="kw">SELECT</span> id <span class="kw">FROM</span> users <span class="kw">WHERE</span> active) s <span class="kw">WHERE</span> id <span class="kw">IN</span> (<span class="kw">SELECT</span> user_id <span class="kw">FROM</span> orders)</code></pre>
+      </div>
+      <div>
+        <div class="ba-label" data-i18n="sub_lbl_after">After — clauses.break: always, subquery.break: always</div>
+        <pre><code><span class="kw">SELECT</span> *
+<span class="kw">FROM</span> (
+  <span class="kw">SELECT</span> id
+  <span class="kw">FROM</span> users
+  <span class="kw">WHERE</span> active
+) s
+<span class="kw">WHERE</span> id <span class="kw">IN</span> (
+  <span class="kw">SELECT</span> user_id
+  <span class="kw">FROM</span> orders
+)</code></pre>
+      </div>
+      <div>
+        <div class="ba-label" data-i18n="sub_lbl_after_open">After — plus paren_indent.open: own_line</div>
+        <pre><code><span class="kw">SELECT</span> *
+<span class="kw">FROM</span>
+(
+  <span class="kw">SELECT</span> id
+  <span class="kw">FROM</span> users
+  <span class="kw">WHERE</span> active
+) s</code></pre>
+      </div>
+    </div>
+    <p data-i18n="sub_win_p"><code>WINDOW name AS (…)</code> is a clause of its own (<code>clauses.window</code>, <code>content.window_list</code>) and, with <code>content.wrap_expressions: wrap</code>, a long <code>OVER (…)</code> puts <code>PARTITION BY</code>, <code>ORDER BY</code> and the frame on a line each.</p>
+    <pre><code><span class="kw">sum</span>(amount) <span class="kw">OVER</span> (
+  <span class="kw">PARTITION BY</span> client
+  <span class="kw">ORDER BY</span> created
+  <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>
+) <span class="kw">AS</span> running</code></pre>
   </section>
 
   <!-- ── PLPGSQL ── -->
@@ -1617,6 +1707,29 @@ total := total + i;
     usage_flag_outdir: `Zapíše naformátované soubory do tohoto adresáře místo na místě (nelze kombinovat s <code>-w</code>)`,
     usage_flag_check: `Skončí s kódem 1, pokud by se nějaký soubor přeformátoval — užitečné v CI a pre-commit hookách`,
     usage_flag_diff: `Vypíše unified diff změn bez zápisu`,
+    install_templates_p: `<code>go install</code> nainstaluje jen binárku. <a href="#templates">Šablony</a> stáhnete příkazem <code>pg_procrustes --install-templates</code> — stáhne <code>templates.zip</code> odpovídajícího vydání do vašeho adresáře šablon a lze ho spustit znovu pro aktualizaci. Archivy vydání i Homebrew je obsahují už v sobě.`,
+    usage_flag_printconfig: `Vypíše platnou konfiguraci (šablony rozvinuté, všechny volby) a soubory, ze kterých vznikla, a skončí`,
+    usage_flag_listtemplates: `Vypíše nainstalované šablony a kde leží, a skončí`,
+    usage_flag_installtemplates: `Stáhne šablony tohoto vydání z GitHubu do vašeho adresáře šablon`,
+    usage_flag_templatesfrom: `S <code>--install-templates</code>: vezme je z URL (zip), souboru .zip nebo složky`,
+    usage_off_h4: `Nechat část beze změny`,
+    usage_off_p: `Vše mezi <code>-- pg_procrustes: off</code> a <code>-- pg_procrustes: on</code> se zkopíruje do výstupu přesně tak, jak je (stejně funguje <code>/* … */</code>; každá direktiva na samostatném řádku). Bez uzavírací <code>on</code> platí oblast do konce souboru. Funguje i mezi příkazy v těle funkce — direktivy dávejte mezi příkazy.`,
+    nav_templates: `Šablony`,
+    tmpl_h2: `Šablony`,
+    tmpl_p1: `Konfigurace může vycházet z hotových nastavení: <code>template: název</code> označí nainstalovanou šablonu, <code>template: cesta/k/souboru.yaml</code> soubor (relativně k souboru, který ho uvádí), seznam použije několik po sobě. Nastavení samotného souboru vždy vyhrává.`,
+    tmpl_th_name: `Název`,
+    tmpl_th_desc: `Co to je`,
+    tmpl_postgresql: `Zhruba to, co vypisuje samotný PostgreSQL (pg_dump, psql \\d+): klíčová slova velkými, identifikátory malými, přetypování <code>::</code>, <code>&lt;&gt;</code>, odsazení čtyři mezery.`,
+    tmpl_ai: `Úsporná pro prompty LLM: malá písmena, krátké názvy typů, bez zarovnání, zbytečná slova (AS, ASC, public.) odstraněna.`,
+    tmpl_modern: `Čitelná se zvýrazněním syntaxe, přátelská ke gitu a AI: klíčová slova malými, jedna položka na řádek s čárkami na začátku, bez zarovnání, poddotazy na vlastních řádcích, krátké typy, přetypování <code>::</code>, <code>!=</code>.`,
+    tmpl_p2: `<code>pg_procrustes --list-templates</code> ukáže, co je nainstalováno, <code>--print-config</code> výsledek. <a href="config-builder.html">Config Builder</a> nabízí stejné šablony a umí napsat krátký soubor (<code>template: modern</code> plus vaše odchylky).`,
+    layout_paren_open_p: `<code>open: own_line</code> přesune <code>(</code> bloku přes více řádků z konce řádku na vlastní řádek do sloupce odpovídající <code>)</code>.`,
+    nav_subqueries: `Poddotazy a okna`,
+    sub_h2: `Poddotazy a okna`,
+    sub_p1: `<code>layout.subquery.break</code> rozloží poddotazy v závorkách a těla CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — stejnými pravidly o úroveň hlouběji: <code>(</code> zůstane na řádku, tělo je pod ním a <code>)</code> dostane vlastní řádek. <code>never</code> je spojí na jeden řádek, <code>auto</code> otevře jen ty na řádku delším než <code>line_length</code>, <code>preserve</code> (výchozí) je nechá být.`,
+    sub_lbl_after: `Potom — clauses.break: always, subquery.break: always`,
+    sub_lbl_after_open: `Potom — navíc paren_indent.open: own_line`,
+    sub_win_p: `<code>WINDOW název AS (…)</code> je samostatná klauzule (<code>clauses.window</code>, <code>content.window_list</code>) a s <code>content.wrap_expressions: wrap</code> dlouhé <code>OVER (…)</code> dá <code>PARTITION BY</code>, <code>ORDER BY</code> a rámec každé na řádek.`,
     usage_lookup_h4: `Vyhledávání konfiguračního souboru`,
     usage_lookup_p: `
       pg_procrustes vyhledává <code>.pg_procrustes.yaml</code> od aktuálního adresáře směrem nahoru až ke kořeni systému souborů.
@@ -1831,6 +1944,29 @@ total := total + i;
   usage_flag_outdir: `Escribe los archivos formateados en este directorio en lugar de in situ (no se puede combinar con <code>-w</code>)`,
   usage_flag_check: `Termina con código 1 si algún archivo se reformatearía — útil en CI y en hooks de pre-commit`,
   usage_flag_diff: `Imprime un diff unificado de los cambios sin escribir`,
+  install_templates_p: `<code>go install</code> instala solo el binario. Obtenga las <a href="#templates">plantillas</a> con <code>pg_procrustes --install-templates</code>: descarga el <code>templates.zip</code> de la versión correspondiente en su directorio de plantillas y puede ejecutarse de nuevo para actualizarlas. Los archivos de las versiones y la fórmula de Homebrew ya las incluyen.`,
+  usage_flag_printconfig: `Imprime la configuración efectiva (plantillas resueltas, todas las opciones) y los archivos de los que procede, y termina`,
+  usage_flag_listtemplates: `Lista las plantillas instaladas y dónde están, y termina`,
+  usage_flag_installtemplates: `Descarga las plantillas de esta versión desde GitHub a su directorio de plantillas`,
+  usage_flag_templatesfrom: `Con <code>--install-templates</code>: las toma de una URL (zip), un archivo .zip o una carpeta`,
+  usage_off_h4: `Dejar una parte intacta`,
+  usage_off_p: `Todo lo que hay entre <code>-- pg_procrustes: off</code> y <code>-- pg_procrustes: on</code> se copia a la salida exactamente como está (también vale <code>/* … */</code>; cada directiva en su propia línea). Sin un <code>on</code> de cierre la región llega hasta el final del archivo. También funciona entre las sentencias del cuerpo de una función: ponga las directivas entre sentencias.`,
+  nav_templates: `Plantillas`,
+  tmpl_h2: `Plantillas`,
+  tmpl_p1: `Un archivo de configuración puede partir de ajustes ya hechos: <code>template: nombre</code> indica una plantilla instalada, <code>template: ruta/al/archivo.yaml</code> un archivo (relativo al que lo menciona) y una lista aplica varias en orden. Los ajustes del propio archivo siempre prevalecen.`,
+  tmpl_th_name: `Nombre`,
+  tmpl_th_desc: `Qué es`,
+  tmpl_postgresql: `Aproximadamente lo que imprime PostgreSQL (pg_dump, psql \\d+): palabras clave en mayúsculas, identificadores en minúsculas, conversiones <code>::</code>, <code>&lt;&gt;</code>, sangría de cuatro espacios.`,
+  tmpl_ai: `Compacta para prompts de LLM: minúsculas, nombres de tipo cortos, sin alineación, palabras redundantes (AS, ASC, public.) eliminadas.`,
+  tmpl_modern: `Legible con resaltado de sintaxis, amable con git y con la IA: palabras clave en minúsculas, un elemento por línea con comas al principio, sin alineación, subconsultas en líneas propias, tipos cortos, conversiones <code>::</code>, <code>!=</code>.`,
+  tmpl_p2: `<code>pg_procrustes --list-templates</code> muestra lo instalado y <code>--print-config</code> el resultado. El <a href="config-builder.html">Config Builder</a> ofrece las mismas plantillas y puede escribir un archivo corto (<code>template: modern</code> más sus diferencias).`,
+  layout_paren_open_p: `<code>open: own_line</code> mueve el <code>(</code> de un bloque de varias líneas del final de su línea a una línea propia, en la columna del <code>)</code> correspondiente.`,
+  nav_subqueries: `Subconsultas y ventanas`,
+  sub_h2: `Subconsultas y ventanas`,
+  sub_p1: `<code>layout.subquery.break</code> dispone las subconsultas entre paréntesis y los cuerpos de CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — con las mismas reglas, un nivel más adentro: <code>(</code> se queda en su línea, el cuerpo va debajo y <code>)</code> ocupa su propia línea. <code>never</code> las une en una línea, <code>auto</code> abre solo las de líneas más largas que <code>line_length</code> y <code>preserve</code> (por defecto) las deja como están.`,
+  sub_lbl_after: `Después — clauses.break: always, subquery.break: always`,
+  sub_lbl_after_open: `Después — además paren_indent.open: own_line`,
+  sub_win_p: `<code>WINDOW nombre AS (…)</code> es una cláusula propia (<code>clauses.window</code>, <code>content.window_list</code>) y, con <code>content.wrap_expressions: wrap</code>, un <code>OVER (…)</code> largo pone <code>PARTITION BY</code>, <code>ORDER BY</code> y el marco cada uno en una línea.`,
   usage_lookup_h4: `Búsqueda del archivo de configuración`,
   usage_lookup_p: `
       pg_procrustes busca <code>.pg_procrustes.yaml</code> empezando en el directorio actual y subiendo hasta la raíz del sistema de archivos.
@@ -2044,6 +2180,29 @@ total := total + i;
     usage_flag_outdir: `Schreibt formatierte Dateien in dieses Verzeichnis statt in-place (kann nicht mit <code>-w</code> kombiniert werden)`,
     usage_flag_check: `Beendet mit Code 1, falls eine Datei umformatiert würde — nützlich in CI und pre-commit-Hooks`,
     usage_flag_diff: `Gibt einen unified diff der Änderungen aus, ohne zu schreiben`,
+    install_templates_p: `<code>go install</code> installiert nur die Binärdatei. Die <a href="#templates">Vorlagen</a> holen Sie mit <code>pg_procrustes --install-templates</code> — es lädt die <code>templates.zip</code> der passenden Version in Ihr Vorlagenverzeichnis und lässt sich zum Aktualisieren erneut ausführen. Release-Archive und die Homebrew-Formel enthalten sie bereits.`,
+    usage_flag_printconfig: `Gibt die wirksame Konfiguration (Vorlagen aufgelöst, alle Optionen) und die Dateien, aus denen sie entstand, aus und beendet`,
+    usage_flag_listtemplates: `Listet die installierten Vorlagen und ihren Ort auf und beendet`,
+    usage_flag_installtemplates: `Lädt die Vorlagen dieser Version von GitHub in Ihr Vorlagenverzeichnis`,
+    usage_flag_templatesfrom: `Mit <code>--install-templates</code>: nimmt sie stattdessen aus einer URL (zip), einer .zip-Datei oder einem Ordner`,
+    usage_off_h4: `Einen Teil unverändert lassen`,
+    usage_off_p: `Alles zwischen <code>-- pg_procrustes: off</code> und <code>-- pg_procrustes: on</code> wird genau so in die Ausgabe kopiert (<code>/* … */</code> geht auch; jede Direktive in einer eigenen Zeile). Ohne abschließendes <code>on</code> reicht der Bereich bis zum Dateiende. Es funktioniert auch zwischen den Anweisungen eines Funktionsrumpfs — setzen Sie die Direktiven zwischen Anweisungen.`,
+    nav_templates: `Vorlagen`,
+    tmpl_h2: `Vorlagen`,
+    tmpl_p1: `Eine Konfigurationsdatei kann von fertigen Einstellungen ausgehen: <code>template: name</code> nennt eine installierte Vorlage, <code>template: pfad/zur/datei.yaml</code> eine Datei (relativ zu der Datei, die sie nennt), eine Liste wendet mehrere der Reihe nach an. Die Einstellungen der Datei selbst gewinnen immer.`,
+    tmpl_th_name: `Name`,
+    tmpl_th_desc: `Was es ist`,
+    tmpl_postgresql: `Ungefähr das, was PostgreSQL selbst ausgibt (pg_dump, psql \\d+): Schlüsselwörter groß, Bezeichner klein, <code>::</code>-Casts, <code>&lt;&gt;</code>, vier Leerzeichen Einrückung.`,
+    tmpl_ai: `Sparsam für LLM-Prompts: Kleinschreibung, kurze Typnamen, ohne Ausrichtung, überflüssige Wörter (AS, ASC, public.) entfernt.`,
+    tmpl_modern: `Lesbar mit Syntaxhervorhebung, freundlich zu Git und KI: Schlüsselwörter klein, ein Element pro Zeile mit führenden Kommas, ohne Ausrichtung, Unterabfragen in eigenen Zeilen, kurze Typen, <code>::</code>-Casts, <code>!=</code>.`,
+    tmpl_p2: `<code>pg_procrustes --list-templates</code> zeigt, was installiert ist, <code>--print-config</code> das Ergebnis. Der <a href="config-builder.html">Config Builder</a> bietet dieselben Vorlagen und kann eine kurze Datei schreiben (<code>template: modern</code> plus Ihre Abweichungen).`,
+    layout_paren_open_p: `<code>open: own_line</code> verschiebt die <code>(</code> eines mehrzeiligen Blocks vom Zeilenende in eine eigene Zeile, in die Spalte der passenden <code>)</code>.`,
+    nav_subqueries: `Unterabfragen &amp; Fenster`,
+    sub_h2: `Unterabfragen &amp; Fenster`,
+    sub_p1: `<code>layout.subquery.break</code> legt Unterabfragen in Klammern und CTE-Rümpfe — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — mit denselben Regeln eine Ebene tiefer aus: <code>(</code> bleibt in seiner Zeile, der Rumpf steht darunter, <code>)</code> bekommt eine eigene Zeile. <code>never</code> fügt sie in einer Zeile zusammen, <code>auto</code> öffnet nur Zeilen, die länger als <code>line_length</code> sind, <code>preserve</code> (Standard) lässt sie unverändert.`,
+    sub_lbl_after: `Danach — clauses.break: always, subquery.break: always`,
+    sub_lbl_after_open: `Danach — zusätzlich paren_indent.open: own_line`,
+    sub_win_p: `<code>WINDOW name AS (…)</code> ist eine eigene Klausel (<code>clauses.window</code>, <code>content.window_list</code>) und mit <code>content.wrap_expressions: wrap</code> setzt ein langes <code>OVER (…)</code> <code>PARTITION BY</code>, <code>ORDER BY</code> und den Rahmen je auf eine Zeile.`,
     usage_lookup_h4: `Suche nach der Konfigurationsdatei`,
     usage_lookup_p: `
       pg_procrustes sucht nach <code>.pg_procrustes.yaml</code>, beginnend im aktuellen Verzeichnis und aufsteigend bis zur Wurzel des Dateisystems.
@@ -2257,6 +2416,29 @@ total := total + i;
     usage_flag_outdir: `Écrit les fichiers formatés dans ce répertoire au lieu de les modifier sur place (ne peut pas être combiné avec <code>-w</code>)`,
     usage_flag_check: `Quitte avec le code 1 si un fichier devait être reformaté — utile en CI et dans les hooks pre-commit`,
     usage_flag_diff: `Affiche un diff unifié des changements sans écrire`,
+    install_templates_p: `<code>go install</code> n’installe que le binaire. Récupérez les <a href="#templates">modèles</a> avec <code>pg_procrustes --install-templates</code> : il télécharge le <code>templates.zip</code> de la version correspondante dans votre répertoire de modèles et peut être relancé pour les mettre à jour. Les archives des versions et la formule Homebrew les contiennent déjà.`,
+    usage_flag_printconfig: `Affiche la configuration effective (modèles résolus, toutes les options) et les fichiers dont elle provient, puis quitte`,
+    usage_flag_listtemplates: `Liste les modèles installés et leur emplacement, puis quitte`,
+    usage_flag_installtemplates: `Télécharge les modèles de cette version depuis GitHub dans votre répertoire de modèles`,
+    usage_flag_templatesfrom: `Avec <code>--install-templates</code> : les prend dans une URL (zip), un fichier .zip ou un dossier`,
+    usage_off_h4: `Laisser une partie intacte`,
+    usage_off_p: `Tout ce qui se trouve entre <code>-- pg_procrustes: off</code> et <code>-- pg_procrustes: on</code> est copié tel quel dans la sortie (<code>/* … */</code> fonctionne aussi ; chaque directive sur sa propre ligne). Sans <code>on</code> de fermeture, la région va jusqu’à la fin du fichier. Cela fonctionne aussi entre les instructions du corps d’une fonction — placez les directives entre des instructions.`,
+    nav_templates: `Modèles`,
+    tmpl_h2: `Modèles`,
+    tmpl_p1: `Un fichier de configuration peut partir de réglages prêts à l’emploi : <code>template: nom</code> désigne un modèle installé, <code>template: chemin/du/fichier.yaml</code> un fichier (relatif à celui qui le cite), une liste en applique plusieurs dans l’ordre. Les réglages du fichier lui-même l’emportent toujours.`,
+    tmpl_th_name: `Nom`,
+    tmpl_th_desc: `Ce que c’est`,
+    tmpl_postgresql: `À peu près ce qu’affiche PostgreSQL lui-même (pg_dump, psql \\d+) : mots-clés en majuscules, identifiants en minuscules, conversions <code>::</code>, <code>&lt;&gt;</code>, indentation de quatre espaces.`,
+    tmpl_ai: `Économe pour les prompts de LLM : minuscules, noms de types courts, sans alignement, mots redondants (AS, ASC, public.) supprimés.`,
+    tmpl_modern: `Lisible avec la coloration syntaxique, agréable pour git et l’IA : mots-clés en minuscules, un élément par ligne avec virgules en début de ligne, sans alignement, sous-requêtes sur leurs propres lignes, types courts, conversions <code>::</code>, <code>!=</code>.`,
+    tmpl_p2: `<code>pg_procrustes --list-templates</code> montre ce qui est installé, <code>--print-config</code> le résultat. Le <a href="config-builder.html">Config Builder</a> propose les mêmes modèles et peut écrire un fichier court (<code>template: modern</code> plus vos différences).`,
+    layout_paren_open_p: `<code>open: own_line</code> déplace la <code>(</code> d’un bloc sur plusieurs lignes de la fin de sa ligne vers une ligne à elle, dans la colonne de la <code>)</code> correspondante.`,
+    nav_subqueries: `Sous-requêtes &amp; fenêtres`,
+    sub_h2: `Sous-requêtes &amp; fenêtres`,
+    sub_p1: `<code>layout.subquery.break</code> met en forme les sous-requêtes entre parenthèses et les corps de CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — avec les mêmes règles, un niveau plus bas : <code>(</code> reste sur sa ligne, le corps vient en dessous et <code>)</code> a sa propre ligne. <code>never</code> les regroupe sur une ligne, <code>auto</code> n’ouvre que celles d’une ligne plus longue que <code>line_length</code>, <code>preserve</code> (par défaut) les laisse telles quelles.`,
+    sub_lbl_after: `Après — clauses.break: always, subquery.break: always`,
+    sub_lbl_after_open: `Après — avec en plus paren_indent.open: own_line`,
+    sub_win_p: `<code>WINDOW nom AS (…)</code> est une clause à part entière (<code>clauses.window</code>, <code>content.window_list</code>) et, avec <code>content.wrap_expressions: wrap</code>, un long <code>OVER (…)</code> place <code>PARTITION BY</code>, <code>ORDER BY</code> et le cadre chacun sur une ligne.`,
     usage_lookup_h4: `Recherche du fichier de configuration`,
     usage_lookup_p: `
       pg_procrustes recherche <code>.pg_procrustes.yaml</code> en partant du répertoire courant et en remontant jusqu'à la racine du système de fichiers.
@@ -2470,6 +2652,29 @@ total := total + i;
     usage_flag_outdir: `Grava os arquivos formatados neste diretório em vez de no local (não pode ser combinado com <code>-w</code>)`,
     usage_flag_check: `Termina com o código 1 se algum arquivo for reformatado — útil em CI e em hooks de pre-commit`,
     usage_flag_diff: `Exibe um diff unificado das alterações sem gravar`,
+    install_templates_p: `<code>go install</code> instala apenas o binário. Obtenha os <a href="#templates">modelos</a> com <code>pg_procrustes --install-templates</code> — ele baixa o <code>templates.zip</code> da versão correspondente para o seu diretório de modelos e pode ser executado de novo para atualizá-los. Os arquivos das versões e a fórmula do Homebrew já os incluem.`,
+    usage_flag_printconfig: `Imprime a configuração efetiva (modelos resolvidos, todas as opções) e os arquivos de que veio, e termina`,
+    usage_flag_listtemplates: `Lista os modelos instalados e onde estão, e termina`,
+    usage_flag_installtemplates: `Baixa os modelos desta versão do GitHub para o seu diretório de modelos`,
+    usage_flag_templatesfrom: `Com <code>--install-templates</code>: pega-os de uma URL (zip), de um arquivo .zip ou de uma pasta`,
+    usage_off_h4: `Deixar uma parte intacta`,
+    usage_off_p: `Tudo entre <code>-- pg_procrustes: off</code> e <code>-- pg_procrustes: on</code> é copiado para a saída exatamente como está (<code>/* … */</code> também funciona; cada diretiva em sua própria linha). Sem um <code>on</code> de fechamento a região vai até o fim do arquivo. Também funciona entre as instruções do corpo de uma função — coloque as diretivas entre instruções.`,
+    nav_templates: `Modelos`,
+    tmpl_h2: `Modelos`,
+    tmpl_p1: `Um arquivo de configuração pode partir de ajustes prontos: <code>template: nome</code> indica um modelo instalado, <code>template: caminho/do/arquivo.yaml</code> um arquivo (relativo ao que o cita) e uma lista aplica vários em ordem. As configurações do próprio arquivo sempre prevalecem.`,
+    tmpl_th_name: `Nome`,
+    tmpl_th_desc: `O que é`,
+    tmpl_postgresql: `Aproximadamente o que o próprio PostgreSQL imprime (pg_dump, psql \\d+): palavras-chave em maiúsculas, identificadores em minúsculas, conversões <code>::</code>, <code>&lt;&gt;</code>, recuo de quatro espaços.`,
+    tmpl_ai: `Enxuto para prompts de LLM: minúsculas, nomes de tipos curtos, sem alinhamento, palavras redundantes (AS, ASC, public.) removidas.`,
+    tmpl_modern: `Legível com realce de sintaxe, amigável ao git e à IA: palavras-chave em minúsculas, um item por linha com vírgulas no início, sem alinhamento, subconsultas em linhas próprias, tipos curtos, conversões <code>::</code>, <code>!=</code>.`,
+    tmpl_p2: `<code>pg_procrustes --list-templates</code> mostra o que está instalado e <code>--print-config</code> o resultado. O <a href="config-builder.html">Config Builder</a> oferece os mesmos modelos e pode escrever um arquivo curto (<code>template: modern</code> mais as suas diferenças).`,
+    layout_paren_open_p: `<code>open: own_line</code> move o <code>(</code> de um bloco de várias linhas do fim da linha para uma linha própria, na coluna do <code>)</code> correspondente.`,
+    nav_subqueries: `Subconsultas e janelas`,
+    sub_h2: `Subconsultas e janelas`,
+    sub_p1: `<code>layout.subquery.break</code> organiza as subconsultas entre parênteses e os corpos de CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — com as mesmas regras, um nível mais fundo: <code>(</code> fica na sua linha, o corpo vai abaixo e <code>)</code> ganha uma linha própria. <code>never</code> junta-as numa linha, <code>auto</code> abre apenas as de linhas mais longas que <code>line_length</code> e <code>preserve</code> (padrão) deixa-as como estão.`,
+    sub_lbl_after: `Depois — clauses.break: always, subquery.break: always`,
+    sub_lbl_after_open: `Depois — além disso paren_indent.open: own_line`,
+    sub_win_p: `<code>WINDOW nome AS (…)</code> é uma cláusula própria (<code>clauses.window</code>, <code>content.window_list</code>) e, com <code>content.wrap_expressions: wrap</code>, um <code>OVER (…)</code> longo coloca <code>PARTITION BY</code>, <code>ORDER BY</code> e o frame cada um numa linha.`,
     usage_lookup_h4: `Localização do arquivo de configuração`,
     usage_lookup_p: `
       O pg_procrustes procura o <code>.pg_procrustes.yaml</code> a partir do diretório atual, subindo até a raiz do sistema de arquivos.
@@ -2683,6 +2888,29 @@ total := total + i;
   usage_flag_outdir: `Scrive i file formattati in questa directory invece che sul posto (non può essere combinato con <code>-w</code>)`,
   usage_flag_check: `Esce con codice 1 se un qualsiasi file verrebbe riformattato — utile in CI e negli hook pre-commit`,
   usage_flag_diff: `Stampa un diff unificato delle modifiche senza scrivere`,
+  install_templates_p: `<code>go install</code> installa solo il binario. Scarichi i <a href="#templates">modelli</a> con <code>pg_procrustes --install-templates</code>: scarica il <code>templates.zip</code> della versione corrispondente nella sua directory dei modelli e può essere rieseguito per aggiornarli. Gli archivi delle versioni e la formula Homebrew li includono già.`,
+  usage_flag_printconfig: `Stampa la configurazione effettiva (modelli risolti, tutte le opzioni) e i file da cui deriva, ed esce`,
+  usage_flag_listtemplates: `Elenca i modelli installati e dove si trovano, ed esce`,
+  usage_flag_installtemplates: `Scarica da GitHub i modelli di questa versione nella sua directory dei modelli`,
+  usage_flag_templatesfrom: `Con <code>--install-templates</code>: li prende da un URL (zip), da un file .zip o da una cartella`,
+  usage_off_h4: `Lasciare intatta una parte`,
+  usage_off_p: `Tutto ciò che sta tra <code>-- pg_procrustes: off</code> e <code>-- pg_procrustes: on</code> viene copiato nell’output esattamente com’è (funziona anche <code>/* … */</code>; ogni direttiva su una riga propria). Senza un <code>on</code> di chiusura la regione arriva fino alla fine del file. Funziona anche tra le istruzioni del corpo di una funzione: metta le direttive tra le istruzioni.`,
+  nav_templates: `Modelli`,
+  tmpl_h2: `Modelli`,
+  tmpl_p1: `Un file di configurazione può partire da impostazioni già pronte: <code>template: nome</code> indica un modello installato, <code>template: percorso/del/file.yaml</code> un file (relativo a quello che lo cita) e un elenco ne applica diversi in ordine. Le impostazioni del file stesso prevalgono sempre.`,
+  tmpl_th_name: `Nome`,
+  tmpl_th_desc: `Che cos’è`,
+  tmpl_postgresql: `Più o meno ciò che stampa PostgreSQL stesso (pg_dump, psql \\d+): parole chiave maiuscole, identificatori minuscoli, cast <code>::</code>, <code>&lt;&gt;</code>, rientro di quattro spazi.`,
+  tmpl_ai: `Essenziale per i prompt degli LLM: minuscolo, nomi di tipo brevi, senza allineamento, parole ridondanti (AS, ASC, public.) rimosse.`,
+  tmpl_modern: `Leggibile con l’evidenziazione della sintassi, amico di git e dell’IA: parole chiave minuscole, un elemento per riga con virgole all’inizio, senza allineamento, sottoquery su righe proprie, tipi brevi, cast <code>::</code>, <code>!=</code>.`,
+  tmpl_p2: `<code>pg_procrustes --list-templates</code> mostra ciò che è installato e <code>--print-config</code> il risultato. Il <a href="config-builder.html">Config Builder</a> offre gli stessi modelli e può scrivere un file breve (<code>template: modern</code> più le sue differenze).`,
+  layout_paren_open_p: `<code>open: own_line</code> sposta la <code>(</code> di un blocco su più righe dalla fine della riga a una riga propria, nella colonna della <code>)</code> corrispondente.`,
+  nav_subqueries: `Sottoquery e finestre`,
+  sub_h2: `Sottoquery e finestre`,
+  sub_p1: `<code>layout.subquery.break</code> dispone le sottoquery tra parentesi e i corpi dei CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — con le stesse regole, un livello più in basso: <code>(</code> resta sulla sua riga, il corpo va sotto e <code>)</code> ha una riga propria. <code>never</code> le unisce su una riga, <code>auto</code> apre solo quelle su una riga più lunga di <code>line_length</code>, <code>preserve</code> (predefinito) le lascia com’erano.`,
+  sub_lbl_after: `Dopo — clauses.break: always, subquery.break: always`,
+  sub_lbl_after_open: `Dopo — in più paren_indent.open: own_line`,
+  sub_win_p: `<code>WINDOW nome AS (…)</code> è una clausola a sé (<code>clauses.window</code>, <code>content.window_list</code>) e, con <code>content.wrap_expressions: wrap</code>, un lungo <code>OVER (…)</code> mette <code>PARTITION BY</code>, <code>ORDER BY</code> e il frame ciascuno su una riga.`,
   usage_lookup_h4: `Ricerca del file di configurazione`,
   usage_lookup_p: `
     pg_procrustes cerca <code>.pg_procrustes.yaml</code> a partire dalla directory corrente risalendo fino alla radice del filesystem.

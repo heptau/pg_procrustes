@@ -40,6 +40,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Website and llms.txt:** `docs/index.html` (all seven languages) and `docs/llms.txt` now describe templates (`template:`, the shipped `postgresql` / `ai` / `modern`), `--print-config`, `--list-templates`, `--install-templates`, the `-- pg_procrustes: off` / `on` directives, `layout.subquery.break`, the WINDOW clause, `wrap_expressions` for `OVER (…)`, `paren_indent.open` and `plpgsql_assignment`; the layout example shows the real `close_first_on_line` values (`before | after`)
 - Broken JOINs keep the table and its condition on the keyword line (`join b on a = b`, `join b using (id)`, with further `AND`/`OR` below) — also with `join_on_position: inline`; an explicit `layout.content.join_on.first_item: break` still puts them on the next line. `JOIN … USING (…)` is no longer split into a clause of its own (only `DELETE … USING` and `MERGE … USING` are)
 - `layout.indent.size` now defaults to 2 spaces (was 3); set `size: 3` to keep the old indent. The config builder's downloaded/previewed file starts with a `# pg_procrustes vX.Y.Z configuration — https://pg_procrustes.80.cz/` comment line (the version is bumped by `make prepare-release`)
 - `layout.content.when_actions.break` now defaults to `preserve` (the MERGE action stays below `THEN` or on its line exactly as in the input; before, the default was `never`). It still does not inherit `layout.content.break`
