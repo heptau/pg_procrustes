@@ -254,6 +254,10 @@ Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.m
 - A bullet should read as the net effect a user/release-note reader would care about, not a diary of intermediate edits (e.g. not "added X" followed later by "fixed X" followed later by "restyled X" as three separate lines — fold them into one bullet describing the finished feature).
 - Keep the existing Keep-a-Changelog category structure (`Added` / `Changed` / `Fixed` / `Security` / …) and match the terse, specific style of past entries (name the concrete file/option/flag, not just "improved X").
 
+## Checking against real files
+
+`go run scripts/corpus_check.go [-fp] [-t postgresql,ai,modern,none | -t some.yaml,…] [-o report.txt] <dir>` formats every `.sql` file below `<dir>` with the given templates (or config files) and reports output that does not parse, is not idempotent (`-fp`: or changes the parse tree) or — for `none`, the empty config — differs from the input. Nothing is written to `<dir>`. Run it on a large real schema before a release.
+
 ## Running tests
 
 ```bash

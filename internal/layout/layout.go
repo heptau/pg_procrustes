@@ -781,7 +781,14 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		sb.WriteString(kwText)
 
 		contentBreakMode, contentAlign, contentFirstItem := contentBreakAlign(cl.kind, cfg)
-		contentAlign = resolveContentAlign(contentAlign, sql, tokens, cl.kwTok, kwEnd, conEnd)
+		if contentFirstItem == config.FirstItemInline && contentAlign == config.AlignPreserve {
+			// With the first item on the keyword line there is no first item to read the style
+			// from (and the first line that starts a line may be a continuation of that item):
+			// detecting it would give another answer on the next run.
+			contentAlign = config.AlignIndent
+		} else {
+			contentAlign = resolveContentAlign(contentAlign, sql, tokens, cl.kwTok, kwEnd, conEnd)
+		}
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
 		if contentBreakMode == config.BreakAuto && subqueryMode(cfg) == config.BreakAlways && cl.kind != clauseFrom && cl.kind != clauseJoin && hasSubquery(tokens, kwEnd, conEnd) {
@@ -950,14 +957,24 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			}
 			// Judge by the first non-blank continuation line; a blank line right after
 			// the first newline must not make every pass add another level of indent.
+			// Lone parentheses say little about the item's indent (paren_indent.open: own_line
+			// puts "(" at the indent of its ")"), so a line with real content is preferred.
+			judge := ""
 			for _, ln := range strings.Split(item[firstNewline+1:], "\n") {
-				if strings.TrimSpace(ln) == "" {
+				t := strings.TrimSpace(ln)
+				if t == "" {
 					continue
 				}
-				if strings.HasPrefix(ln, contentIndent) {
-					return item
+				if judge == "" {
+					judge = ln
 				}
-				break
+				if t != "(" && !strings.HasPrefix(t, ")") {
+					judge = ln
+					break
+				}
+			}
+			if judge != "" && strings.HasPrefix(judge, contentIndent) {
+				return item
 			}
 			parts := strings.Split(item, "\n")
 			for j := 1; j < len(parts); j++ {

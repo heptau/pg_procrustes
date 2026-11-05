@@ -77,6 +77,11 @@ func moveOpenParens(text string) string {
 			continue
 		}
 		indent := gap[nl+1:]
+		// a ")" dedented below the line that opens the block (a verbatim multi-line item) is
+		// no column to align with
+		if own := len(text[lineStart:t.start]) - len(strings.TrimLeft(text[lineStart:t.start], " \t")); len(indent) < own {
+			continue
+		}
 		edits = append(edits, edit{from: toks[i-1].end, to: t.start, insert: "\n" + indent})
 	}
 	if len(edits) == 0 {

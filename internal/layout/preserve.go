@@ -111,7 +111,13 @@ func resolveContentAlign(mode config.AlignMode, sql string, tokens []rawTok, kwT
 		return config.AlignIndent // keyword shares its line with another statement: no reliable indent
 	}
 	kwIndent := lineIndent(sql, tokens[kwTok].start)
+	isInsert := strings.EqualFold(tokens[kwTok].text, "insert")
 	for i := from; i < to && i < len(tokens); i++ {
+		if isInsert && tokens[i].text == "(" {
+			// the column list's "(" is not an item; where it stands (paren_indent.open) says
+			// nothing about the style of the items
+			continue
+		}
 		if tokenStartsLine(sql, tokens[i]) {
 			if lineIndent(sql, tokens[i].start) == kwIndent {
 				return config.AlignSame

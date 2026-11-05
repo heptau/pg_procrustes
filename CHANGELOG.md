@@ -19,6 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Second runs no longer change text that the first run produced, as found by formatting ~9,200 real schema files with every shipped template (about 70 files ran into it, now 10 in rare corners such as comments after `AND`/`OR`, tab-indented sources and `ALTER TEXT SEARCH`): `content.first_item: inline` with `align: preserve` read the indent style from a different line each run; a line break between a function name and `(` was removed only on the second run under `call_paren_spacing: remove`; `operator_spacing: compact` was not re-applied to operands that layout joined onto one line; `wrap_expressions` wrapped inside subqueries; with `paren_indent.open: own_line` an `INSERT` column list flipped its indent and a verbatim item was re-indented again (and a `)` dedented below its line is no column to align `(` with)
 - `GRANT select, insert, update … TO …`, `REVOKE … FROM …`, `ALTER DEFAULT PRIVILEGES … GRANT select …`, `COPY t FROM stdin`, `CREATE POLICY … FOR SELECT` and `IS [NOT] DISTINCT FROM` are no longer taken for query clauses (`grant select` was split into `grant` / `select` / `insert on t to r1`, `distinct from` got a line break before `from`)
 - A PL/pgSQL body written on one line (`do $$ begin perform 1; end $$`) stays compact instead of being half-broken (`begin perform` / `   1;`)
 - `blank_lines_between_statements` is no longer applied inside function bodies, where it also put a blank line between the last statement and `end`

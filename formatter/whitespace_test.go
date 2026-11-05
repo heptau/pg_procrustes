@@ -324,3 +324,46 @@ func TestNoBlankLineBeforeEndWithBlankLinesBetweenStatements(t *testing.T) {
 		t.Errorf("body was changed:\n%s", got)
 	}
 }
+
+// A line break between a function name and its "(" goes with call_paren_spacing: remove
+// (layout used to join the lines with a space that the next run removed).
+func TestCallParenRemoveAcrossLineBreak(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.CallParenSpacing = config.ParenSpacingRemove
+	c.Layout.Clauses.Break = config.BreakAlways
+	got, err := formatter.Format("select coalesce\n(a, b)\nfrom t;", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "coalesce(a, b)") {
+		t.Errorf("got %q", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent: %q vs %q", got, again)
+	}
+}
+
+// operator_spacing: compact holds for operators whose operands layout joined onto one line.
+func TestCompactOperatorsSurviveLayoutRejoin(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.OperatorSpacing = config.OperatorSpacingCompact
+	c.Layout.Clauses.Break = config.BreakAlways
+	c.Layout.Content.Break = config.BreakAuto
+	in := "update t\nset (a, b)\n=\n(new.a, new.b)\nwhere id = 1;"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, " = ") {
+		t.Errorf("operator padding left in %q", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent: %q vs %q", got, again)
+	}
+}

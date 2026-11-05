@@ -284,11 +284,12 @@ func collapseTrailingCommentGap(text string) string {
 	return b.String()
 }
 
-// compactCommaGaps removes the blanks after a comma that layout re-joined onto one line
-// ("a,\n b" → "a, b"): comma_spacing: compact must hold for the final text, not just for
-// the token pass that ran before the layout. A comma at the end of a line is left alone.
-func compactCommaGaps(text string) string {
-	if !strings.Contains(text, ",") {
+// compactGaps re-applies the "compact" spacing rules to gaps that layout created when it
+// re-joined lines ("a,\n b" → "a, b", "x\n=\ny" → "x = y"): comma_spacing / operator_spacing:
+// compact must hold for the final text, not just for the token pass that ran before the
+// layout. A comma at the end of a line is left alone; only blanks (never line breaks) go.
+func compactGaps(text string, commas, operators bool) string {
+	if !(commas && strings.Contains(text, ",")) && !operators {
 		return text
 	}
 	res, err := pg_query.Scan(text)
@@ -298,12 +299,18 @@ func compactCommaGaps(text string) string {
 	var b strings.Builder
 	cur := 0
 	toks := res.Tokens
-	for i, t := range toks {
-		if i+1 >= len(toks) || text[t.Start:t.End] != "," {
+	for i := 0; i+1 < len(toks); i++ {
+		t, next := toks[i], toks[i+1]
+		tt, nt := text[t.Start:t.End], text[next.Start:next.End]
+		drop := commas && tt == ","
+		if operators && (isSymbolicOp(tt) || isSymbolicOp(nt)) && tt != "(" && nt != ")" {
+			drop = true
+		}
+		if !drop {
 			continue
 		}
-		gapStart, gapEnd := int(t.End), int(toks[i+1].Start)
-		if gapEnd <= gapStart || !isOnlyHorizontalWS(text[gapStart:gapEnd]) {
+		gapStart, gapEnd := int(t.End), int(next.Start)
+		if gapEnd <= gapStart || !isOnlyHorizontalWS(text[gapStart:gapEnd]) || gapStart < cur {
 			continue
 		}
 		b.WriteString(text[cur:gapStart])

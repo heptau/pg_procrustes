@@ -1336,7 +1336,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 			}
 			if !suppressGap[i] {
 				g := processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg)
-				if prevIsCall && tok.text == "(" && !strings.ContainsAny(g, "\n") && !strings.Contains(g, "/*") && !strings.Contains(g, "--") {
+				if prevIsCall && tok.text == "(" && !strings.Contains(g, "/*") && !strings.Contains(g, "--") {
 					switch cfg.CallParenSpacing {
 					case config.ParenSpacingAdd:
 						g = " "
@@ -1597,8 +1597,8 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		}
 	}
 
-	if cfg.CommaSpacing == config.CommaSpacingCompact && !layout.IsNoop(&cfg.Layout) {
-		result = compactCommaGaps(result)
+	if (cfg.CommaSpacing == config.CommaSpacingCompact || cfg.OperatorSpacing == config.OperatorSpacingCompact) && !layout.IsNoop(&cfg.Layout) {
+		result = compactGaps(result, cfg.CommaSpacing == config.CommaSpacingCompact, cfg.OperatorSpacing == config.OperatorSpacingCompact)
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
 		result = alignTrailingComments(result)
@@ -2170,8 +2170,8 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	if cfg.TrailingWhitespace == config.TrailingWSStrip {
 		resultBody = stripTrailingOutsideTokens(resultBody)
 	}
-	if cfg.CommaSpacing == config.CommaSpacingCompact && !layout.IsNoop(&cfg.Layout) {
-		resultBody = compactCommaGaps(resultBody)
+	if (cfg.CommaSpacing == config.CommaSpacingCompact || cfg.OperatorSpacing == config.OperatorSpacingCompact) && !layout.IsNoop(&cfg.Layout) {
+		resultBody = compactGaps(resultBody, cfg.CommaSpacing == config.CommaSpacingCompact, cfg.OperatorSpacing == config.OperatorSpacingCompact)
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
 		resultBody = alignTrailingComments(resultBody)

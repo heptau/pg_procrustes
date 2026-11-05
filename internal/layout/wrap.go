@@ -26,8 +26,8 @@ func wrapLongItem(item, indent, unit string, lineLen int) string {
 	toks := res.Tokens
 	text := func(i int) string { return item[toks[i].Start:toks[i].End] }
 	for i := range toks {
-		if strings.EqualFold(text(i), "case") {
-			return item
+		if t := text(i); strings.EqualFold(t, "case") || strings.EqualFold(t, "select") {
+			return item // CASE and subqueries are laid out by their own rules
 		}
 	}
 	for open := range toks {
