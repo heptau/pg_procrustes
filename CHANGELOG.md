@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-06
+
 ### Added
 
 - **Templates:** a config file can start from other config files with `template: name` (an installed template), `template: path/to/file.yaml` (relative to the file that names it) or a list of them, applied in order; the file's own settings win. Maps merge key by key, lists and scalars are replaced, templates may use `template:` themselves (cycles are errors). Templates are ordinary config files in the new `templates/` folder (`postgresql` ≈ what PostgreSQL itself prints, `ai` = lean for LLM prompts, `modern` = lower-case keywords for syntax highlighting, one item per line with leading commas, no alignment padding: friendly to git, wide screens and AI); they are not embedded in the binary but installed next to it — release archives and the Homebrew formula carry `templates/`, `make install PREFIX=…` copies it to `PREFIX/share/pg_procrustes/templates`, and lookup also covers `$PG_PROCRUSTES_TEMPLATES` and the user's config directory. New flags `--install-templates` (downloads the `templates.zip` of the matching GitHub release into the user templates directory — for `go install` users; `--templates-from <url|zip|folder>` picks another source; the release workflow uploads `templates.zip`), `--print-config` (effective configuration with every option, plus the files it was built from) and `--list-templates`. Library users get `Config.Sources`, `config.TemplateDirs`, `config.ListTemplates` and `Config.YAML`
