@@ -39,7 +39,11 @@ func findSubqueries(tokens []rawTok) []subqueryParen {
 		if tokens[i].text != "(" || i+1 >= len(tokens) {
 			continue
 		}
-		switch strings.ToLower(tokens[i+1].text) {
+		n := i + 1
+		for n < len(tokens)-1 && isCommentTok(tokens[n].text) {
+			n++
+		}
+		switch strings.ToLower(tokens[n].text) {
 		case "select", "with", "values":
 		default:
 			continue
@@ -60,9 +64,11 @@ func findSubqueries(tokens []rawTok) []subqueryParen {
 		if closeIdx < 0 {
 			return out
 		}
+		// -- comments are fine (inlineContent keeps the line break after them); a string or block
+		// comment that spans lines is not something to re-indent
 		plain := true
 		for j := i + 1; j < closeIdx; j++ {
-			if strings.HasPrefix(tokens[j].text, "--") || strings.Contains(tokens[j].text, "\n") {
+			if strings.Contains(tokens[j].text, "\n") {
 				plain = false
 				break
 			}
@@ -96,6 +102,9 @@ func flattenSubqueries(sql string, cfg *config.LayoutConfig) string {
 	for _, sq := range subs {
 		sb.WriteString(sql[pos:tokens[sq.open].end])
 		sb.WriteString(inlineContent(sql, tokens, sq.open+1, sq.close, cfg.ParenSpacing))
+		if sq.close-1 > sq.open && strings.HasPrefix(tokens[sq.close-1].text, "--") {
+			sb.WriteByte('\n') // the ")" must not end up inside the comment
+		}
 		pos = tokens[sq.close].start
 	}
 	sb.WriteString(sql[pos:])
@@ -128,12 +137,16 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 			continue
 		}
 		inner := strings.TrimSpace(sql[openEnd:tokens[sq.close].start])
-		if inner == "" || strings.Contains(inner, "\n") {
+		if inner == "" {
 			continue
 		}
 		sb.WriteString(sql[pos:openEnd])
 		indent := holderIndent(sb.String())
 		bodyIndent := indent + indentUnit
+		if strings.Contains(inner, "\n") {
+			// the lines a -- comment kept apart: take the indent this expansion gave them off again
+			inner = dedentLines(inner, len(bodyIndent))
+		}
 		body := applyCore(inner, cfg, indentUnit)
 		sb.WriteByte('\n')
 		for i, ln := range strings.Split(body, "\n") {
@@ -184,7 +197,11 @@ func hasSubquery(tokens []rawTok, from, to int) bool {
 		if tokens[i].text != "(" {
 			continue
 		}
-		switch strings.ToLower(tokens[i+1].text) {
+		n := i + 1
+		for n < len(tokens)-1 && isCommentTok(tokens[n].text) {
+			n++
+		}
+		switch strings.ToLower(tokens[n].text) {
 		case "select", "with", "values":
 			return true
 		}
@@ -200,4 +217,17 @@ func ExpandSubqueries(text string, cfg *config.LayoutConfig) string {
 		return text
 	}
 	return expandSubqueries(flattenSubqueries(text, cfg), cfg, indentUnitStr(cfg))
+}
+
+// dedentLines removes up to n leading blanks from every line of text after the first.
+func dedentLines(text string, n int) string {
+	lines := strings.Split(text, "\n")
+	for i := 1; i < len(lines); i++ {
+		k := 0
+		for k < n && k < len(lines[i]) && (lines[i][k] == ' ' || lines[i][k] == '\t') {
+			k++
+		}
+		lines[i] = lines[i][k:]
+	}
+	return strings.Join(lines, "\n")
 }

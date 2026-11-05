@@ -58,6 +58,25 @@ func wrapLongItem(item, indent, unit string, lineLen int) string {
 		if closeIdx < 0 {
 			return item
 		}
+		if open > 0 && strings.EqualFold(text(open-1), "over") {
+			// A window specification is not a list: PARTITION BY / ORDER BY / the frame go on
+			// a line each (the commas inside them are part of those clauses).
+			if segs := windowSegments(item, toks[open+1:closeIdx]); len(segs) >= 2 {
+				inner := indent + unit
+				var sb strings.Builder
+				sb.WriteString(item[:toks[open].End])
+				for _, seg := range segs {
+					sb.WriteByte('\n')
+					sb.WriteString(inner)
+					sb.WriteString(seg)
+				}
+				sb.WriteByte('\n')
+				sb.WriteString(indent)
+				sb.WriteString(item[toks[closeIdx].Start:])
+				return sb.String()
+			}
+			continue
+		}
 		if len(commas) == 0 {
 			continue // no elements to separate here; a deeper group may have some
 		}
@@ -93,4 +112,51 @@ func wrapLongItem(item, indent, unit string, lineLen int) string {
 		return sb.String()
 	}
 	return item
+}
+
+// windowSegments splits the tokens of a window specification (without its parentheses) into
+// its PARTITION BY, ORDER BY and frame (ROWS / RANGE / GROUPS …) parts, each as text.
+func windowSegments(item string, toks []*pg_query.ScanToken) []string {
+	text := func(i int) string { return strings.ToLower(item[toks[i].Start:toks[i].End]) }
+	var starts []int
+	depth := 0
+	for i := range toks {
+		switch text(i) {
+		case "(", "[":
+			depth++
+			continue
+		case ")", "]":
+			depth--
+			continue
+		}
+		if depth != 0 {
+			continue
+		}
+		switch text(i) {
+		case "partition", "order":
+			if i+1 < len(toks) && text(i+1) == "by" {
+				starts = append(starts, i)
+			}
+		case "rows", "range", "groups":
+			starts = append(starts, i)
+		}
+	}
+	if len(starts) == 0 {
+		return nil
+	}
+	var segs []string
+	// anything before the first keyword is an existing window name: (w partition by …)
+	if int(toks[starts[0]].Start) > int(toks[0].Start) {
+		segs = append(segs, strings.TrimSpace(item[toks[0].Start:toks[starts[0]].Start]))
+	}
+	for k, st := range starts {
+		end := len(item)
+		if k+1 < len(starts) {
+			end = int(toks[starts[k+1]].Start)
+		} else {
+			end = int(toks[len(toks)-1].End)
+		}
+		segs = append(segs, strings.TrimSpace(item[toks[st].Start:end]))
+	}
+	return segs
 }

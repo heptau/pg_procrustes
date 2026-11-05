@@ -492,7 +492,8 @@ layout:
                                 #   both act on lists the layout puts one item per line (first_item: break);
                                 #   multi-line items and items with comments or CASE are left alone
     wrap_expressions: preserve  # preserve | wrap   (items longer than line_length: one element per line inside the
-                                #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line.
+                                #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line;
+                                #   a window specification OVER (…) gets PARTITION BY / ORDER BY / the frame on a line each.
                                 #   Acts on lists the layout puts one item per line; CASE, subqueries and comments are left alone)
     comma_position: preserve    # preserve | end | start   (applies when a list is broken over lines;
                                 #   preserve keeps leading commas if the list has them, trailing otherwise)
@@ -851,7 +852,7 @@ Only blocks tagged as `$$ … $$ LANGUAGE plpgsql` (or `LANGUAGE plpgsql` anywhe
 
 **Quoted identifiers are not removed**
 
-`quoted_identifiers: remove_safe` only removes double quotes when the identifier is all-lowercase, contains no spaces or special characters, and is not a PostgreSQL reserved keyword. Identifiers that fail any of these checks keep their quotes.
+`quoted_identifiers: remove_safe` only removes double quotes when the identifier is all-lowercase, contains no spaces or special characters, and is not a PostgreSQL keyword other than the plain-identifier kind (reserved words and the column-name / function-name classes such as `"substring"`, `"left"`, `"float"` keep their quotes). Identifiers that fail any of these checks keep their quotes.
 
 **Formatter returns an error on valid SQL**
 
@@ -860,6 +861,10 @@ pg_procrustes uses the native PostgreSQL parser (`libpg_query`). SQL that the pa
 **Output is not idempotent**
 
 The formatter guarantees idempotence: running it twice on the same file should produce no further changes. If a second run changes the output, that is a bug — please open an issue.
+
+**Mixed tabs and spaces after formatting**
+
+A source indented with tabs formatted with `layout.indent.type: spaces` (the default) keeps its tabs on lines the layout does not rebuild, so such lines end up with tabs followed by spaces — and a rare nested case (a multi-line `CASE` or block comment in a tab-indented item) is not stable on the second run. Set `layout.indent.normalize: change` (or `indent.type: tab`) for tab-indented sources.
 
 **Performance on large files**
 

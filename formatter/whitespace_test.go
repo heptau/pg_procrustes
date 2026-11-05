@@ -1,6 +1,8 @@
 package formatter_test
 
 import (
+	pg_query "github.com/pganalyze/pg_query_go/v6"
+
 	"errors"
 	"strings"
 	"testing"
@@ -365,5 +367,100 @@ func TestCompactOperatorsSurviveLayoutRejoin(t *testing.T) {
 	}
 	if again, _ := formatter.Format(got, c); again != got {
 		t.Errorf("not idempotent: %q vs %q", got, again)
+	}
+}
+
+// Found by checking the SQL inside formatted function bodies of real files: each of these
+// produced code that PostgreSQL rejects (or commented code out).
+func TestInsertTargetAliasKeepsAs(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Aliases.As = config.AliasAsRemove
+	got, err := formatter.Format("insert into s.t as x (a) values (1) on conflict (a) do update set a = excluded.a;\nupdate t as u set a = 1;\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "insert into s.t as x (a)") {
+		t.Errorf("AS of the INSERT target was removed: %q", got)
+	}
+	if !strings.Contains(got, "update t u set") {
+		t.Errorf("AS of the UPDATE alias should still go: %q", got)
+	}
+}
+
+func TestSemicolonAddSkipsTrailingBlockComment(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Semicolons = config.SemicolonAdd
+	in := "create function f() returns void language plpgsql as $$\nbegin\n  null;\nend\n/*DOCU\nx\nDOCU*/\n$$;\n"
+	want := "create function f() returns void language plpgsql as $$\nbegin\n  null;\nend;\n/*DOCU\nx\nDOCU*/\n$$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestLongTypeFormKeepsPrecisionOfTimestamptz(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.DataTypes.Form = config.TypeFormLong
+	got, err := formatter.Format("select now()::timestamptz(0), x::timetz(2), y::timestamptz, z::varchar(3) from t;\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"::timestamptz(0)", "::timetz(2)", "::timestamp with time zone,", "::character varying(3)"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+}
+
+func TestCaseWithLineCommentIsNotRebuilt(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Layout.Clauses.Break = config.BreakAlways
+	c.Layout.Case.Break = config.BreakAlways
+	c.Layout.Subquery.Break = config.BreakAlways
+	in := "with r as (\n  select case\n    when a not in ('A') -- keep this\n    then f(1)\n    else null\n  end\n  from t\n)\nselect * from r;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "-- keep this then") || strings.Contains(got, "-- keep this f(1)") {
+		t.Errorf("code ended up inside the comment:\n%s", got)
+	}
+	if _, err := pg_query.Parse(got); err != nil {
+		t.Errorf("output does not parse: %v\n%s", err, got)
+	}
+}
+
+func TestTableFunctionAliasAsRemoved(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Aliases.As = config.AliasAsRemove
+	c.Functions.Case = config.CaseLower
+	in := "update t set x = a.v from l join UNNEST(_a, _b) as a(n, v) on l.n = a.n;\n"
+	once, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(once, "join unnest(_a, _b) a(n, v) on") {
+		t.Errorf("got %q", once)
+	}
+	if again, _ := formatter.Format(once, c); again != once {
+		t.Errorf("not idempotent: %q vs %q", once, again)
 	}
 }

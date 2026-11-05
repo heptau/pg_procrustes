@@ -97,10 +97,18 @@ func TestSubqueryAutoOnlyWhenLineTooLong(t *testing.T) {
 	assertSubqueryIdempotent(t, long, cfg)
 }
 
-func TestSubqueryWithCommentIsLeftAlone(t *testing.T) {
-	cfg := subqueryCfg(config.BreakAlways, config.BreakPreserve, 80)
-	sql := "select * from (select 1 -- note\nfrom t) s"
-	assertLayoutFormat(t, sql, cfg, sql)
+func TestSubqueryWithLineCommentsIsOpenedToo(t *testing.T) {
+	cfg := subqueryCfg(config.BreakAlways, config.BreakAlways, 80)
+	sql := "select * from (\n  -- the rows\n  select id from u -- active only\n  where a\n) s"
+	got, err := layout.Apply(sql, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "select *\nfrom (\n  -- the rows\n  select id\n  from u -- active only\n  where a\n) s"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+	assertSubqueryIdempotent(t, sql, cfg)
 }
 
 func TestSubqueryListIsBrokenWhenItOpens(t *testing.T) {

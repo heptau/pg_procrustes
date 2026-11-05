@@ -8,6 +8,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -165,6 +166,9 @@ func check(file, tmpl, src string, cfg *config.Config, add func(kind, tmpl, file
 			add("ast-changed", tmpl, file, "")
 		}
 	}
+	if n, m := badBodyQueries(src), badBodyQueries(out); m > n {
+		add("function-body-broken", tmpl, file, fmt.Sprintf("%d SQL fragments in PL/pgSQL bodies do not parse (input: %d)", m, n))
+	}
 	again, err := formatter.Format(out, cfg)
 	if err != nil {
 		add("second-pass-error", tmpl, file, err.Error())
@@ -183,4 +187,81 @@ func firstDiff(a, b string) string {
 		}
 	}
 	return fmt.Sprintf("length %d → %d lines", len(al), len(bl))
+}
+
+// badBodyQueries counts the SQL fragments inside PL/pgSQL function bodies of sql that do not
+// parse on their own (a body is an opaque string to the SQL parser, so a statement that was
+// commented out or cut in half by the formatter would otherwise go unnoticed).
+func badBodyQueries(sql string) int {
+	tree, err := pg_query.Parse(sql)
+	if err != nil {
+		return 0
+	}
+	bad := 0
+	for _, stmt := range tree.Stmts {
+		cf := stmt.Stmt.GetCreateFunctionStmt()
+		if cf == nil {
+			continue
+		}
+		lang, body := "", ""
+		for _, o := range cf.Options {
+			de := o.GetDefElem()
+			if de == nil {
+				continue
+			}
+			switch de.Defname {
+			case "language":
+				lang = strings.ToLower(de.Arg.GetString_().GetSval())
+			case "as":
+				if l := de.Arg.GetList(); l != nil && len(l.Items) > 0 {
+					body = l.Items[0].GetString_().GetSval()
+				}
+			}
+		}
+		if lang != "plpgsql" || body == "" {
+			continue
+		}
+		js, err := pg_query.ParsePlPgSqlToJSON("create function f() returns void language plpgsql as $b$" + body + "$b$")
+		if err != nil {
+			if os.Getenv("CBDEBUG") != "" {
+				fmt.Fprintf(os.Stderr, "BAD BODY: %v\n", err)
+			}
+			bad++ // the body itself does not parse
+			continue
+		}
+		var v any
+		if json.Unmarshal([]byte(js), &v) != nil {
+			continue
+		}
+		var walk func(any)
+		walk = func(x any) {
+			switch t := x.(type) {
+			case map[string]any:
+				if q, ok := t["query"].(string); ok {
+					if _, err := pg_query.Parse(q); err != nil {
+						// assignments are stored as "x := expr" (or "x = expr"), which is no SQL on its own
+						_, err2 := pg_query.Parse("select " + q)
+						if err2 != nil && strings.Contains(q, ":=") {
+							_, err2 = pg_query.Parse("select " + strings.Replace(q, ":=", "=", 1))
+						}
+						if err2 != nil {
+							if os.Getenv("CBDEBUG") != "" {
+								fmt.Fprintf(os.Stderr, "BAD FRAGMENT: %q\n", q)
+							}
+							bad++
+						}
+					}
+				}
+				for _, c := range t {
+					walk(c)
+				}
+			case []any:
+				for _, c := range t {
+					walk(c)
+				}
+			}
+		}
+		walk(v)
+	}
+	return bad
 }

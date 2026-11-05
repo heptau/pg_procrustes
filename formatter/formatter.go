@@ -288,6 +288,7 @@ type astPositions struct {
 	columns              map[int]bool
 	pendingAliases       []pendingAlias
 	subselectAliases     map[string]bool // lower-cased aliases of derived tables (FROM (SELECT …) x)
+	functionAliases      map[string]bool // lower-cased aliases of table functions (FROM unnest(…) AS a(x, y))
 	sortByDefaultLocs    []int
 	castFuncLocs         []int
 	funcParams           map[string]bool // lower-cased parameter names of CREATE FUNCTION / PROCEDURE
@@ -304,6 +305,7 @@ func newASTPositions() *astPositions {
 		aliases:              make(map[int]bool),
 		columns:              make(map[int]bool),
 		subselectAliases:     make(map[string]bool),
+		functionAliases:      make(map[string]bool),
 	}
 }
 
@@ -658,6 +660,11 @@ func normalizeType(tokens []rawToken, i int, skip map[int]bool, form config.Type
 		}
 		// Single-token short → long (possibly multi-word string).
 		if long, ok := singleShortToLong[lower]; ok {
+			// timestamptz(3) has no long spelling that keeps the precision after the name
+			// ("timestamp with time zone(3)" is not SQL; it is timestamp(3) with time zone).
+			if next := nextIndices(1); (lower == "timestamptz" || lower == "timetz") && len(next) == 1 && tokens[next[0]].text == "(" {
+				return applyCase(text, caseRule), nil
+			}
 			return applyCase(long, caseRule), nil
 		}
 		// Already a long single-token form — just apply casing.
@@ -732,12 +739,18 @@ func safeToUnquote(inner string) bool {
 			}
 		}
 	}
-	// Reject if it would be a reserved keyword.
+	// Reject keywords that are not plain identifiers: reserved ones, and the column-name /
+	// type-or-function-name classes ("substring"(…), "left", "float") whose unquoted spelling
+	// is parsed (and cased) as the keyword, not as a name.
 	res, err := pg_query.Scan(inner)
 	if err != nil || len(res.Tokens) == 0 {
 		return false
 	}
-	return res.Tokens[0].KeywordKind != pg_query.KeywordKind_RESERVED_KEYWORD
+	switch res.Tokens[0].KeywordKind {
+	case pg_query.KeywordKind_RESERVED_KEYWORD, pg_query.KeywordKind_COL_NAME_KEYWORD, pg_query.KeywordKind_TYPE_FUNC_NAME_KEYWORD:
+		return false
+	}
+	return true
 }
 
 // collapseBlankLines replaces runs of excess consecutive newlines.
@@ -859,6 +872,22 @@ func isOnlyHorizontalWS(s string) bool {
 // comment-only lines (trimmed prefix "--") at the end, and for the first
 // real line it inserts before any inline "-- comment" suffix.
 func semicolonInsertPos(s string) int {
+	// Trailing comments of either kind (-- and /* … */, also over several lines) are skipped:
+	// the ';' goes right after the last token that is code.
+	if res, err := pg_query.Scan(s); err == nil {
+		for k := len(res.Tokens) - 1; k >= 0; k-- {
+			t := res.Tokens[k]
+			text := s[t.Start:t.End]
+			if strings.HasPrefix(text, "--") || strings.HasPrefix(text, "/*") {
+				continue
+			}
+			if text == ";" {
+				return -1
+			}
+			return int(t.End) - 1
+		}
+		return -1
+	}
 	// Build line start/end offsets (end excludes the '\n').
 	type span struct{ start, end int }
 	var lines []span
@@ -958,6 +987,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	pos := collectASTPositions(sql, parsed)
 	pos.resolveAliases(tokens)
 	resolveSubselectAliases(tokens, pos)
+	resolveFunctionAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
 	resolveIndexCols(tokens, pos)
 	resolveFunctionParams(tokens, pos)
@@ -1033,7 +1063,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 			if skip[i] {
 				continue
 			}
-			if strings.ToLower(tok.text) == "as" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD {
+			if strings.ToLower(tok.text) == "as" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD && !isInsertTargetAs(tokens, i) {
 				if j := nextVisible(i); j >= 0 && pos.aliases[tokens[j].start] && canOmitAs(tokens[j]) {
 					dropText[i] = true
 					suppressGap[j] = true
@@ -1828,6 +1858,21 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		walkNode(rs.Subquery, pos)
 		if rs.Alias != nil && rs.Alias.Aliasname != "" {
 			pos.subselectAliases[strings.ToLower(rs.Alias.Aliasname)] = true
+		}
+
+	case *pg_query.Node_RangeFunction:
+		rf := n.RangeFunction
+		for _, f := range rf.Functions {
+			if l := f.GetList(); l != nil { // each entry is a list: [function call, column definitions]
+				for _, it := range l.Items {
+					walkNode(it, pos)
+				}
+			} else {
+				walkNode(f, pos)
+			}
+		}
+		if rf.Alias != nil && rf.Alias.Aliasname != "" {
+			pos.functionAliases[strings.ToLower(rf.Alias.Aliasname)] = true
 		}
 
 	case *pg_query.Node_SubLink:
@@ -3402,17 +3447,31 @@ func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
 	if len(pos.subselectAliases) == 0 {
 		return
 	}
+	isComment := func(t rawToken) bool { return strings.HasPrefix(t.text, "--") || strings.HasPrefix(t.text, "/*") }
+	next := func(i int) int { // index of the next token that is not a comment
+		for i++; i < len(tokens) && isComment(tokens[i]); i++ {
+		}
+		return i
+	}
 	for i := 0; i+1 < len(tokens); i++ {
 		if tokens[i].text != "(" {
 			continue
 		}
-		switch strings.ToLower(tokens[i+1].text) {
+		n := next(i)
+		if n >= len(tokens) {
+			break
+		}
+		switch strings.ToLower(tokens[n].text) {
 		case "select", "with", "values":
 		default:
 			continue
 		}
 		if i > 0 {
-			switch strings.ToLower(tokens[i-1].text) {
+			p := i - 1
+			for p > 0 && isComment(tokens[p]) {
+				p--
+			}
+			switch strings.ToLower(tokens[p].text) {
 			case "from", "join", "lateral", ",":
 			default:
 				continue
@@ -3429,9 +3488,9 @@ func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
 			if depth != 0 {
 				continue
 			}
-			k := j + 1
+			k := next(j)
 			if k < len(tokens) && strings.EqualFold(tokens[k].text, "as") {
-				k++
+				k = next(k)
 			}
 			if k < len(tokens) && pos.subselectAliases[strings.ToLower(tokens[k].text)] {
 				pos.aliases[tokens[k].start] = true
@@ -3439,6 +3498,40 @@ func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
 			break
 		}
 	}
+}
+
+// resolveFunctionAliases registers the alias of a table function — FROM/JOIN unnest(…) [AS] a(x, y)
+// — in pos.aliases: the name that follows the call's closing parenthesis (and an optional AS)
+// and is one of the aliases the AST reports for table functions.
+func resolveFunctionAliases(tokens []rawToken, pos *astPositions) {
+	if len(pos.functionAliases) == 0 {
+		return
+	}
+	for i := 0; i+1 < len(tokens); i++ {
+		if tokens[i].text != ")" {
+			continue
+		}
+		k := i + 1
+		if strings.EqualFold(tokens[k].text, "as") {
+			k++
+		}
+		if k < len(tokens) && pos.functionAliases[strings.ToLower(tokens[k].text)] {
+			pos.aliases[tokens[k].start] = true
+		}
+	}
+}
+
+// isInsertTargetAs reports whether the AS at tokens[i] follows the table of INSERT INTO name:
+// unlike UPDATE / DELETE / MERGE, INSERT INTO t AS alias needs its AS.
+func isInsertTargetAs(tokens []rawToken, i int) bool {
+	j := i - 1
+	if j < 0 {
+		return false
+	}
+	for j >= 2 && tokens[j-1].text == "." { // schema.table
+		j -= 2
+	}
+	return j >= 2 && strings.EqualFold(tokens[j-1].text, "into") && strings.EqualFold(tokens[j-2].text, "insert")
 }
 
 // canOmitAs reports whether the alias token can follow an expression without AS.

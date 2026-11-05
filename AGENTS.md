@@ -256,7 +256,7 @@ Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.m
 
 ## Checking against real files
 
-`go run scripts/corpus_check.go [-fp] [-t postgresql,ai,modern,none | -t some.yaml,…] [-o report.txt] <dir>` formats every `.sql` file below `<dir>` with the given templates (or config files) and reports output that does not parse, is not idempotent (`-fp`: or changes the parse tree) or — for `none`, the empty config — differs from the input. Nothing is written to `<dir>`. Run it on a large real schema before a release.
+`go run scripts/corpus_check.go [-fp] [-t postgresql,ai,modern,none | -t some.yaml,…] [-o report.txt] <dir>` formats every `.sql` file below `<dir>` with the given templates (or config files) and reports output that does not parse (including the SQL inside PL/pgSQL function bodies, which the SQL parser sees only as a string), is not idempotent (`-fp`: or changes the parse tree) or — for `none`, the empty config — differs from the input. Nothing is written to `<dir>`. Run it on a large real schema before a release.
 
 ## Running tests
 

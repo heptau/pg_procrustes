@@ -1346,11 +1346,12 @@ func reformatCaseExprs(item string, baseIndent string, cfg config.SQLCaseCfg, in
 		doExpand := shouldBreak(flatLen, cfg.Break, lineLen)
 
 		sb.WriteString(item[pos:tok.start])
-		if doExpand {
-			sb.WriteString(expandCaseExpr(item, toks, i, endIdx, baseIndent, indentUnit, cfg.Indent))
-		} else if caseHasLineComment(toks, i, endIdx) {
-			// Flattening would put everything after a -- comment inside the comment.
+		if caseHasLineComment(toks, i, endIdx) {
+			// Neither flattening nor rebuilding WHEN … THEN lines may put code after a --
+			// comment: the CASE is left as it is.
 			sb.WriteString(item[tok.start:toks[endIdx].end])
+		} else if doExpand {
+			sb.WriteString(expandCaseExpr(item, toks, i, endIdx, baseIndent, indentUnit, cfg.Indent))
 		} else {
 			sb.WriteString(flattenCaseExpr(toks, i, endIdx))
 		}

@@ -39,3 +39,26 @@ func TestWrapExpressions(t *testing.T) {
 		t.Errorf("subquery wrapped:\n%s", got)
 	}
 }
+
+func TestWrapWindowSpecification(t *testing.T) {
+	cfg := mkCfg(config.BreakAlways, config.BreakAlways, 60)
+	cfg.Content.FirstItem = config.FirstItemBreak
+	cfg.Content.WrapExpressions = config.WrapWrap
+	in := "SELECT sum(amount) OVER (PARTITION BY client, day ORDER BY created, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running, id FROM t"
+	got, err := layout.Apply(in, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "  sum(amount) OVER (\n    PARTITION BY client, day\n    ORDER BY created, id\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS running,"
+	if !strings.Contains(got, want) {
+		t.Errorf("missing\n%s\nin:\n%s", want, got)
+	}
+	if again, _ := layout.Apply(got, cfg); again != got {
+		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+	// a single-clause specification stays on one line
+	short := "SELECT rank() OVER (ORDER BY aaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbb, cccccccccccccccccccc) AS r FROM t"
+	if got, _ := layout.Apply(short, cfg); strings.Contains(got, "OVER (\n") {
+		t.Errorf("single-clause window wrapped:\n%s", got)
+	}
+}

@@ -206,7 +206,8 @@ layout:
                                 #   both act on lists the layout puts one item per line (first_item: break);
                                 #   multi-line items and items with comments or CASE are left alone
     wrap_expressions: preserve  # preserve | wrap   (items longer than line_length: one element per line inside the
-                                #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line.
+                                #   first parenthesised group — function arguments, IN lists, rows; ")" on its own line;
+                                #   a window specification OVER (…) gets PARTITION BY / ORDER BY / the frame on a line each.
                                 #   Acts on lists the layout puts one item per line; CASE, subqueries and comments are left alone)
     comma_position: preserve    # preserve | end | start   (applies when a list is broken over lines;
                                 #   preserve keeps leading commas if the list has them, trailing otherwise)

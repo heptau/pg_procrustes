@@ -30,6 +30,15 @@ func tokenEndsLine(sql string, t rawTok) bool {
 	return j >= len(sql) || sql[j] == '\n'
 }
 
+// endsLineBeforeComment is tokenEndsLine that also accepts a trailing -- comment after the token.
+func endsLineBeforeComment(sql string, t rawTok) bool {
+	j := t.end
+	for j < len(sql) && (sql[j] == ' ' || sql[j] == '\t' || sql[j] == '\r') {
+		j++
+	}
+	return j >= len(sql) || sql[j] == '\n' || strings.HasPrefix(sql[j:], "--")
+}
+
 // lineIndent is the leading blanks of the line the offset is on.
 func lineIndent(sql string, off int) string {
 	ls := strings.LastIndexByte(sql[:off], '\n') + 1
@@ -78,7 +87,8 @@ func resolveOperatorEnd(mode config.LogicalOperatorPosition, sql string, tokens 
 				if depth > 0 {
 					depth--
 				}
-			case depth == 0 && (t == "and" || t == "or") && tokenEndsLine(sql, tokens[i]):
+			case depth == 0 && (t == "and" || t == "or") && endsLineBeforeComment(sql, tokens[i]) && !tokenStartsLine(sql, tokens[i]):
+				// an operator alone on its line opens that line: that is the "start" style
 				return true
 			}
 		}
@@ -112,7 +122,20 @@ func resolveContentAlign(mode config.AlignMode, sql string, tokens []rawTok, kwT
 	}
 	kwIndent := lineIndent(sql, tokens[kwTok].start)
 	isInsert := strings.EqualFold(tokens[kwTok].text, "insert")
+	depth := 0
 	for i := from; i < to && i < len(tokens); i++ {
+		switch tokens[i].text {
+		case "(", "[":
+			depth++
+		case ")", "]":
+			if depth > 0 {
+				depth--
+			}
+		}
+		if !isInsert && depth > 0 && tokens[i].text != "(" && tokens[i].text != "[" {
+			continue // inside parentheses: lines of a subquery or an argument list are not items
+			// (an INSERT column list is the exception: its lines are the items)
+		}
 		if isInsert && tokens[i].text == "(" {
 			// the column list's "(" is not an item; where it stands (paren_indent.open) says
 			// nothing about the style of the items
