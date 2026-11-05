@@ -3007,6 +3007,30 @@ window.CB_OPTIONS = {
        "layout.line_length": "40"
       }
      }
+    },
+    {
+     "key": "layout.paren_indent.open",
+     "label": "Opening parenthesis",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Where the \"(\" of a parenthesised block that spans several lines goes. own_line moves a \"(\" that ends its line onto a line of its own, in the column of the matching \")\" (when that starts its line); parentheses that are already first on their line, follow a comma or AND / OR, or are followed by a comment are left alone.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "own_line",
+       "own line, above the \")\""
+      ]
+     ],
+     "sample": {
+      "in": "select * from (select id from users where active) s where id in (select user_id from orders);",
+      "with": {
+       "layout.clauses.break": "always",
+       "layout.subquery.break": "always"
+      }
+     }
     }
    ]
   }

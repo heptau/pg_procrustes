@@ -110,6 +110,7 @@ window.CB_I18N.de = {
     "layout.case.break": "Umbruch von CASE-Ausdrücken",
     "layout.case.indent": "Einrückung von CASE-Ausdrücken",
     "layout.subquery.break": "Umbruch von Unterabfragen",
+    "layout.paren_indent.open": "Öffnende Klammer",
     "statement_break": "Anweisungen in einer Zeile"
   },
   "descs": {
@@ -222,9 +223,11 @@ window.CB_I18N.de = {
     "layout.case.break": "Steuert, ob WHEN/ELSE-Zweige eines SQL-CASE-Ausdrucks in neue Zeilen umbrochen werden.",
     "layout.case.indent": "Steuert die Einrückung von WHEN/ELSE innerhalb eines SQL-CASE-Ausdrucks.",
     "layout.subquery.break": "Steuert, ob Unterabfragen in Klammern und CTE-Rümpfe — (select …), (with …), (values …) — auf eigene Zeilen aufgehen: „(“ bleibt, der Rumpf wird mit denselben Regeln eine Ebene tiefer gesetzt und „)“ erhält eine eigene Zeile. never fügt sie in einer Zeile zusammen; auto öffnet nur Zeilen, die länger als layout.line_length sind. Unterabfragen mit einem --Kommentar bleiben unverändert.",
+    "layout.paren_indent.open": "Wohin die „(“ eines mehrzeiligen Klammerblocks gehört. own_line verschiebt eine „(“ am Zeilenende in eine eigene Zeile, in die Spalte der passenden „)“ (wenn diese eine Zeile beginnt); Klammern, die bereits eine Zeile beginnen, auf ein Komma oder AND / OR folgen oder von einem Kommentar gefolgt werden, bleiben unverändert.",
     "statement_break": "always beginnt jede Anweisung in einer eigenen Zeile, wenn sich mehrere eine Zeile teilen (select 1; select 2;). Leerzeilen bleiben unverändert; ein Kommentar in der Zeile eines ';' bleibt bei seiner Anweisung. blank_lines_between_statements trennt sie ebenfalls und hat Vorrang."
   },
   "hints": {
+    "own line, above the \")\"": "eigene Zeile, über der „)“",
     "First letter only": "nur der erste Buchstabe",
     "full SQL name": "voller SQL-Name",
     "shortest alias": "kürzester Alias",

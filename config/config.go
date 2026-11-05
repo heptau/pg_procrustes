@@ -640,10 +640,22 @@ const (
 	ParenCloseAfter ParenCloseMode = "after"
 )
 
+// ParenOpenMode controls where the "(" of a parenthesised block that spans lines goes.
+type ParenOpenMode string
+
+const (
+	// ParenOpenPreserve leaves the "(" where it is (default).
+	ParenOpenPreserve ParenOpenMode = "preserve"
+	// ParenOpenOwnLine moves a "(" that ends its line onto a line of its own, in the column
+	// of the matching ")" (when that starts its line).
+	ParenOpenOwnLine ParenOpenMode = "own_line"
+)
+
 // ParenIndentCfg configures indentation of content inside multi-line paren blocks.
 type ParenIndentCfg struct {
 	Mode       ParenIndentMode `yaml:"mode"`
 	CloseFirst ParenCloseMode  `yaml:"close_first_on_line"`
+	Open       ParenOpenMode   `yaml:"open"`
 }
 
 // SubqueryCfg controls parenthesised subqueries and CTE bodies: (SELECT …), (WITH …), (VALUES …).
@@ -750,6 +762,7 @@ func defaultLayout() LayoutConfig {
 		ParenIndent: ParenIndentCfg{
 			Mode:       ParenIndentPreserve,
 			CloseFirst: ParenCloseBefore,
+			Open:       ParenOpenPreserve,
 		},
 	}
 }
@@ -1272,6 +1285,11 @@ func validate(cfg *Config) error {
 	case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
 	default:
 		return fmt.Errorf("layout.case.break must be preserve|never|always|auto, got %q", cfg.Layout.Case.Break)
+	}
+	switch cfg.Layout.ParenIndent.Open {
+	case ParenOpenPreserve, ParenOpenOwnLine, "":
+	default:
+		return fmt.Errorf("layout.paren_indent.open must be preserve|own_line, got %q", cfg.Layout.ParenIndent.Open)
 	}
 	switch cfg.Layout.Subquery.Break {
 	case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":

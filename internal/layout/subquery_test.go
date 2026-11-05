@@ -136,3 +136,39 @@ func TestSubqueryLeadingCommaIndent(t *testing.T) {
 	assertLayoutFormat(t, sql, cfg, want)
 	assertSubqueryIdempotent(t, sql, cfg)
 }
+
+func TestParenOpenOwnLine(t *testing.T) {
+	cfg := subqueryCfg(config.BreakAlways, config.BreakAlways, 80)
+	cfg.ParenIndent.Open = config.ParenOpenOwnLine
+	sql := "select * from (select a from b where x in (select 1)) s where id in (select 2)"
+	want := "select *\n" +
+		"from\n" +
+		"(\n" +
+		"  select a\n" +
+		"  from b\n" +
+		"  where x in\n" +
+		"  (\n" +
+		"    select 1\n" +
+		"  )\n" +
+		") s\n" +
+		"where id in\n" +
+		"(\n" +
+		"  select 2\n" +
+		")"
+	assertLayoutFormat(t, sql, cfg, want)
+	assertSubqueryIdempotent(t, sql, cfg)
+}
+
+func TestParenOpenPreserveLeavesParens(t *testing.T) {
+	cfg := subqueryCfg(config.BreakAlways, config.BreakAlways, 80)
+	sql := "select * from (select 1) s"
+	assertLayoutFormat(t, sql, cfg, "select *\nfrom (\n  select 1\n) s")
+}
+
+func TestParenOpenOwnLineLeavesCommasAndOwnLineParens(t *testing.T) {
+	cfg := subqueryCfg(config.BreakPreserve, config.BreakPreserve, 80)
+	cfg.ParenIndent.Open = config.ParenOpenOwnLine
+	sql := "select a,\n  (\n    select 1\n  ) as x,\n  f(\n    1\n  )\nfrom t"
+	want := "select a,\n  (\n    select 1\n  ) as x,\n  f\n  (\n    1\n  )\nfrom t"
+	assertLayoutFormat(t, sql, cfg, want)
+}

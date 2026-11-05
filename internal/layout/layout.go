@@ -37,6 +37,9 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 	if sb := cfg.Subquery.Break; sb != "" && sb != config.BreakPreserve {
 		return false
 	}
+	if cfg.ParenIndent.Open == config.ParenOpenOwnLine {
+		return false
+	}
 	parenMode := cfg.ParenIndent.Mode
 	if parenMode == "" {
 		parenMode = config.ParenIndentPreserve
@@ -84,6 +87,10 @@ func Apply(sql string, cfg *config.LayoutConfig) (string, error) {
 
 	if cfg.ParenIndent.Mode != config.ParenIndentPreserve && cfg.ParenIndent.Mode != "" {
 		result = applyParenIndent(result, indentUnit, cfg.ParenIndent.Mode, cfg.ParenIndent.CloseFirst)
+	}
+
+	if cfg.ParenIndent.Open == config.ParenOpenOwnLine {
+		result = moveOpenParens(result)
 	}
 
 	return result, nil

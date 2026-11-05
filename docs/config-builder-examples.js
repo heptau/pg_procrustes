@@ -1295,6 +1295,17 @@ window.CB_EXAMPLES = {
    "t": "select customer_id, order_date, total_amount, shipping_address, billing_address\nfrom orders;"
   }
  },
+ "layout.paren_indent.open": {
+  "": {
+   "t": "select *\nfrom (\n  select id\n  from users\n  where active\n) s\nwhere id in (\n  select user_id\n  from orders\n);"
+  },
+  "own_line": {
+   "t": "select *\nfrom\n(\n  select id\n  from users\n  where active\n) s\nwhere id in\n(\n  select user_id\n  from orders\n);"
+  },
+  "preserve": {
+   "t": "select *\nfrom (\n  select id\n  from users\n  where active\n) s\nwhere id in (\n  select user_id\n  from orders\n);"
+  }
+ },
  "layout.subquery.break": {
   "": {
    "t": "select *\nfrom (select id, name from users where active) s\nwhere id in (select id from orders);\n\nselect *\nfrom ( select 1 ) t;"

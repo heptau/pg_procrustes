@@ -110,6 +110,7 @@ window.CB_I18N.cs = {
     "layout.case.break": "Zalomení výrazu CASE",
     "layout.case.indent": "Odsazení výrazu CASE",
     "layout.subquery.break": "Zalomení poddotazů",
+    "layout.paren_indent.open": "Otevírací závorka",
     "statement_break": "Příkazy na jednom řádku"
   },
   "descs": {
@@ -222,9 +223,11 @@ window.CB_I18N.cs = {
     "layout.case.break": "Určuje, zda se větve WHEN/ELSE výrazu SQL CASE zalomí na nové řádky.",
     "layout.case.indent": "Určuje odsazení WHEN/ELSE uvnitř výrazu SQL CASE.",
     "layout.subquery.break": "Určuje, zda se poddotazy v závorkách a těla CTE — (select …), (with …), (values …) — otevřou na vlastní řádky: „(“ zůstane, tělo se odsadí o úroveň hlouběji stejnými pravidly a „)“ dostane vlastní řádek. never je spojí na jeden řádek; auto otevře jen ty na řádku delším než layout.line_length. Poddotazy s komentářem -- zůstanou beze změny.",
+    "layout.paren_indent.open": "Kam patří „(“ závorkového bloku, který se táhne přes více řádků. own_line přesune „(“ z konce řádku na vlastní řádek do sloupce odpovídající „)“ (pokud ta začíná řádek); závorky, které už začínají řádek, následují za čárkou nebo AND / OR, nebo za nimi stojí komentář, se nemění.",
     "statement_break": "always začne každý příkaz na vlastním řádku, když jich několik sdílí řádek (select 1; select 2;). Prázdné řádky se nemění; komentář na řádku se středníkem zůstává u svého příkazu. Příkazy odděluje i blank_lines_between_statements a ten má přednost."
   },
   "hints": {
+    "own line, above the \")\"": "na vlastním řádku, nad „)“",
     "one space before every comment": "jedna mezera před každým komentářem",
     "one space, no padding": "jedna mezera, bez zarovnání",
     "keep what the input uses": "ponechat, co používá vstup",

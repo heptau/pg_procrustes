@@ -1222,4 +1222,13 @@ layout:
     close_first_on_line: before  # before | after
                                #   before: closing ) starts at the outer (N-1) indent level (default)
                                #   after:  closing ) stays at the inner (N) indent level
+    open: preserve             # preserve | own_line
+                               #   own_line: a "(" that ends its line moves onto a line of its own, in the
+                               #             column of the matching ")" (when that starts its line):
+                               #               from (            from
+                               #                 select 1   →    (
+                               #               ) s                 select 1
+                               #                               ) s
+                               #             not moved: "(" already first on its line, after a comma or AND / OR,
+                               #             or followed by a comment
 ```

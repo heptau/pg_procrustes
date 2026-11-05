@@ -110,6 +110,7 @@ window.CB_I18N.es = {
     "layout.case.break": "Salto de expresión CASE",
     "layout.case.indent": "Sangría de expresión CASE",
     "layout.subquery.break": "Salto de subconsultas",
+    "layout.paren_indent.open": "Paréntesis de apertura",
     "statement_break": "Sentencias en una línea"
   },
   "descs": {
@@ -222,9 +223,11 @@ window.CB_I18N.es = {
     "layout.case.break": "Controla si las ramas WHEN/ELSE de una expresión CASE de SQL se dividen en nuevas líneas.",
     "layout.case.indent": "Controla la sangría de WHEN/ELSE dentro de una expresión CASE de SQL.",
     "layout.subquery.break": "Controla si las subconsultas entre paréntesis y los cuerpos de CTE — (select …), (with …), (values …) — se abren en líneas propias: «(» se queda, el cuerpo se formatea un nivel más adentro con las mismas reglas y «)» ocupa su propia línea. never las une en una línea; auto abre solo las de líneas más largas que layout.line_length. Las subconsultas con un comentario -- se dejan como están.",
+    "layout.paren_indent.open": "Dónde va el «(» de un bloque entre paréntesis que ocupa varias líneas. own_line mueve un «(» que termina su línea a una línea propia, en la columna del «)» correspondiente (si este empieza su línea); no se tocan los paréntesis que ya empiezan línea, siguen a una coma o a AND / OR, o van seguidos de un comentario.",
     "statement_break": "always pone cada sentencia en su propia línea cuando varias comparten línea (select 1; select 2;). No toca las líneas en blanco; un comentario en la misma línea que un ';' se queda con su sentencia. blank_lines_between_statements también las separa y tiene prioridad."
   },
   "hints": {
+    "own line, above the \")\"": "en su propia línea, sobre el «)»",
     "one space before every comment": "un espacio antes de cada comentario",
     "one space, no padding": "un espacio, sin relleno",
     "keep what the input uses": "mantener lo que usa la entrada",

@@ -46,6 +46,19 @@ var matrixVariants = []matrixVariant{
 		c.Layout.LineLength = 40
 		c.Layout.Subquery.Break = config.BreakAuto
 	}},
+	{"paren_open_own_line", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.Subquery.Break = config.BreakAlways
+		c.Layout.ParenIndent.Open = config.ParenOpenOwnLine
+	}},
+	{"paren_open_own_line_ddl", func(c *config.Config) {
+		c.Layout.DDL.CreateTable.Break = config.BreakAlways
+		c.Layout.DDL.CreateIndex.Break = config.BreakAlways
+		c.Layout.Content.WrapExpressions = config.WrapWrap
+		c.Layout.LineLength = 60
+		c.Layout.ParenIndent.Open = config.ParenOpenOwnLine
+	}},
 	{"subquery_never", func(c *config.Config) { c.Layout.Subquery.Break = config.BreakNever }},
 	{"clauses_always", func(c *config.Config) { c.Layout.Clauses.Break = config.BreakAlways }},
 	{"content_always", func(c *config.Config) { c.Layout.Content.Break = config.BreakAlways }},

@@ -110,6 +110,7 @@ window.CB_I18N.it = {
     "layout.case.break": "A capo dell'espressione CASE",
     "layout.case.indent": "Rientro dell'espressione CASE",
     "layout.subquery.break": "Interruzione delle sottoquery",
+    "layout.paren_indent.open": "Parentesi di apertura",
     "statement_break": "Istruzioni su una riga"
   },
   "descs": {
@@ -222,9 +223,11 @@ window.CB_I18N.it = {
     "layout.case.break": "Controlla se i rami WHEN/ELSE di un'espressione SQL CASE vanno a capo su nuove righe.",
     "layout.case.indent": "Controlla il rientro di WHEN/ELSE dentro un'espressione SQL CASE.",
     "layout.subquery.break": "Controlla se le sottoquery tra parentesi e i corpi dei CTE — (select …), (with …), (values …) — si aprono su righe proprie: «(» resta, il corpo è formattato un livello più in basso con le stesse regole e «)» ha una riga propria. never le unisce su una riga; auto apre solo quelle su una riga più lunga di layout.line_length. Le sottoquery con un commento -- restano com'erano.",
+    "layout.paren_indent.open": "Dove va la «(» di un blocco tra parentesi su più righe. own_line sposta una «(» a fine riga su una riga propria, nella colonna della «)» corrispondente (se questa inizia la riga); le parentesi che iniziano già una riga, seguono una virgola o AND / OR, o sono seguite da un commento restano invariate.",
     "statement_break": "always mette ogni istruzione su una riga propria quando più istruzioni condividono una riga (select 1; select 2;). Le righe vuote non vengono toccate; un commento sulla riga di un ';' resta con la sua istruzione. blank_lines_between_statements le separa a sua volta e ha la precedenza."
   },
   "hints": {
+    "own line, above the \")\"": "su una riga propria, sopra la «)»",
     "First letter only": "Solo la prima lettera",
     "full SQL name": "nome SQL completo",
     "shortest alias": "alias più breve",
