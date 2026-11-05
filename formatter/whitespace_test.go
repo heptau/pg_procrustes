@@ -206,3 +206,47 @@ func TestCompactCommasSurviveLayoutRejoin(t *testing.T) {
 		}
 	}
 }
+
+// trailing_newline: add is a whole-file rule: it must not put a line break in front of the
+// ';' of a statement inside a function body.
+func TestTrailingNewlineAddNotAppliedToBodyStatements(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.TrailingNewline = config.TrailingNewlineAdd
+	c.Layout.Clauses.Break = config.BreakAlways
+	in := "create function f() returns void as $$\nbegin\n  update t set a = 1 where id = 2;\nend\n$$ language plpgsql;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "\n;") {
+		t.Errorf("statement ';' pushed onto its own line:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+// Subqueries inside a function body are opened too, and keep the body's indent.
+func TestSubqueryAlwaysInsideFunctionBody(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Layout.Clauses.Break = config.BreakAlways
+	c.Layout.Subquery.Break = config.BreakAlways
+	in := "create function f() returns void as $$\nbegin\n  delete from w where k in (select k from z);\nend\n$$ language plpgsql;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "create function f() returns void as $$\nbegin\n  delete from w\n  where k in (\n    select k\n    from z\n  );\nend\n$$ language plpgsql;\n"
+	if got != want {
+		t.Errorf("got:\n%q\nwant:\n%q", got, want)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}

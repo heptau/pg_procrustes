@@ -106,6 +106,7 @@ window.CB_I18N.it = {
     "layout.union.blank_line": "Riga vuota per UNION",
     "layout.case.break": "A capo dell'espressione CASE",
     "layout.case.indent": "Rientro dell'espressione CASE",
+    "layout.subquery.break": "Interruzione delle sottoquery",
     "statement_break": "Istruzioni su una riga"
   },
   "descs": {
@@ -214,6 +215,7 @@ window.CB_I18N.it = {
     "layout.union.blank_line": "Controlla le righe vuote attorno agli operatori UNION / UNION ALL / INTERSECT / EXCEPT.",
     "layout.case.break": "Controlla se i rami WHEN/ELSE di un'espressione SQL CASE vanno a capo su nuove righe.",
     "layout.case.indent": "Controlla il rientro di WHEN/ELSE dentro un'espressione SQL CASE.",
+    "layout.subquery.break": "Controlla se le sottoquery tra parentesi e i corpi dei CTE — (select …), (with …), (values …) — si aprono su righe proprie: «(» resta, il corpo è formattato un livello più in basso con le stesse regole e «)» ha una riga propria. never le unisce su una riga; auto apre solo quelle su una riga più lunga di layout.line_length. Le sottoquery con un commento -- restano com'erano.",
     "statement_break": "always mette ogni istruzione su una riga propria quando più istruzioni condividono una riga (select 1; select 2;). Le righe vuote non vengono toccate; un commento sulla riga di un ';' resta con la sua istruzione. blank_lines_between_statements le separa a sua volta e ha la precedenza."
   },
   "hints": {

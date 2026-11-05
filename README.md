@@ -512,6 +512,13 @@ layout:
   union:
     blank_line: preserve     # preserve | none | before | after | both
 
+  subquery:
+    break: preserve          # preserve | never | always | auto   — (select …), (with …), (values …), CTE bodies
+                             #   always: "(" stays on its line, the body is laid out one level deeper with the
+                             #           same rules, ")" gets its own line
+                             #   never:  join the subquery onto one line;  auto: open only those on a line
+                             #           longer than line_length.  A subquery with a -- comment is left alone.
+
   ddl:
     create_table:
       break: preserve          # preserve | never | always | auto

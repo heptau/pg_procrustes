@@ -34,6 +34,9 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 	if caseBrk == "" {
 		caseBrk = config.BreakPreserve
 	}
+	if sb := cfg.Subquery.Break; sb != "" && sb != config.BreakPreserve {
+		return false
+	}
 	parenMode := cfg.ParenIndent.Mode
 	if parenMode == "" {
 		parenMode = config.ParenIndentPreserve
@@ -71,10 +74,30 @@ func Apply(sql string, cfg *config.LayoutConfig) (string, error) {
 	if strings.TrimSpace(sql) == "" {
 		return sql, nil
 	}
+	indentUnit := indentUnitStr(cfg)
+
+	result := applyCore(sql, cfg, indentUnit)
+
+	if cfg.Indent.Normalize == config.IndentNormalizeChange {
+		result = normalizeIndent(result, cfg)
+	}
+
+	if cfg.ParenIndent.Mode != config.ParenIndentPreserve && cfg.ParenIndent.Mode != "" {
+		result = applyParenIndent(result, indentUnit, cfg.ParenIndent.Mode, cfg.ParenIndent.CloseFirst)
+	}
+
+	return result, nil
+}
+
+// applyCore lays out the statements of sql (clauses, content, subqueries) without the
+// whole-text passes (indent normalisation, paren indent), so it can also run on the body
+// of a subquery.
+func applyCore(sql string, cfg *config.LayoutConfig, indentUnit string) string {
+	sql = flattenSubqueries(sql, cfg)
 
 	scanResult, err := pg_query.Scan(sql)
 	if err != nil {
-		return sql, nil
+		return sql
 	}
 
 	tokens := make([]rawTok, len(scanResult.Tokens))
@@ -88,9 +111,8 @@ func Apply(sql string, cfg *config.LayoutConfig) (string, error) {
 
 	stmts := parseStatements(tokens)
 	if len(stmts) == 0 {
-		return sql, nil
+		return sql
 	}
-	indentUnit := indentUnitStr(cfg)
 
 	// Preserve the leading gap (whitespace before the first token) and trailing
 	// gap (whitespace after the last token) so dollar-quoted body indentation survives.
@@ -114,16 +136,7 @@ func Apply(sql string, cfg *config.LayoutConfig) (string, error) {
 	}
 
 	result := leadingGap + strings.Join(parts, "") + trailingGap
-
-	if cfg.Indent.Normalize == config.IndentNormalizeChange {
-		result = normalizeIndent(result, cfg)
-	}
-
-	if cfg.ParenIndent.Mode != config.ParenIndentPreserve && cfg.ParenIndent.Mode != "" {
-		result = applyParenIndent(result, indentUnit, cfg.ParenIndent.Mode, cfg.ParenIndent.CloseFirst)
-	}
-
-	return result, nil
+	return expandSubqueries(result, cfg, indentUnit)
 }
 
 type rawTok struct {
@@ -759,6 +772,10 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		contentAlign = resolveContentAlign(contentAlign, sql, tokens, cl.kwTok, kwEnd, conEnd)
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
+		if contentBreakMode == config.BreakAuto && subqueryMode(cfg) == config.BreakAlways && cl.kind != clauseFrom && cl.kind != clauseJoin && hasSubquery(tokens, kwEnd, conEnd) {
+			// an item that opens into several lines makes the list read best one item per line
+			doContentBreak = true
+		}
 		if cl.kind == clauseWhen && contentBreakMode == config.BreakPreserve {
 			// preserve: the action stays where the input has it (below THEN or on its line)
 			if thenIdx := findWhenThen(tokens, kwEnd, conEnd); thenIdx >= 0 {

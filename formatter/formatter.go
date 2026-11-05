@@ -2532,6 +2532,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 	cfgNoLayout := *cfg
 	cfgNoLayout.Layout = config.LayoutConfig{}
 	cfgNoLayout.Semicolons = config.SemicolonPreserve
+	cfgNoLayout.TrailingNewline = config.TrailingNewlinePreserve // a statement inside a body is not a file
 
 	applyLayoutToSQL := func(prefix, sqlText string) (string, bool) {
 		baseIndent := lastLineIndent(prefix)

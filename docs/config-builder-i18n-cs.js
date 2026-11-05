@@ -106,6 +106,7 @@ window.CB_I18N.cs = {
     "layout.union.blank_line": "Prázdný řádek u UNION",
     "layout.case.break": "Zalomení výrazu CASE",
     "layout.case.indent": "Odsazení výrazu CASE",
+    "layout.subquery.break": "Zalomení poddotazů",
     "statement_break": "Příkazy na jednom řádku"
   },
   "descs": {
@@ -214,6 +215,7 @@ window.CB_I18N.cs = {
     "layout.union.blank_line": "Určuje prázdné řádky kolem operátorů UNION / UNION ALL / INTERSECT / EXCEPT.",
     "layout.case.break": "Určuje, zda se větve WHEN/ELSE výrazu SQL CASE zalomí na nové řádky.",
     "layout.case.indent": "Určuje odsazení WHEN/ELSE uvnitř výrazu SQL CASE.",
+    "layout.subquery.break": "Určuje, zda se poddotazy v závorkách a těla CTE — (select …), (with …), (values …) — otevřou na vlastní řádky: „(“ zůstane, tělo se odsadí o úroveň hlouběji stejnými pravidly a „)“ dostane vlastní řádek. never je spojí na jeden řádek; auto otevře jen ty na řádku delším než layout.line_length. Poddotazy s komentářem -- zůstanou beze změny.",
     "statement_break": "always začne každý příkaz na vlastním řádku, když jich několik sdílí řádek (select 1; select 2;). Prázdné řádky se nemění; komentář na řádku se středníkem zůstává u svého příkazu. Příkazy odděluje i blank_lines_between_statements a ten má přednost."
   },
   "hints": {

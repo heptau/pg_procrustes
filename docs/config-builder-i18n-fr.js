@@ -106,6 +106,7 @@ window.CB_I18N.fr = {
     "layout.union.blank_line": "Ligne vide autour de UNION",
     "layout.case.break": "Saut des expressions CASE",
     "layout.case.indent": "Indentation des expressions CASE",
+    "layout.subquery.break": "Saut des sous-requêtes",
     "statement_break": "Instructions sur une ligne"
   },
   "descs": {
@@ -214,6 +215,7 @@ window.CB_I18N.fr = {
     "layout.union.blank_line": "Contrôle les lignes vides autour des opérateurs UNION / UNION ALL / INTERSECT / EXCEPT.",
     "layout.case.break": "Contrôle si les branches WHEN/ELSE d'une expression SQL CASE passent à la ligne.",
     "layout.case.indent": "Contrôle l'indentation de WHEN/ELSE à l'intérieur d'une expression SQL CASE.",
+    "layout.subquery.break": "Contrôle si les sous-requêtes entre parenthèses et les corps de CTE — (select …), (with …), (values …) — s'ouvrent sur leurs propres lignes : « ( » reste, le corps est mis en forme un niveau plus bas avec les mêmes règles et « ) » a sa propre ligne. never les regroupe sur une ligne ; auto n'ouvre que celles d'une ligne plus longue que layout.line_length. Les sous-requêtes contenant un commentaire -- restent telles quelles.",
     "statement_break": "always place chaque instruction sur sa propre ligne quand plusieurs partagent une ligne (select 1; select 2;). Les lignes vides ne sont pas touchées ; un commentaire sur la ligne d'un ';' reste avec son instruction. blank_lines_between_statements les sépare aussi et est prioritaire."
   },
   "hints": {

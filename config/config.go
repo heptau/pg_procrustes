@@ -634,6 +634,11 @@ type ParenIndentCfg struct {
 	CloseFirst ParenCloseMode  `yaml:"close_first_on_line"`
 }
 
+// SubqueryCfg controls parenthesised subqueries and CTE bodies: (SELECT …), (WITH …), (VALUES …).
+type SubqueryCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto
+}
+
 type LayoutConfig struct {
 	LineLength  int            `yaml:"line_length"`
 	Indent      IndentCfg      `yaml:"indent"`
@@ -641,6 +646,7 @@ type LayoutConfig struct {
 	Union       UnionCfg       `yaml:"union"`
 	Content     ContentCfg     `yaml:"content"`
 	Case        SQLCaseCfg     `yaml:"case"`
+	Subquery    SubqueryCfg    `yaml:"subquery"`
 	DollarQuote DollarQuoteCfg `yaml:"dollar_quote"`
 	ParenIndent ParenIndentCfg `yaml:"paren_indent"`
 	DDL         DDLConfig      `yaml:"ddl"`
@@ -682,6 +688,7 @@ func defaultLayout() LayoutConfig {
 			Break:  BreakPreserve,
 			Indent: BodyIndentIndent,
 		},
+		Subquery: SubqueryCfg{Break: BreakPreserve},
 		DDL: DDLConfig{
 			CreateTable:    CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
 			AlterTable:     AlterTableCfg{Break: BreakPreserve},
@@ -1243,6 +1250,11 @@ func validate(cfg *Config) error {
 	case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
 	default:
 		return fmt.Errorf("layout.case.break must be preserve|never|always|auto, got %q", cfg.Layout.Case.Break)
+	}
+	switch cfg.Layout.Subquery.Break {
+	case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
+	default:
+		return fmt.Errorf("layout.subquery.break must be preserve|never|always|auto, got %q", cfg.Layout.Subquery.Break)
 	}
 	switch cfg.Layout.Case.Indent {
 	case BodyIndentPreserve, BodyIndentNone, BodyIndentIndent, "":

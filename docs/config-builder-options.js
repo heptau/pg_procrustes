@@ -2707,7 +2707,7 @@ window.CB_OPTIONS = {
      "sample": {
       "in": "create unique index idx_users_email on public.users using btree (lower(email)) include (name) where deleted_at is null;\n\ncreate unique index idx_users_email\n   on public.users\n   using btree (lower(email))\n   include (name)\n   where deleted_at is null;",
       "with": {
-       "layout.line_length": "60"
+       "layout.line_length": "40"
       }
      }
     },
@@ -2737,7 +2737,7 @@ window.CB_OPTIONS = {
      "sample": {
       "in": "create table users (id bigint not null, name text, constraint pk primary key (id));\n\ncreate table t (\n   a int,\n   b int\n);",
       "with": {
-       "layout.line_length": "60"
+       "layout.line_length": "40"
       }
      }
     },
@@ -2883,6 +2883,38 @@ window.CB_OPTIONS = {
       "in": "select case when x = 1 then 'a' else 'b' end from t;",
       "with": {
        "layout.case.break": "always"
+      }
+     }
+    },
+    {
+     "key": "layout.subquery.break",
+     "label": "Subquery break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Controls whether parenthesised subqueries and CTE bodies — (select …), (with …), (values …) — open onto their own lines: \"(\" stays, the body is laid out one level deeper with the same rules and \")\" gets a line of its own. never joins them onto one line; auto opens only those on a line longer than layout.line_length. Subqueries containing a -- comment are left as written.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "never",
+       "keep on one line"
+      ],
+      [
+       "always",
+       "break every item"
+      ],
+      [
+       "auto",
+       "break if too long"
+      ]
+     ],
+     "sample": {
+      "in": "select * from (select id, name from users where active) s where id in (select id from orders);\n\nselect * from (\n  select 1\n) t;",
+      "with": {
+       "layout.clauses.break": "always",
+       "layout.line_length": "40"
       }
      }
     }

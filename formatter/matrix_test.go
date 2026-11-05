@@ -31,6 +31,22 @@ var matrixVariants = []matrixVariant{
 		c.CallParenSpacing = config.ParenSpacingRemove
 		c.BuiltinFunctions.Case = config.CaseCapitalize
 	}},
+	{"subquery_always", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.Subquery.Break = config.BreakAlways
+	}},
+	{"subquery_always_start_commas", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Subquery.Break = config.BreakAlways
+	}},
+	{"subquery_auto_never", func(c *config.Config) {
+		c.Layout.LineLength = 40
+		c.Layout.Subquery.Break = config.BreakAuto
+	}},
+	{"subquery_never", func(c *config.Config) { c.Layout.Subquery.Break = config.BreakNever }},
 	{"clauses_always", func(c *config.Config) { c.Layout.Clauses.Break = config.BreakAlways }},
 	{"content_always", func(c *config.Config) { c.Layout.Content.Break = config.BreakAlways }},
 	{"clauses_content_always", func(c *config.Config) {

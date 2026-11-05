@@ -268,6 +268,7 @@ Shipped templates (more can be added by dropping a file into `templates/`):
 |---|---|
 | `postgresql` | Roughly what PostgreSQL itself prints (pg_dump, `psql \d+`): upper-case keywords, lower-case identifiers and types, `::` casts, `<>`, four-space indent, first list item on the keyword line. |
 | `ai` | Lean for LLM prompts and context: lower case, short type names, no padding or alignment, two-space indent, redundant words (`AS`, `ASC`, `public.`) removed. |
+| `modern` | Readable with syntax highlighting on a wide screen, friendly to git and AI: lower-case keywords, one column per line with leading commas and `AND`/`OR` (a change touches one line), no alignment padding, short types, `::` casts, `!=`, two-space indent, 140 columns. |
 
 The [Config Builder](https://pg_procrustes.80.cz/config-builder.html) offers the same templates and can write a short file (`template: ai` plus your differences).
 
@@ -516,6 +517,13 @@ layout:
 
   union:
     blank_line: preserve     # preserve | none | before | after | both
+
+  subquery:
+    break: preserve          # preserve | never | always | auto   — (select …), (with …), (values …), CTE bodies
+                             #   always: "(" stays on its line, the body is laid out one level deeper with the
+                             #           same rules, ")" gets its own line
+                             #   never:  join the subquery onto one line;  auto: open only those on a line
+                             #           longer than line_length.  A subquery with a -- comment is left alone.
 
   ddl:
     create_table:
@@ -1092,6 +1100,14 @@ layout:
     indent: indent               # preserve | none | indent
                                  #   indent:   WHEN/ELSE indented one level relative to CASE
                                  #   none:     WHEN/ELSE at same level as CASE
+  subquery:
+    break: preserve              # preserve | never | always | auto   — (select …), (with …), (values …), CTE bodies
+                                 #   never:    join the subquery onto one line
+                                 #   always:   "(" stays on its line, the body is laid out one level deeper with the
+                                 #             same rules, ")" gets its own line (WHERE/SELECT lists that open a
+                                 #             subquery are broken one item per line when content.break is auto)
+                                 #   auto:     open only subqueries on a line longer than line_length
+                                 #   A subquery containing a -- comment is left as written.
   ddl:
     create_table:
       break: preserve          # preserve | never | always | auto

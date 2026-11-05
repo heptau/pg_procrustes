@@ -24,6 +24,7 @@ The formatter runs first; layout runs on its output.
 | `internal/layout/layout.go` | `Apply()` — all layout logic including `rebuildStatement`, `splitAtAndOr`, `reformatCaseExprs` |
 | `formatter/*_test.go` | Formatter tests (keyword, PL/pgSQL, operators, …) |
 | `internal/layout/case_test.go` | Layout CASE expression tests |
+| `internal/layout/subquery.go` | `layout.subquery.break`: `flattenSubqueries` (before the clause layout) joins each outermost `(select …)` onto one line, `expandSubqueries` (after it) opens them and re-runs `applyCore` on the body one level deeper |
 | `internal/layout/layout_test.go` | Layout clause/content break tests |
 | `.pg_procrustes.yaml` | Reference config with all options and inline comments |
 

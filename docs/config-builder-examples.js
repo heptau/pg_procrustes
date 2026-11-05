@@ -1261,6 +1261,23 @@ window.CB_EXAMPLES = {
    "t": "select customer_id, order_date, total_amount, shipping_address, billing_address\nfrom orders;"
   }
  },
+ "layout.subquery.break": {
+  "": {
+   "t": "select *\nfrom (select id, name from users where active) s\nwhere id in (select id from orders);\n\nselect *\nfrom ( select 1 ) t;"
+  },
+  "always": {
+   "t": "select *\nfrom (\n  select id, name\n  from users\n  where active\n) s\nwhere id in (\n  select id\n  from orders\n);\n\nselect *\nfrom (\n  select 1\n) t;"
+  },
+  "auto": {
+   "t": "select *\nfrom (\n  select id, name\n  from users\n  where active\n) s\nwhere id in (select id from orders);\n\nselect *\nfrom (select 1) t;"
+  },
+  "never": {
+   "t": "select *\nfrom (select id, name from users where active) s\nwhere id in (select id from orders);\n\nselect *\nfrom (select 1) t;"
+  },
+  "preserve": {
+   "t": "select *\nfrom (select id, name from users where active) s\nwhere id in (select id from orders);\n\nselect *\nfrom ( select 1 ) t;"
+  }
+ },
  "layout.union.blank_line": {
   "": {
    "t": "select id from a union all select id from b;"

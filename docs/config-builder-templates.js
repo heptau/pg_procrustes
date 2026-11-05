@@ -68,7 +68,7 @@ window.CB_PRESETS = {
       "it": "Moderno",
       "pt": "Moderno"
     },
-    "description": "Readable with syntax highlighting on a wide screen and friendly to git and AI: lower-case keywords (colour does the shouting), one item per line with leading commas and AND/OR so a change touches one line, no alignment padding, short types, :: casts, != and 2-space indent.",
+    "description": "Readable with syntax highlighting on a wide screen and friendly to git and AI: lower-case keywords (colour does the shouting), one item per line with leading commas and AND/OR so a change touches one line, no alignment padding, subqueries and CTE bodies opened on their own lines, short types, :: casts, != and 2-space indent.",
     "settings": {
       "aliases.as": "add",
       "aliases.case": "lower",
@@ -100,11 +100,13 @@ window.CB_PRESETS = {
       "layout.content.logical_operator_position": "start",
       "layout.content.select_list.break": "always",
       "layout.content.set_list.break": "always",
+      "layout.content.with_list.break": "always",
       "layout.content.wrap_expressions": "wrap",
       "layout.ddl.create_table.align": "none",
       "layout.ddl.create_table.break": "always",
       "layout.indent.size": "2",
       "layout.line_length": "140",
+      "layout.subquery.break": "always",
       "layout.union.blank_line": "both",
       "line_endings": "lf",
       "literals.case": "lower",

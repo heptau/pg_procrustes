@@ -106,6 +106,7 @@ window.CB_I18N.es = {
     "layout.union.blank_line": "Línea en blanco de UNION",
     "layout.case.break": "Salto de expresión CASE",
     "layout.case.indent": "Sangría de expresión CASE",
+    "layout.subquery.break": "Salto de subconsultas",
     "statement_break": "Sentencias en una línea"
   },
   "descs": {
@@ -214,6 +215,7 @@ window.CB_I18N.es = {
     "layout.union.blank_line": "Controla las líneas en blanco alrededor de los operadores UNION / UNION ALL / INTERSECT / EXCEPT.",
     "layout.case.break": "Controla si las ramas WHEN/ELSE de una expresión CASE de SQL se dividen en nuevas líneas.",
     "layout.case.indent": "Controla la sangría de WHEN/ELSE dentro de una expresión CASE de SQL.",
+    "layout.subquery.break": "Controla si las subconsultas entre paréntesis y los cuerpos de CTE — (select …), (with …), (values …) — se abren en líneas propias: «(» se queda, el cuerpo se formatea un nivel más adentro con las mismas reglas y «)» ocupa su propia línea. never las une en una línea; auto abre solo las de líneas más largas que layout.line_length. Las subconsultas con un comentario -- se dejan como están.",
     "statement_break": "always pone cada sentencia en su propia línea cuando varias comparten línea (select 1; select 2;). No toca las líneas en blanco; un comentario en la misma línea que un ';' se queda con su sentencia. blank_lines_between_statements también las separa y tiene prioridad."
   },
   "hints": {

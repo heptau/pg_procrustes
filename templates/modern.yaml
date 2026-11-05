@@ -8,7 +8,7 @@
 # title.it: Moderno
 # description: Readable with syntax highlighting on a wide screen and friendly to git and AI: lower-case
 #   keywords (colour does the shouting), one item per line with leading commas and AND/OR so a change
-#   touches one line, no alignment padding, short types, :: casts, != and 2-space indent.
+#   touches one line, no alignment padding, subqueries and CTE bodies opened on their own lines, short types, :: casts, != and 2-space indent.
 #
 # Use it from a config file with   template: modern   — your own settings in that file win.
 
@@ -75,6 +75,8 @@ layout:
       break: always          # one column per line: a change touches one line
     set_list:
       break: always
+    with_list:
+      break: always          # one CTE per line
     first_item: break
     align_aliases: none
     align_set: none
@@ -82,6 +84,8 @@ layout:
     logical_operator_position: start
     join_on_position: inline
     wrap_expressions: wrap
+  subquery:
+    break: always            # (select …) and CTE bodies open on their own lines
   case:
     break: always
     indent: indent
