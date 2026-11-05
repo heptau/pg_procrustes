@@ -35,6 +35,17 @@ jobs:
             --title "pg_procrustes v${{ steps.version.outputs.version }}" \
             --notes-file notes.txt
 
+      # templates.zip is what `pg_procrustes --install-templates` downloads (go install users
+      # have no templates/ folder); it holds the *.yaml files of templates/ at its top level.
+      - name: Upload templates.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          (cd templates && zip -q ../dist/templates.zip ./*.yaml)
+          gh release upload "v${VERSION}" dist/templates.zip
+
   # ── Build each platform natively, upload asset as soon as it's ready ─────────
   build:
     name: Build ${{ matrix.os }}/${{ matrix.arch }}

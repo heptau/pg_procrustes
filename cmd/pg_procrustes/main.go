@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/heptau/pg_procrustes/config"
@@ -42,7 +43,7 @@ func reorderArgs(args []string) []string {
 		// a positional argument as a flag value.
 		name := strings.TrimLeft(a, "-")
 		switch name {
-		case "w", "check", "diff", "v", "version":
+		case "w", "check", "diff", "v", "version", "print-config", "list-templates", "install-templates":
 			flags = append(flags, a)
 		default:
 			// Assume it takes a value; grab the next token if present.
@@ -54,6 +55,41 @@ func reorderArgs(args []string) []string {
 		}
 	}
 	return append(flags, positional...)
+}
+
+// releaseVersion is the version of this build: the -ldflags value, else the module version
+// `go install …@vX.Y.Z` records, else "dev".
+func releaseVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && strings.HasPrefix(bi.Main.Version, "v") && !strings.Contains(bi.Main.Version, "-") {
+		return bi.Main.Version
+	}
+	return "dev"
+}
+
+// installTemplates implements --install-templates.
+func installTemplates(from string) {
+	if from == "" {
+		from = config.TemplatesURL(releaseVersion())
+	}
+	dest, err := config.UserTemplateDir()
+	if err != nil {
+		die("install-templates: %v", err)
+	}
+	fmt.Fprintf(os.Stderr, "installing templates from %s\n", from)
+	got, err := config.InstallTemplates(from, dest)
+	if err != nil {
+		die("install-templates: %v", err)
+	}
+	for _, t := range got {
+		note := "installed"
+		if t.Replaced {
+			note = "updated"
+		}
+		fmt.Printf("%-16s %s (%s)\n", t.Name, t.Path, note)
+	}
 }
 
 // printTemplates lists the installed templates and where they come from.
@@ -102,6 +138,8 @@ func main() {
 		syntaxErrors  string
 		printConfig   bool
 		listTemplates bool
+		installTmpls  bool
+		templatesFrom string
 	)
 	flag.BoolVar(&writeInPlace, "w", false, "write result back to source files (in-place)")
 	flag.BoolVar(&checkMode, "check", false, "exit 1 if any file would be reformatted (CI mode)")
@@ -113,6 +151,8 @@ func main() {
 	flag.StringVar(&outDir, "out-dir", "", "write formatted files into this directory instead of stdout")
 	flag.BoolVar(&printConfig, "print-config", false, "print the effective configuration (templates resolved, every option) and exit")
 	flag.BoolVar(&listTemplates, "list-templates", false, "list the installed templates and exit")
+	flag.BoolVar(&installTmpls, "install-templates", false, "download the templates of this version from the GitHub release into your user templates directory and exit")
+	flag.StringVar(&templatesFrom, "templates-from", "", "with --install-templates: take the templates from this URL (zip), .zip file or directory instead")
 	flag.StringVar(&syntaxErrors, "syntax-errors", "", "what to do with SQL that does not parse: fail | skip | ignore (default: syntax_errors from the config, else fail)")
 	flag.Usage = usage
 	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
@@ -149,6 +189,10 @@ func main() {
 
 	if listTemplates {
 		printTemplates()
+		return
+	}
+	if installTmpls {
+		installTemplates(templatesFrom)
 		return
 	}
 
@@ -524,6 +568,9 @@ Flags:
                      skip:   format the valid statements, leave bad ones as written, warn
                      ignore: format everything at token level without checking
   --print-config     print the effective configuration (templates resolved, every option) and exit
+  --install-templates  download the templates of this version from the GitHub release into
+                     your user templates directory (for go install; Homebrew and the archives already carry them)
+  --templates-from <src>  with --install-templates: a URL (zip), .zip file or directory to take them from
   --list-templates   list the installed templates (use one with "template: name" in the config) and exit
 
 Examples:

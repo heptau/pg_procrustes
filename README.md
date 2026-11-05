@@ -23,7 +23,13 @@ brew install heptau/tap/pg-procrustes
 ```bash
 go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest
 ```
-This installs the binary only. For the shipped [templates](#templates), clone the repository and run `make install` instead (it installs the binary and `templates/`), or copy the files of [`templates/`](templates) to `~/.config/pg_procrustes/templates` (`~/Library/Application Support/pg_procrustes/templates` on macOS).
+This installs the binary only. Fetch the shipped [templates](#templates) with
+
+```bash
+pg_procrustes --install-templates
+```
+
+It downloads the `templates.zip` of the release that matches your version (the latest one for a development build) from GitHub into your user templates directory (`~/.config/pg_procrustes/templates`, `~/Library/Application Support/pg_procrustes/templates` on macOS, or the first entry of `$PG_PROCRUSTES_TEMPLATES`) and can be run again to update them. `--templates-from <url|file.zip|folder>` takes them from somewhere else, e.g. `--templates-from ./templates` in a clone of the repository. Only plain `*.yaml` files with valid template names are accepted.
 
 **Binary download**: grab the archive for your platform from [GitHub Releases](https://github.com/heptau/pg_procrustes/releases), extract, and place the binary on your `PATH`. Keep the `templates/` folder next to the binary, or move it to `../share/pg_procrustes/templates` relative to the binary.
 
