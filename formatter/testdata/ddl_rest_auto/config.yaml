@@ -1,0 +1,8 @@
+layout:
+  line_length: 50
+  ddl:
+    alter_table: {constraints: auto}
+    create_partition: {break: auto}
+    drop: {break: auto}
+    create_domain: {break: auto}
+    create_extension: {break: auto}

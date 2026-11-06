@@ -61,6 +61,9 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 			return false
 		}
 	}
+	if b := cfg.DDL.AlterTable.Constraints; b != "" && b != config.BreakPreserve {
+		return false
+	}
 	return clauseBreak == config.BreakPreserve &&
 		unionBL == config.UnionBlankLinePreserve &&
 		contentBreak == config.BreakPreserve &&
@@ -828,6 +831,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 		if cl.kind == clauseMerge {
 			doContentBreak = false // a single target name reads best on the keyword line
+		}
+		if cl.kind == clauseOnConflict {
+			doContentBreak = false // ON CONFLICT (target) DO UPDATE / DO NOTHING stays on one line; SET follows below
 		}
 
 		if kwEnd >= conEnd {
@@ -2185,9 +2191,13 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		if prev == "for" {
 			return false
 		}
+	case clauseValues:
+		if prev == "for" {
+			return false // CREATE TABLE … PARTITION OF p FOR VALUES …
+		}
 	case clauseFrom:
-		if prev == "distinct" {
-			return false
+		if prev == "distinct" || prev == "values" {
+			return false // IS DISTINCT FROM; FOR VALUES FROM (…) TO (…)
 		}
 		if first := firstCodeTok(tokens, stmt.startTok, i); first >= 0 && strings.EqualFold(tokens[first].text, "copy") {
 			return false

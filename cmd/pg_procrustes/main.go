@@ -142,6 +142,7 @@ func main() {
 		installTmpls  bool
 		templatesFrom string
 		linesRange    string
+		stdinFilepath string
 		rangeStart    int
 		rangeEnd      int
 	)
@@ -150,7 +151,7 @@ func main() {
 	flag.BoolVar(&diffMode, "diff", false, "print unified diff of changes without writing")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.BoolVar(&showVersion, "v", false, "print version and exit")
-	flag.StringVar(&configPath, "c", "", "path to config file (default: auto-detect .pg_procrustes.yaml)")
+	flag.StringVar(&configPath, "c", "", "path to config file (default: the .pg_procrustes.yaml nearest to each file, then to the working directory)")
 	flag.StringVar(&backupExt, "backup", "", "before overwriting, save original with this extension (e.g. .bak); requires -w")
 	flag.StringVar(&outDir, "out-dir", "", "write formatted files into this directory instead of stdout")
 	flag.BoolVar(&printConfig, "print-config", false, "print the effective configuration (templates resolved, every option) and exit")
@@ -159,6 +160,7 @@ func main() {
 	flag.StringVar(&templatesFrom, "templates-from", "", "with --install-templates: take the templates from this URL (zip), .zip file or directory instead")
 	flag.StringVar(&syntaxErrors, "syntax-errors", "", "what to do with SQL that does not parse: fail | skip | ignore (default: syntax_errors from the config, else fail)")
 	flag.StringVar(&linesRange, "lines", "", "format only the statements that touch lines START:END (or one line N) of a single input; the rest is copied as written")
+	flag.StringVar(&stdinFilepath, "stdin-filepath", "", "when reading stdin: the path the text belongs to; the config is looked up from its directory (the file need not exist)")
 	flag.Usage = usage
 	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
 	flag.Parse()
@@ -201,26 +203,47 @@ func main() {
 		return
 	}
 
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		die("config: %v", err)
-	}
-	if syntaxErrors != "" {
-		cfg.SyntaxErrors = config.SyntaxErrorMode(syntaxErrors)
-		if err := config.Validate(cfg); err != nil {
-			die("--syntax-errors: %v", err)
-		}
-	}
-
-	if printConfig {
-		printEffectiveConfig(cfg)
-		return
-	}
-
 	// Expand globs from args.
 	files, err := expandGlobs(flag.Args())
 	if err != nil {
 		die("%v", err)
+	}
+
+	// The config is the one nearest to each file (so it does not depend on the directory the
+	// program runs in); -c picks one for everything. Several files often share a config.
+	cache := map[string]*config.Config{}
+	configFor := func(file string) *config.Config {
+		path := configPath
+		if path == "" && file != "" {
+			path = config.ConfigPathFor(file)
+		}
+		if c, ok := cache[path]; ok {
+			return c
+		}
+		c, err := config.Load(path)
+		if err != nil {
+			die("config: %v", err)
+		}
+		if syntaxErrors != "" {
+			c.SyntaxErrors = config.SyntaxErrorMode(syntaxErrors)
+			if err := config.Validate(c); err != nil {
+				die("--syntax-errors: %v", err)
+			}
+		}
+		cache[path] = c
+		return c
+	}
+
+	if printConfig {
+		target := stdinFilepath
+		if len(files) > 0 {
+			target = files[0]
+		}
+		printEffectiveConfig(configFor(target))
+		return
+	}
+	if stdinFilepath != "" && len(files) > 0 {
+		die("--stdin-filepath is for reading stdin; give either files or --stdin-filepath")
 	}
 
 	if linesRange != "" {
@@ -249,7 +272,7 @@ func main() {
 			die("read stdin: %v", err)
 		}
 		src := string(data)
-		out, ok := formatSource("stdin", src, cfg)
+		out, ok := formatSource("stdin", src, configFor(stdinFilepath))
 		if !ok {
 			os.Exit(1)
 		}
@@ -271,7 +294,7 @@ func main() {
 
 	exitCode := 0
 	for _, path := range files {
-		src, out, ok := readAndFormat(path, cfg)
+		src, out, ok := readAndFormat(path, configFor(path))
 		if !ok {
 			exitCode = 1
 			continue
@@ -612,7 +635,8 @@ With no file arguments reads from stdin. Glob patterns are expanded
 
 Flags:
   -v, --version      print version and exit
-  -c <path>          path to config file (default: auto-detect .pg_procrustes.yaml)
+  -c <path>          path to config file (default: the .pg_procrustes.yaml nearest to each file, looking in
+                     the file's directory and its parents; then in the working directory and its parents)
   -w                 write result back to source files (in-place)
   --backup[=.ext]    save original before overwriting (requires -w); default extension is .bak
   --out-dir <dir>    write formatted files into this directory (cannot be combined with -w)
@@ -624,6 +648,8 @@ Flags:
                      ignore: format everything at token level without checking
   --lines <a:b>      format only the statements that touch lines a..b (or one line N) of a single
                      file or of stdin; everything else is copied as written (for editors' range formatting)
+  --stdin-filepath <path>  when reading stdin: the path the text belongs to; the config is looked up from
+                     that file's directory (the file need not exist), not from the working directory
   --print-config     print the effective configuration (templates resolved, every option) and exit
   --install-templates  download the templates of this version from the GitHub release into
                      your user templates directory (for go install; Homebrew and the archives already carry them)
@@ -638,7 +664,7 @@ Examples:
   pg_procrustes --check *.sql
   pg_procrustes --diff query.sql
   pg_procrustes --lines 10:25 -w query.sql
-  cat query.sql | pg_procrustes`)
+  cat query.sql | pg_procrustes --stdin-filepath db/migrations/001.sql`)
 }
 
 func die(format string, args ...any) {

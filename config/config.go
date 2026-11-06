@@ -491,6 +491,10 @@ type CreateTableCfg struct {
 // AlterTableCfg configures ALTER TABLE action lists.
 type AlterTableCfg struct {
 	Break BreakMode `yaml:"break"` // preserve | never | always | auto — one action per line
+	// Constraints lays out ADD [CONSTRAINT name] PRIMARY KEY | FOREIGN KEY | UNIQUE | CHECK:
+	// preserve | always | auto — the constraint's parts (FOREIGN KEY, REFERENCES, ON DELETE, …)
+	// each on an indented line below the action.
+	Constraints BreakMode `yaml:"constraints"`
 }
 
 // CreateIndexCfg configures CREATE INDEX statements.
@@ -523,6 +527,26 @@ type CreateSequenceCfg struct {
 	Break BreakMode `yaml:"break"` // preserve | never | always | auto — INCREMENT, MINVALUE, START, CACHE, CYCLE, … each on a line
 }
 
+// CreatePartitionCfg configures CREATE TABLE … PARTITION OF.
+type CreatePartitionCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — PARTITION OF, FOR VALUES, PARTITION BY, WITH, TABLESPACE each on a line
+}
+
+// DropCfg configures DROP statements with a list of objects.
+type DropCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — one object per line, CASCADE / RESTRICT on a line of its own
+}
+
+// CreateDomainCfg configures CREATE DOMAIN.
+type CreateDomainCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — DEFAULT, NOT NULL, COLLATE, CONSTRAINT / CHECK each on a line
+}
+
+// CreateExtensionCfg configures CREATE EXTENSION.
+type CreateExtensionCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — SCHEMA, VERSION, CASCADE each on a line
+}
+
 // CreateViewCfg configures the header of CREATE [MATERIALIZED] VIEW.
 type CreateViewCfg struct {
 	Columns BreakMode `yaml:"columns"` // preserve | never | always | auto — one column name per line
@@ -536,16 +560,20 @@ type CreateFunctionCfg struct {
 
 // DDLConfig configures the layout of DDL statements.
 type DDLConfig struct {
-	CreateFunction CreateFunctionCfg `yaml:"create_function"`
-	CreateIndex    CreateIndexCfg    `yaml:"create_index"`
-	CreateTable    CreateTableCfg    `yaml:"create_table"`
-	AlterTable     AlterTableCfg     `yaml:"alter_table"`
-	CreateView     CreateViewCfg     `yaml:"create_view"`
-	CreateTrigger  CreateTriggerCfg  `yaml:"create_trigger"`
-	CreatePolicy   CreatePolicyCfg   `yaml:"create_policy"`
-	Grant          GrantCfg          `yaml:"grant"`
-	CreateType     CreateTypeCfg     `yaml:"create_type"`
-	CreateSequence CreateSequenceCfg `yaml:"create_sequence"`
+	CreateFunction  CreateFunctionCfg  `yaml:"create_function"`
+	CreateIndex     CreateIndexCfg     `yaml:"create_index"`
+	CreateTable     CreateTableCfg     `yaml:"create_table"`
+	AlterTable      AlterTableCfg      `yaml:"alter_table"`
+	CreateView      CreateViewCfg      `yaml:"create_view"`
+	CreateTrigger   CreateTriggerCfg   `yaml:"create_trigger"`
+	CreatePolicy    CreatePolicyCfg    `yaml:"create_policy"`
+	Grant           GrantCfg           `yaml:"grant"`
+	CreateType      CreateTypeCfg      `yaml:"create_type"`
+	CreateSequence  CreateSequenceCfg  `yaml:"create_sequence"`
+	CreatePartition CreatePartitionCfg `yaml:"create_partition"`
+	Drop            DropCfg            `yaml:"drop"`
+	CreateDomain    CreateDomainCfg    `yaml:"create_domain"`
+	CreateExtension CreateExtensionCfg `yaml:"create_extension"`
 }
 
 // DDLBreakModes lists every break option of layout.ddl by its config key.
@@ -562,6 +590,10 @@ func (d DDLConfig) DDLBreakModes() map[string]BreakMode {
 		"layout.ddl.grant.break":             d.Grant.Break,
 		"layout.ddl.create_type.break":       d.CreateType.Break,
 		"layout.ddl.create_sequence.break":   d.CreateSequence.Break,
+		"layout.ddl.create_partition.break":  d.CreatePartition.Break,
+		"layout.ddl.drop.break":              d.Drop.Break,
+		"layout.ddl.create_domain.break":     d.CreateDomain.Break,
+		"layout.ddl.create_extension.break":  d.CreateExtension.Break,
 	}
 }
 
@@ -767,16 +799,20 @@ func defaultLayout() LayoutConfig {
 		},
 		Subquery: SubqueryCfg{Break: BreakPreserve},
 		DDL: DDLConfig{
-			CreateTable:    CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
-			AlterTable:     AlterTableCfg{Break: BreakPreserve},
-			CreateView:     CreateViewCfg{Columns: BreakPreserve},
-			CreateTrigger:  CreateTriggerCfg{Break: BreakPreserve},
-			CreatePolicy:   CreatePolicyCfg{Break: BreakPreserve},
-			Grant:          GrantCfg{Break: BreakPreserve},
-			CreateType:     CreateTypeCfg{Break: BreakPreserve},
-			CreateSequence: CreateSequenceCfg{Break: BreakPreserve},
-			CreateIndex:    CreateIndexCfg{Break: BreakPreserve},
-			CreateFunction: CreateFunctionCfg{Params: BreakPreserve, Options: BreakPreserve},
+			CreateTable:     CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
+			AlterTable:      AlterTableCfg{Break: BreakPreserve, Constraints: BreakPreserve},
+			CreateView:      CreateViewCfg{Columns: BreakPreserve},
+			CreateTrigger:   CreateTriggerCfg{Break: BreakPreserve},
+			CreatePolicy:    CreatePolicyCfg{Break: BreakPreserve},
+			Grant:           GrantCfg{Break: BreakPreserve},
+			CreateType:      CreateTypeCfg{Break: BreakPreserve},
+			CreateSequence:  CreateSequenceCfg{Break: BreakPreserve},
+			CreatePartition: CreatePartitionCfg{Break: BreakPreserve},
+			Drop:            DropCfg{Break: BreakPreserve},
+			CreateDomain:    CreateDomainCfg{Break: BreakPreserve},
+			CreateExtension: CreateExtensionCfg{Break: BreakPreserve},
+			CreateIndex:     CreateIndexCfg{Break: BreakPreserve},
+			CreateFunction:  CreateFunctionCfg{Params: BreakPreserve, Options: BreakPreserve},
 		},
 		DollarQuote: DollarQuoteCfg{
 			NewlineAfterOpen:   BlankLinePreserve,
@@ -1267,6 +1303,11 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("%s must be preserve|never|always|auto, got %q", name, b)
 		}
 	}
+	switch cfg.Layout.DDL.AlterTable.Constraints {
+	case BreakPreserve, BreakAlways, BreakAuto, "":
+	default:
+		return fmt.Errorf("layout.ddl.alter_table.constraints must be preserve|always|auto, got %q", cfg.Layout.DDL.AlterTable.Constraints)
+	}
 	switch cfg.Layout.DDL.CreateTable.Align {
 	case ColumnAlignPreserve, ColumnAlignNone, ColumnAlignTypes, ColumnAlignAll, "":
 	default:
@@ -1363,18 +1404,37 @@ func findConfig() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return FindConfig(dir), nil
+}
+
+// FindConfig returns the .pg_procrustes.yaml nearest to dir — dir itself, then each of its
+// parents — or "" when there is none.
+func FindConfig(dir string) string {
 	for {
 		candidate := filepath.Join(dir, ".pg_procrustes.yaml")
 		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+			return candidate
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			break
+			return ""
 		}
 		dir = parent
 	}
-	return "", nil
+}
+
+// ConfigPathFor returns the config file that applies to the source file path (which does
+// not have to exist): the nearest .pg_procrustes.yaml above the file's own directory, so
+// the result does not depend on where the program is run from. Without one it falls back
+// to the nearest above the working directory; "" means built-in defaults.
+func ConfigPathFor(file string) string {
+	if abs, err := filepath.Abs(file); err == nil {
+		if found := FindConfig(filepath.Dir(abs)); found != "" {
+			return found
+		}
+	}
+	found, _ := findConfig()
+	return found
 }
 
 // BlankLinesBetween returns the number of blank lines to put between statements, or -1

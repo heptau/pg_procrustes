@@ -30,7 +30,7 @@ func isDDLStart(tokens []rawTok, from, to int) bool {
 		return false
 	}
 	switch strings.ToLower(tokens[i].text) {
-	case "create", "alter", "grant", "revoke":
+	case "create", "alter", "drop", "grant", "revoke":
 		return true
 	}
 	return false
@@ -76,6 +76,8 @@ func rebuildDDL(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutC
 		if w(first+1) == "sequence" {
 			return rebuildSequence(sql, tokens, stmt, first, cfg, indentUnit, depth)
 		}
+	case "drop":
+		return rebuildDrop(sql, tokens, stmt, first, cfg, indentUnit, depth)
 	case "grant", "revoke":
 		return rebuildGrant(sql, tokens, stmt, first, cfg, indentUnit, depth)
 	}
@@ -294,7 +296,10 @@ func rebuildParenList(sql string, tokens []rawTok, stmt statement, open int, mod
 
 func rebuildAlterTable(sql string, tokens []rawTok, stmt statement, start int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
 	mode := cfg.DDL.AlterTable.Break
-	if mode == "" || mode == config.BreakPreserve {
+	cmode := cfg.DDL.AlterTable.Constraints
+	modeSet := mode != "" && mode != config.BreakPreserve
+	consSet := cmode != "" && cmode != config.BreakPreserve
+	if !modeSet && !consSet {
 		return "", false
 	}
 	items := splitAtComma(sql, tokens, start, stmt.endTok)
@@ -303,14 +308,31 @@ func rebuildAlterTable(sql string, tokens []rawTok, stmt statement, start int, c
 	}
 	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
 	doBreak := false
-	switch mode {
-	case config.BreakAlways:
+	if modeSet {
+		switch mode {
+		case config.BreakAlways:
+			doBreak = true
+		case config.BreakAuto:
+			doBreak = len(items) > 1 || flat > cfg.LineLength
+		}
+	}
+	// ADD CONSTRAINT actions whose parts go on lines of their own (they need the action on a line of its own too).
+	consToks := make([][]rawTok, len(items))
+	consBreak := false
+	if consSet && !hasLineComment(tokens, start, stmt.endTok) {
+		for k, it := range items {
+			if t, ok := constraintAction(it); ok {
+				consToks[k] = t
+				consBreak = true
+			}
+		}
+		consBreak = consBreak && shouldBreak(flat, cmode, cfg.LineLength)
+	}
+	if consBreak {
 		doBreak = true
-	case config.BreakAuto:
-		doBreak = len(items) > 1 || flat > cfg.LineLength
 	}
 	if !doBreak {
-		if mode != config.BreakNever || hasLineComment(tokens, start, stmt.endTok) {
+		if !modeSet || mode != config.BreakNever || hasLineComment(tokens, start, stmt.endTok) {
 			return "", false
 		}
 		var sb strings.Builder
@@ -327,6 +349,14 @@ func rebuildAlterTable(sql string, tokens []rawTok, stmt statement, start int, c
 		return sb.String(), true
 	}
 	baseIndent := strings.Repeat(indentUnit, depth)
+	if consBreak {
+		partIndent := baseIndent + indentUnit + indentUnit
+		for k, t := range consToks {
+			if t != nil {
+				items[k] = breakConstraint(items[k], t, partIndent, cfg.ParenSpacing)
+			}
+		}
+	}
 	var sb strings.Builder
 	sb.WriteString(ddlHead(sql, tokens, stmt, start-1))
 	emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, start, stmt.endTok), baseIndent+indentUnit)

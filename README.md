@@ -69,7 +69,7 @@ If [conform.nvim](https://github.com/stevearc/conform.nvim) is installed, `sql` 
       "formatter": {
         "external": {
           "command": "pg_procrustes",
-          "arguments": []
+          "arguments": ["--stdin-filepath", "{buffer_path}"]
         }
       }
     }
@@ -109,7 +109,7 @@ The file is reformatted in place on every save. For a manual, on-demand trigger 
 **Emacs**: with [apheleia.el](https://github.com/radian-software/apheleia) (async, keeps point position):
 
 ```elisp
-(setf (alist-get 'pg-procrustes apheleia-formatters) '("pg_procrustes"))
+(setf (alist-get 'pg-procrustes apheleia-formatters) '("pg_procrustes" "--stdin-filepath" filepath))
 (setf (alist-get 'sql-mode apheleia-mode-alist) 'pg-procrustes)
 (add-hook 'sql-mode-hook #'apheleia-mode)
 ```
@@ -157,7 +157,7 @@ Or trigger it manually from the command palette with **Fmt: Format Buffer**.
 ```vim
 let g:ale_fixers = {
 \   'sql': [
-\     {buffer -> {'command': 'pg_procrustes'}},
+\     {buffer -> {'command': 'pg_procrustes --stdin-filepath ' . shellescape(expand('#' . buffer . ':p'))}},
 \   ],
 \}
 let g:ale_fix_on_save = 1
@@ -165,7 +165,7 @@ let g:ale_fix_on_save = 1
 
 Or run it on demand with `:ALEFix`.
 
-Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text, and Vim above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
+`--stdin-filepath <path>` tells `pg_procrustes` which file the text on stdin belongs to, so the config is the one nearest to *that file* even when the editor runs from another directory (see [Configuration](#configuration)); the Neovim, Zed, apheleia and ALE examples pass it. Zed, VS Code, DataGrip, Emacs, Helix, Sublime Text, and Vim above are config-only integrations — no dedicated plugin required, though one may follow later. If your editor launches as a GUI app rather than from a terminal, it may not see your shell's `PATH`; use the absolute path from `which pg_procrustes` if the command isn't found.
 
 ### Automation & CI
 
@@ -263,7 +263,7 @@ It also works between the statements of a function body. Put the directives betw
 
 ## Configuration
 
-pg_procrustes looks for `.pg_procrustes.yaml` starting in the current directory and walking up to the filesystem root. Specify a custom path with `-c path/to/config.yaml`. All settings default to `preserve` (no change).
+For every file pg_procrustes looks for `.pg_procrustes.yaml` in **the file's own directory** and then in each parent up to the filesystem root, so the result does not depend on where you run the program (several files in different projects, each with its own config, work in one call). For text on stdin, `--stdin-filepath path/to/file.sql` names the file the text belongs to (the file need not exist); without it the lookup starts in the current directory. When no file's directory has a config, the search continues from the current directory. Specify a custom path with `-c path/to/config.yaml` — it applies to everything. All settings default to `preserve` (no change).
 
 > **Note:** The `.pg_procrustes.yaml` in this repository root is the reference config: every option with its allowed values and a comment, all set to `preserve` where that is possible. It is documentation, not a recommended style — pick a [template](#templates) or copy the options you need.
 
@@ -574,6 +574,14 @@ layout:
                                #   auto:   break when there is more than one action or the statement
                                #           is longer than line_length
                                #   (comma_position and indent size apply to both)
+      constraints: preserve    # preserve | always | auto   (ADD [CONSTRAINT name] PRIMARY KEY | FOREIGN KEY | UNIQUE | CHECK)
+                               #   always: the parts of the constraint each on a line below the action
+                               #           ALTER TABLE t
+                               #              ADD CONSTRAINT fk
+                               #                 FOREIGN KEY (a)
+                               #                 REFERENCES u (a)
+                               #                 ON DELETE CASCADE;
+                               #   auto:   only when the statement is longer than line_length
     create_function:
       params: preserve         # preserve | never | always | auto   (CREATE FUNCTION / PROCEDURE parameter list)
                                #   always: one parameter per line, ")" on its own line
@@ -619,6 +627,16 @@ layout:
     create_sequence:
       break: preserve          # preserve | never | always | auto   (CREATE / ALTER SEQUENCE: AS, INCREMENT, MINVALUE,
                                #   MAXVALUE, START, RESTART, CACHE, CYCLE, OWNED BY each on a line)
+    create_partition:
+      break: preserve          # preserve | never | always | auto   (CREATE TABLE … PARTITION OF: PARTITION OF, FOR VALUES,
+                               #   PARTITION BY, WITH, TABLESPACE each on a line)
+    drop:
+      break: preserve          # preserve | never | always | auto   (DROP TABLE / VIEW / INDEX / … with several objects:
+                               #   one per line, CASCADE / RESTRICT on a line of its own; needs more than one object)
+    create_domain:
+      break: preserve          # preserve | never | always | auto   (DEFAULT, COLLATE, NOT NULL, CONSTRAINT / CHECK each on a line)
+    create_extension:
+      break: preserve          # preserve | never | always | auto   (WITH SCHEMA, VERSION, CASCADE each on a line)
 
   case:
     break: preserve          # preserve | never | always | auto
@@ -879,7 +897,7 @@ layout:
 
 **Config file not found**
 
-pg_procrustes walks up from the *current working directory*, not from the location of the SQL file. Run the tool from the project root, or use `-c path/to/.pg_procrustes.yaml` to point at the config explicitly.
+pg_procrustes walks up from the *directory of each SQL file* (for stdin: from the directory of `--stdin-filepath`, else from the current working directory) and, if that finds nothing, from the current working directory. Check which file is used with `pg_procrustes --print-config path/to/file.sql`, or use `-c path/to/.pg_procrustes.yaml` to point at the config explicitly.
 
 **Dollar-quoted block is not formatted**
 

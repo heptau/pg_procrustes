@@ -3,6 +3,8 @@ package layout
 import (
 	"strings"
 
+	pg_query "github.com/pganalyze/pg_query_go/v6"
+
 	"github.com/heptau/pg_procrustes/config"
 )
 
@@ -106,6 +108,14 @@ func rebuildMoreCreate(sql string, tokens []rawTok, stmt statement, first int, c
 		return rebuildSequence(sql, tokens, stmt, first, cfg, indentUnit, depth)
 	case "type":
 		return rebuildCreateType(sql, tokens, stmt, i, cfg, indentUnit, depth)
+	case "domain":
+		return rebuildDomain(sql, tokens, stmt, i, cfg, indentUnit, depth)
+	case "extension":
+		return rebuildExtension(sql, tokens, stmt, i, cfg, indentUnit, depth)
+	case "table":
+		if nameEnd := afterName(tokens, stmt, i+1); nameEnd >= 0 && w(nameEnd) == "partition" && w(nameEnd+1) == "of" {
+			return rebuildPartition(sql, tokens, stmt, nameEnd, cfg, indentUnit, depth)
+		}
 	}
 	return "", false
 }
@@ -335,4 +345,231 @@ func isCreateTrigger(tokens []rawTok, from, i int) bool {
 		}
 	}
 	return false
+}
+
+// scanRaw tokenizes text for the DDL helpers that work on a single item.
+func scanRaw(text string) []rawTok {
+	res, err := pg_query.Scan(text)
+	if err != nil {
+		return nil
+	}
+	toks := make([]rawTok, len(res.Tokens))
+	for i, t := range res.Tokens {
+		toks[i] = rawTok{start: int(t.Start), end: int(t.End), text: text[t.Start:t.End]}
+	}
+	return toks
+}
+
+// constraintAction reports whether an ALTER TABLE action item is ADD [CONSTRAINT name]
+// PRIMARY KEY | FOREIGN KEY | UNIQUE | CHECK | EXCLUDE and returns its tokens.
+func constraintAction(item string) ([]rawTok, bool) {
+	toks := scanRaw(item)
+	w := func(i int) string { return lowerAt(toks, i, len(toks)) }
+	if len(toks) < 3 || w(0) != "add" {
+		return nil, false
+	}
+	i := 1
+	if w(1) == "constraint" {
+		i = 3
+	}
+	switch w(i) {
+	case "primary", "foreign", "unique", "check", "exclude":
+		return toks, true
+	}
+	return nil, false
+}
+
+// breakConstraint puts the parts of an ADD CONSTRAINT action — the constraint type
+// (FOREIGN KEY …), REFERENCES, MATCH, ON DELETE / UPDATE, [NOT] DEFERRABLE, NOT VALID —
+// on lines of their own, indented by indent. Items with a `--` comment are returned as is.
+func breakConstraint(item string, toks []rawTok, indent string, parenMode config.ParenSpacingMode) string {
+	if hasLineComment(toks, 0, len(toks)) {
+		return item
+	}
+	named := lowerAt(toks, 1, len(toks)) == "constraint"
+	starts := segmentStarts(toks, 1, len(toks), func(w func(int) string, i int) bool {
+		switch w(i) {
+		case "primary", "foreign", "unique", "check", "exclude":
+			return named && i == 3
+		case "references", "match":
+			return true
+		case "on":
+			return w(i+1) == "delete" || w(i+1) == "update"
+		case "deferrable":
+			return w(i-1) != "not"
+		case "not":
+			return w(i+1) == "deferrable" || w(i+1) == "valid"
+		}
+		return false
+	})
+	if len(starts) == 0 {
+		return item
+	}
+	var sb strings.Builder
+	sb.WriteString(inlineContent(item, toks, 0, starts[0], parenMode))
+	for k, s := range starts {
+		end := len(toks)
+		if k+1 < len(starts) {
+			end = starts[k+1]
+		}
+		sb.WriteByte('\n')
+		sb.WriteString(indent)
+		sb.WriteString(inlineContent(item, toks, s, end, parenMode))
+	}
+	return sb.String()
+}
+
+// rebuildPartition puts the parts of CREATE TABLE name PARTITION OF parent — FOR VALUES …
+// (or DEFAULT), PARTITION BY, WITH, TABLESPACE — on lines of their own.
+func rebuildPartition(sql string, tokens []rawTok, stmt statement, nameEnd int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
+	seenBy := false
+	seen := map[string]bool{}
+	starts := segmentStarts(tokens, nameEnd, stmt.endTok, func(w func(int) string, i int) bool {
+		switch x := w(i); x {
+		case "partition":
+			if i == nameEnd {
+				return true
+			}
+			if w(i+1) == "by" && !seenBy {
+				seenBy = true
+				return true
+			}
+		case "for", "default", "tablespace", "using", "inherits":
+			if !seen[x] {
+				seen[x] = true
+				return true
+			}
+		case "with":
+			return w(i-1) != "values"
+		case "on":
+			return w(i+1) == "commit"
+		}
+		return false
+	})
+	return rebuildSegments(sql, tokens, stmt, starts, cfg.DDL.CreatePartition.Break, cfg, indentUnit, depth)
+}
+
+// rebuildDrop puts the objects of DROP TABLE a, b, c [CASCADE] one per line with CASCADE /
+// RESTRICT on a line of its own; always and auto need more than one object.
+func rebuildDrop(sql string, tokens []rawTok, stmt statement, first int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
+	mode := cfg.DDL.Drop.Break
+	if mode == "" || mode == config.BreakPreserve || hasLineComment(tokens, stmt.startTok, stmt.endTok) {
+		return "", false
+	}
+	w := func(i int) string { return lowerAt(tokens, i, stmt.endTok) }
+	i := first + 1
+	switch w(i) {
+	case "table", "view", "index", "sequence", "schema", "type", "domain", "extension", "collation", "role", "user", "group", "database":
+		i++
+	case "materialized", "foreign":
+		if w(i+1) != "view" && w(i+1) != "table" {
+			return "", false
+		}
+		i += 2
+	default:
+		return "", false
+	}
+	if w(i) == "concurrently" {
+		i++
+	}
+	if w(i) == "if" && w(i+1) == "exists" {
+		i += 2
+	}
+	listStart := i
+	listEnd := stmt.endTok
+	tail := -1
+	depthP := 0
+	for k := listStart; k < stmt.endTok; k++ {
+		switch tokens[k].text {
+		case "(":
+			depthP++
+		case ")":
+			depthP--
+		}
+		if depthP == 0 && (w(k) == "cascade" || w(k) == "restrict") {
+			listEnd, tail = k, k
+			break
+		}
+	}
+	if listStart >= listEnd {
+		return "", false
+	}
+	items := splitAtComma(sql, tokens, listStart, listEnd)
+	if len(items) == 0 {
+		return "", false
+	}
+	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
+	var sb strings.Builder
+	sb.WriteString(ddlHead(sql, tokens, stmt, listStart-1))
+	if len(items) < 2 && mode != config.BreakNever || !shouldBreak(flat, mode, cfg.LineLength) && mode != config.BreakNever {
+		return "", false
+	}
+	if mode == config.BreakNever {
+		for k, it := range items {
+			if k == 0 {
+				sb.WriteByte(' ')
+			} else {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(collapseGaps(it, 0, len(it)))
+		}
+		if tail >= 0 {
+			sb.WriteByte(' ')
+			sb.WriteString(inlineContent(sql, tokens, tail, stmt.endTok, cfg.ParenSpacing))
+		}
+		finishDDL(&sb, tokens, stmt)
+		return sb.String(), true
+	}
+	baseIndent := strings.Repeat(indentUnit, depth)
+	emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, listStart, listEnd), baseIndent+indentUnit)
+	if tail >= 0 {
+		sb.WriteByte('\n')
+		sb.WriteString(baseIndent)
+		sb.WriteString(inlineContent(sql, tokens, tail, stmt.endTok, cfg.ParenSpacing))
+	}
+	finishDDL(&sb, tokens, stmt)
+	return sb.String(), true
+}
+
+// rebuildDomain puts the DEFAULT, COLLATE, NOT NULL / NULL and CONSTRAINT / CHECK parts of
+// CREATE DOMAIN name AS type on lines of their own.
+func rebuildDomain(sql string, tokens []rawTok, stmt statement, kw int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
+	nameEnd := skipQualifiedName(tokens, kw+1, stmt.endTok)
+	if nameEnd < 0 {
+		return "", false
+	}
+	starts := segmentStarts(tokens, nameEnd, stmt.endTok, func(w func(int) string, i int) bool {
+		switch w(i) {
+		case "default", "collate", "constraint":
+			return true
+		case "not":
+			return w(i+1) == "null"
+		case "null":
+			return w(i-1) != "not"
+		case "check":
+			return w(i-2) != "constraint"
+		}
+		return false
+	})
+	return rebuildSegments(sql, tokens, stmt, starts, cfg.DDL.CreateDomain.Break, cfg, indentUnit, depth)
+}
+
+// rebuildExtension puts SCHEMA, VERSION and CASCADE of CREATE EXTENSION on lines of their own.
+func rebuildExtension(sql string, tokens []rawTok, stmt statement, kw int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
+	nameEnd := afterName(tokens, stmt, kw+1)
+	if nameEnd < 0 {
+		return "", false
+	}
+	starts := segmentStarts(tokens, nameEnd, stmt.endTok, func(w func(int) string, i int) bool {
+		switch w(i) {
+		case "with":
+			return i == nameEnd
+		case "schema", "version", "from":
+			return w(i-1) != "with" || i-1 != nameEnd
+		case "cascade":
+			return true
+		}
+		return false
+	})
+	return rebuildSegments(sql, tokens, stmt, starts, cfg.DDL.CreateExtension.Break, cfg, indentUnit, depth)
 }

@@ -32,10 +32,12 @@ function M.setup(opts)
 
   conform.formatters.pg_procrustes = {
     command = M.options.bin,
-    args = M.options.args,
+    -- --stdin-filepath makes the config come from the buffer's directory, not from nvim's cwd
+    args = vim.list_extend({ "--stdin-filepath", "$FILENAME" }, M.options.args),
     -- range formatting (visual selection): only the statements touching the lines are formatted
     range_args = function(_, ctx)
-      local args = vim.deepcopy(M.options.args)
+      local args = { "--stdin-filepath", "$FILENAME" }
+      vim.list_extend(args, M.options.args)
       vim.list_extend(args, { "--lines", ctx.range.start[1] .. ":" .. ctx.range["end"][1] })
       return args
     end,
@@ -62,6 +64,10 @@ function M.format(bufnr, line1, line2)
 
   local cmd = { M.options.bin }
   vim.list_extend(cmd, M.options.args)
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  if name ~= "" then
+    vim.list_extend(cmd, { "--stdin-filepath", name })
+  end
   if line1 and line2 then
     vim.list_extend(cmd, { "--lines", line1 .. ":" .. line2 })
   end

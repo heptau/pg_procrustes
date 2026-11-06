@@ -278,6 +278,14 @@ layout:
                                #   auto:   break when there is more than one action or the statement
                                #           is longer than line_length
                                #   (comma_position and indent size apply to both)
+      constraints: preserve    # preserve | always | auto   (ADD [CONSTRAINT name] PRIMARY KEY | FOREIGN KEY | UNIQUE | CHECK)
+                               #   always: the parts of the constraint each on a line below the action
+                               #           ALTER TABLE t
+                               #              ADD CONSTRAINT fk
+                               #                 FOREIGN KEY (a)
+                               #                 REFERENCES u (a)
+                               #                 ON DELETE CASCADE;
+                               #   auto:   only when the statement is longer than line_length
     create_function:
       params: preserve         # preserve | never | always | auto   (CREATE FUNCTION / PROCEDURE parameter list)
                                #   always: one parameter per line, ")" on its own line
@@ -323,6 +331,16 @@ layout:
     create_sequence:
       break: preserve          # preserve | never | always | auto   (CREATE / ALTER SEQUENCE: AS, INCREMENT, MINVALUE,
                                #   MAXVALUE, START, RESTART, CACHE, CYCLE, OWNED BY each on a line)
+    create_partition:
+      break: preserve          # preserve | never | always | auto   (CREATE TABLE … PARTITION OF: PARTITION OF, FOR VALUES,
+                               #   PARTITION BY, WITH, TABLESPACE each on a line)
+    drop:
+      break: preserve          # preserve | never | always | auto   (DROP TABLE / VIEW / INDEX / … with several objects:
+                               #   one per line, CASCADE / RESTRICT on a line of its own; needs more than one object)
+    create_domain:
+      break: preserve          # preserve | never | always | auto   (DEFAULT, COLLATE, NOT NULL, CONSTRAINT / CHECK each on a line)
+    create_extension:
+      break: preserve          # preserve | never | always | auto   (WITH SCHEMA, VERSION, CASCADE each on a line)
   dollar_quote:
     newline_after_open: preserve   # preserve | add | remove  (\n after opening $$)
     newline_before_close: preserve # preserve | add | remove  (\n before closing $$)

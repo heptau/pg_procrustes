@@ -1,0 +1,9 @@
+layout:
+  clauses: {break: always}
+  content: {break: always}
+  ddl:
+    alter_table: {constraints: always}
+    create_partition: {break: always}
+    drop: {break: always}
+    create_domain: {break: always}
+    create_extension: {break: always}

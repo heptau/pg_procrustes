@@ -269,6 +269,31 @@ var matrixVariants = []matrixVariant{
 		c.Layout.DDL.CreateType.Break = config.BreakAuto
 		c.Layout.DDL.CreateSequence.Break = config.BreakAuto
 	}},
+	{"ddl_rest_always", func(c *config.Config) {
+		c.Layout.DDL.AlterTable.Constraints = config.BreakAlways
+		c.Layout.DDL.CreatePartition.Break = config.BreakAlways
+		c.Layout.DDL.Drop.Break = config.BreakAlways
+		c.Layout.DDL.CreateDomain.Break = config.BreakAlways
+		c.Layout.DDL.CreateExtension.Break = config.BreakAlways
+	}},
+	{"ddl_rest_never", func(c *config.Config) {
+		c.Layout.DDL.CreatePartition.Break = config.BreakNever
+		c.Layout.DDL.Drop.Break = config.BreakNever
+		c.Layout.DDL.CreateDomain.Break = config.BreakNever
+		c.Layout.DDL.CreateExtension.Break = config.BreakNever
+	}},
+	{"ddl_rest_auto_narrow_tabs_comma_start", func(c *config.Config) {
+		c.Layout.LineLength = 25
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Indent.Type = config.IndentTypeTab
+		c.Layout.DDL.AlterTable = config.AlterTableCfg{Break: config.BreakAlways, Constraints: config.BreakAuto}
+		c.Layout.DDL.CreatePartition.Break = config.BreakAuto
+		c.Layout.DDL.Drop.Break = config.BreakAuto
+		c.Layout.DDL.CreateDomain.Break = config.BreakAuto
+		c.Layout.DDL.CreateExtension.Break = config.BreakAuto
+	}},
 	{"comments_both", func(c *config.Config) {
 		c.Comments = config.CommentsCfg{SpaceAfterMarker: config.CommentSpaceAdd, AlignTrailing: config.CommentAlignAlign}
 	}},
@@ -402,6 +427,12 @@ var matrixInline = []string{
 	"grant select, insert (a, b) on table t1, t2 to r1, r2 with grant option; grant r1 to r2 with admin option granted by r3; revoke grant option for select on t from public cascade; revoke all on all tables in schema s from r;",
 	"create type mood as enum ('sad', 'ok', 'happy'); create type pt as (x int, y int); create type r as range (subtype = int4); create type base (input = i, output = o);",
 	"create sequence if not exists s as bigint increment by 2 minvalue 1 no maxvalue start with 5 cache 10 no cycle owned by t.id; alter sequence s restart with 1 cycle; alter sequence s owner to r;",
+	"alter table t add constraint c foreign key (a, b) references u (a, b) match full on delete cascade on update set null deferrable initially deferred not valid; alter table t add primary key (id), add constraint u1 unique (x), drop column z;",
+	"create table c1 partition of p for values in (1, 2, 3); create table c2 partition of p for values from (1) to (10) partition by range (x) tablespace ts; create table c3 partition of p for values with (modulus 4, remainder 0); create table c4 partition of p default;",
+	"drop table if exists a, b, c cascade; drop table a; drop index concurrently if exists i1, i2; drop materialized view mv restrict; drop function f(int);",
+	"create domain d as int default 1 not null constraint pos check (value > 0) check (value < 100); create domain e as text collate \"C\" null;",
+	"create extension if not exists pgcrypto with schema public version '1.3' cascade; create extension hstore;",
+	"insert into t (a, b) values (1, 2) on conflict (a) do update set b = excluded.b where t.b < 3 returning a; insert into t (a) values (1) on conflict on constraint k do nothing;",
 	"with data as (select 1) select * from data;",
 	"select a, -- first\n b -- second\n from t where x = 1 -- tail\n and y = 2;",
 	"select a from u union select b from v union all select 1;",

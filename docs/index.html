@@ -944,7 +944,7 @@ pg_procrustes --version</code></pre>
 
     <h4 data-i18n="usage_lookup_h4">Config file lookup</h4>
     <p data-i18n="usage_lookup_p">
-      pg_procrustes looks for <code>.pg_procrustes.yaml</code> starting in the current directory and walking up to the filesystem root.
+      pg_procrustes looks for <code>.pg_procrustes.yaml</code> starting in the directory of each file (for stdin: of <code>--stdin-filepath</code>, else the current directory) and walking up to the filesystem root.
       Use <code>-c</code> to specify a path explicitly. All settings default to <code>preserve</code> — if no config is found, nothing changes.
     </p>
   </section>

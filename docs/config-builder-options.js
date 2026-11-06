@@ -3070,6 +3070,152 @@ window.CB_OPTIONS = {
      }
     },
     {
+     "key": "layout.ddl.alter_table.constraints",
+     "label": "ALTER TABLE — constraints",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the parts of an ADD [CONSTRAINT name] PRIMARY KEY / FOREIGN KEY / UNIQUE / CHECK action — the constraint type, REFERENCES, MATCH, ON DELETE / UPDATE, [NOT] DEFERRABLE, NOT VALID — on their own indented lines below the action. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "alter table orders add constraint fk_customer foreign key (customer_id) references customers (id) on delete cascade;\n\nalter table orders\n   add constraint fk_customer\n      foreign key (customer_id)\n      references customers (id)\n      on delete cascade;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_partition.break",
+     "label": "CREATE TABLE … PARTITION OF — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the PARTITION OF, FOR VALUES (or DEFAULT), PARTITION BY, WITH and TABLESPACE parts of CREATE TABLE … PARTITION OF on their own indented lines. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create table orders_2026 partition of orders for values from ('2026-01-01') to ('2027-01-01') tablespace fast;\n\ncreate table orders_2026\n   partition of orders\n   for values from ('2026-01-01') to ('2027-01-01')\n   tablespace fast;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.drop.break",
+     "label": "DROP — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the objects of DROP TABLE / VIEW / INDEX / SEQUENCE / SCHEMA / TYPE / … with several names on one line each, with CASCADE or RESTRICT on a line of its own. always and auto need more than one object; auto also needs a statement longer than line_length.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one object per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "drop table if exists order_items, orders, customers cascade;\n\ndrop table if exists\n   order_items,\n   orders,\n   customers\ncascade;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_domain.break",
+     "label": "CREATE DOMAIN — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the DEFAULT, COLLATE, NOT NULL / NULL and CONSTRAINT / CHECK parts of CREATE DOMAIN on their own indented lines. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create domain positive_int as integer not null constraint positive check (value > 0) check (value < 1000000);\n\ncreate domain positive_int as integer\n   not null\n   constraint positive check (value > 0)\n   check (value < 1000000);",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_extension.break",
+     "label": "CREATE EXTENSION — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the WITH SCHEMA, VERSION, FROM and CASCADE parts of CREATE EXTENSION on their own indented lines. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create extension if not exists pgcrypto with schema public version '1.3' cascade;\n\ncreate extension if not exists pgcrypto\n   with schema public\n   version '1.3'\n   cascade;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
      "key": "layout.union.blank_line",
      "label": "UNION blank line",
      "type": "select",

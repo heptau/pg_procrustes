@@ -1128,6 +1128,54 @@ window.CB_EXAMPLES = {
    "t": "alter table users add column notes text, drop column old_col;\nalter table users rename to accounts;\n\nalter table users\n   add column notes text,\n   drop column old_col;"
   }
  },
+ "layout.ddl.alter_table.constraints": {
+  "": {
+   "t": "alter table orders add constraint fk_customer foreign key (customer_id) references customers (id) on delete cascade;\n\nalter table orders\n   add constraint fk_customer\n      foreign key (customer_id)\n      references customers (id)\n      on delete cascade;"
+  },
+  "always": {
+   "t": "alter table orders\n  add constraint fk_customer\n    foreign key (customer_id)\n    references customers (id)\n    on delete cascade;\n\nalter table orders\n  add constraint fk_customer\n    foreign key (customer_id)\n    references customers (id)\n    on delete cascade;"
+  },
+  "auto": {
+   "t": "alter table orders\n  add constraint fk_customer\n    foreign key (customer_id)\n    references customers (id)\n    on delete cascade;\n\nalter table orders\n  add constraint fk_customer\n    foreign key (customer_id)\n    references customers (id)\n    on delete cascade;"
+  },
+  "preserve": {
+   "t": "alter table orders add constraint fk_customer foreign key (customer_id) references customers (id) on delete cascade;\n\nalter table orders\n   add constraint fk_customer\n      foreign key (customer_id)\n      references customers (id)\n      on delete cascade;"
+  }
+ },
+ "layout.ddl.create_domain.break": {
+  "": {
+   "t": "create domain positive_int as integer not null constraint positive check (value \u003e 0) check (value \u003c 1000000);\n\ncreate domain positive_int as integer\n   not null\n   constraint positive check (value \u003e 0)\n   check (value \u003c 1000000);"
+  },
+  "always": {
+   "t": "create domain positive_int as integer\n  not null\n  constraint positive check (value \u003e 0)\n  check (value \u003c 1000000);\n\ncreate domain positive_int as integer\n  not null\n  constraint positive check (value \u003e 0)\n  check (value \u003c 1000000);"
+  },
+  "auto": {
+   "t": "create domain positive_int as integer\n  not null\n  constraint positive check (value \u003e 0)\n  check (value \u003c 1000000);\n\ncreate domain positive_int as integer\n  not null\n  constraint positive check (value \u003e 0)\n  check (value \u003c 1000000);"
+  },
+  "never": {
+   "t": "create domain positive_int as integer not null constraint positive check (value \u003e 0) check (value \u003c 1000000);\n\ncreate domain positive_int as integer not null constraint positive check (value \u003e 0) check (value \u003c 1000000);"
+  },
+  "preserve": {
+   "t": "create domain positive_int as integer not null constraint positive check (value \u003e 0) check (value \u003c 1000000);\n\ncreate domain positive_int as integer\n   not null\n   constraint positive check (value \u003e 0)\n   check (value \u003c 1000000);"
+  }
+ },
+ "layout.ddl.create_extension.break": {
+  "": {
+   "t": "create extension if not exists pgcrypto with schema public version '1.3' cascade;\n\ncreate extension if not exists pgcrypto\n   with schema public\n   version '1.3'\n   cascade;"
+  },
+  "always": {
+   "t": "create extension if not exists pgcrypto\n  with schema public\n  version '1.3'\n  cascade;\n\ncreate extension if not exists pgcrypto\n  with schema public\n  version '1.3'\n  cascade;"
+  },
+  "auto": {
+   "t": "create extension if not exists pgcrypto\n  with schema public\n  version '1.3'\n  cascade;\n\ncreate extension if not exists pgcrypto\n  with schema public\n  version '1.3'\n  cascade;"
+  },
+  "never": {
+   "t": "create extension if not exists pgcrypto with schema public version '1.3' cascade;\n\ncreate extension if not exists pgcrypto with schema public version '1.3' cascade;"
+  },
+  "preserve": {
+   "t": "create extension if not exists pgcrypto with schema public version '1.3' cascade;\n\ncreate extension if not exists pgcrypto\n   with schema public\n   version '1.3'\n   cascade;"
+  }
+ },
  "layout.ddl.create_function.options": {
   "": {
    "t": "create function add_user(p_name text, p_age integer default 18) returns bigint language sql immutable as $$ select 1::bigint $$;\n\ncreate function add_user(p_name text, p_age integer default 18)\nreturns bigint\nlanguage sql\nimmutable as $$ select 1::bigint $$;"
@@ -1177,6 +1225,23 @@ window.CB_EXAMPLES = {
   },
   "preserve": {
    "t": "create unique index idx_users_email on public.users using btree (lower(email)) include (name) where deleted_at is null;\n\ncreate unique index idx_users_email\n   on public.users\n   using btree (lower(email))\n   include (name)\n   where deleted_at is null;"
+  }
+ },
+ "layout.ddl.create_partition.break": {
+  "": {
+   "t": "create table orders_2026 partition of orders for values from ('2026-01-01') to ('2027-01-01') tablespace fast;\n\ncreate table orders_2026\n   partition of orders\n   for values from ('2026-01-01') to ('2027-01-01')\n   tablespace fast;"
+  },
+  "always": {
+   "t": "create table orders_2026\n  partition of orders\n  for values from ('2026-01-01') to ('2027-01-01')\n  tablespace fast;\n\ncreate table orders_2026\n  partition of orders\n  for values from ('2026-01-01') to ('2027-01-01')\n  tablespace fast;"
+  },
+  "auto": {
+   "t": "create table orders_2026\n  partition of orders\n  for values from ('2026-01-01') to ('2027-01-01')\n  tablespace fast;\n\ncreate table orders_2026\n  partition of orders\n  for values from ('2026-01-01') to ('2027-01-01')\n  tablespace fast;"
+  },
+  "never": {
+   "t": "create table orders_2026 partition of orders for values from ('2026-01-01') to ('2027-01-01') tablespace fast;\n\ncreate table orders_2026 partition of orders for values from ('2026-01-01') to ('2027-01-01') tablespace fast;"
+  },
+  "preserve": {
+   "t": "create table orders_2026 partition of orders for values from ('2026-01-01') to ('2027-01-01') tablespace fast;\n\ncreate table orders_2026\n   partition of orders\n   for values from ('2026-01-01') to ('2027-01-01')\n   tablespace fast;"
   }
  },
  "layout.ddl.create_policy.break": {
@@ -1296,6 +1361,23 @@ window.CB_EXAMPLES = {
   },
   "preserve": {
    "t": "create view v_users (id, name, email, created_at) as\nselect id, name, email, created_at\nfrom users;\n\ncreate view v_users (\n   id,\n   name,\n   email,\n   created_at\n) as\nselect id, name, email, created_at\nfrom users;"
+  }
+ },
+ "layout.ddl.drop.break": {
+  "": {
+   "t": "drop table if exists order_items, orders, customers cascade;\n\ndrop table if exists\n   order_items,\n   orders,\n   customers\ncascade;"
+  },
+  "always": {
+   "t": "drop table if exists\n  order_items,\n  orders,\n  customers\ncascade;\n\ndrop table if exists\n  order_items,\n  orders,\n  customers\ncascade;"
+  },
+  "auto": {
+   "t": "drop table if exists\n  order_items,\n  orders,\n  customers\ncascade;\n\ndrop table if exists\n  order_items,\n  orders,\n  customers\ncascade;"
+  },
+  "never": {
+   "t": "drop table if exists order_items, orders, customers cascade;\n\ndrop table if exists order_items, orders, customers cascade;"
+  },
+  "preserve": {
+   "t": "drop table if exists order_items, orders, customers cascade;\n\ndrop table if exists\n   order_items,\n   orders,\n   customers\ncascade;"
   }
  },
  "layout.ddl.grant.break": {
