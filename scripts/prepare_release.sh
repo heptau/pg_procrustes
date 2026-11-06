@@ -4,7 +4,7 @@ set -euo pipefail
 # prepare_release.sh — Interactive release preparation:
 #   1. ask for the new version (or take VERSION from the environment),
 #   2. show what will happen and ask for confirmation,
-#   3. run the tests,
+#   3. run the linter and the tests,
 #   4. bump VERSION, roll CHANGELOG.md's [Unreleased] into a dated entry,
 #   5. commit and push.
 #
@@ -83,7 +83,7 @@ fi
 # ── Confirm ──────────────────────────────────────────────────────────────────
 echo ""
 echo "About to release v${VERSION} (from ${CURRENT}) on branch ${BRANCH}:"
-echo "  1. go test ./..."
+echo "  1. make lint, go test ./..."
 echo "  2. bump VERSION, roll CHANGELOG [Unreleased] → [${VERSION}]"
 echo "  3. commit \"chore(release): v${VERSION}\" and push"
 echo "  (make release then also tags v${VERSION} and pushes the tag; CI publishes)"
@@ -96,6 +96,9 @@ if [[ -z "${YES:-}" ]]; then
 fi
 
 # ── Tests first, so a failure leaves nothing behind ──────────────────────────
+echo "==> Running linter..."
+make --no-print-directory lint
+
 echo "==> Running tests..."
 go test ./... -count=1
 

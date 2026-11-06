@@ -70,11 +70,11 @@ func loadStyled(path string) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := f.Write(out); err != nil {
 		return nil, err
 	}
-	f.Close()
+	_ = f.Close()
 	return config.Load(f.Name())
 }
 

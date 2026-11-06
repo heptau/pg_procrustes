@@ -37,7 +37,7 @@ func TestExpandInputs(t *testing.T) {
 	writeTree(t, root, "top.sql", "a/one.sql", "a/b/two.SQL", "a/readme.txt", "node_modules/x/n.sql", ".git/h.sql", "a/.hidden/h.sql", "a/b/c/three.sql")
 	chdir := func(dir string) {
 		wd, _ := os.Getwd()
-		t.Cleanup(func() { os.Chdir(wd) })
+		t.Cleanup(func() { _ = os.Chdir(wd) })
 		if err := os.Chdir(dir); err != nil {
 			t.Fatal(err)
 		}

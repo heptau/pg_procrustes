@@ -16,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `make prepare-release` / `make release` run `make lint` before the tests (CI already linted pushes and PRs, the local release path did not); the 22 outstanding `golangci-lint` findings (unchecked `Close` / `Write` / `Remove` errors, two ineffectual assignments, an unused helper) are fixed
 - The config file is now looked up from **the directory of each file** (then its parents, then — if nothing is found — the working directory and its parents) instead of only from the working directory, so the result no longer depends on where the program is run and files of several projects can be formatted in one call; `-c` still wins, text on stdin uses `--stdin-filepath` (else the working directory), `--print-config [file]` shows the config of that file. Library: `config.FindConfig(dir)`, `config.ConfigPathFor(file)`
 - `ON CONFLICT (target) DO UPDATE` / `DO NOTHING` stays on one line when clauses are broken (it was split into `on conflict` / `(a) do update`); `SET`, `WHERE` and `RETURNING` follow on lines of their own
 

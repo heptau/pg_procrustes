@@ -21,16 +21,7 @@ func tokenStartsLine(sql string, t rawTok) bool {
 	return j < 0 || sql[j] == '\n'
 }
 
-// tokenEndsLine reports whether only blanks follow the token on its line.
-func tokenEndsLine(sql string, t rawTok) bool {
-	j := t.end
-	for j < len(sql) && (sql[j] == ' ' || sql[j] == '\t' || sql[j] == '\r') {
-		j++
-	}
-	return j >= len(sql) || sql[j] == '\n'
-}
-
-// endsLineBeforeComment is tokenEndsLine that also accepts a trailing -- comment after the token.
+// endsLineBeforeComment reports whether only blanks, or a trailing -- comment, follow the token on its line.
 func endsLineBeforeComment(sql string, t rawTok) bool {
 	j := t.end
 	for j < len(sql) && (sql[j] == ' ' || sql[j] == '\t' || sql[j] == '\r') {

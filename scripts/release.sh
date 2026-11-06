@@ -21,6 +21,8 @@ echo ""
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 if [[ -z "${SKIP_TESTS:-}" ]]; then
+  echo "==> Running linter..."
+  make --no-print-directory lint
   echo "==> Running tests..."
   go test ./... -count=1
   echo ""

@@ -150,7 +150,7 @@ func windowSegments(item string, toks []*pg_query.ScanToken) []string {
 		segs = append(segs, strings.TrimSpace(item[toks[0].Start:toks[starts[0]].Start]))
 	}
 	for k, st := range starts {
-		end := len(item)
+		var end int
 		if k+1 < len(starts) {
 			end = int(toks[starts[k+1]].Start)
 		} else {

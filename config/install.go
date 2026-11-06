@@ -97,15 +97,15 @@ func InstallTemplates(src, dest string) ([]InstalledTemplate, error) {
 		_, werr := tmp.Write(files[n])
 		cerr := tmp.Close()
 		if werr != nil || cerr != nil {
-			os.Remove(tmp.Name())
+			_ = os.Remove(tmp.Name())
 			return out, fmt.Errorf("writing %s: %v %v", n, werr, cerr)
 		}
 		if err := os.Chmod(tmp.Name(), 0o644); err != nil {
-			os.Remove(tmp.Name())
+			_ = os.Remove(tmp.Name())
 			return out, err
 		}
 		if err := os.Rename(tmp.Name(), target); err != nil {
-			os.Remove(tmp.Name())
+			_ = os.Remove(tmp.Name())
 			return out, err
 		}
 		out = append(out, InstalledTemplate{
@@ -125,7 +125,7 @@ func readTemplateSource(src string) (map[string][]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("download %s: %w", src, err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			hint := ""
 			if resp.StatusCode == http.StatusNotFound {
@@ -182,7 +182,7 @@ func readLimited(p string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, maxTemplateFile+1))
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func readTemplateZip(data []byte) (map[string][]byte, error) {
 			return nil, err
 		}
 		b, err := io.ReadAll(io.LimitReader(rc, maxTemplateFile+1))
-		rc.Close()
+		_ = rc.Close()
 		if err != nil {
 			return nil, err
 		}

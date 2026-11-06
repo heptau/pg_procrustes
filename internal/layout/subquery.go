@@ -170,7 +170,7 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 // longer than lineLength.
 func subqueryLineTooLong(sql string, start, end, lineLength int) bool {
 	ls := strings.LastIndexByte(sql[:start], '\n') + 1
-	le := end
+	var le int
 	if i := strings.IndexByte(sql[end:], '\n'); i >= 0 {
 		le = end + i
 	} else {

@@ -25,7 +25,7 @@ func TestConfigPathForUsesTheFilesDirectory(t *testing.T) {
 		}
 	}
 	wd, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(wd) })
+	t.Cleanup(func() { _ = os.Chdir(wd) })
 	if err := os.Chdir(other); err != nil { // cwd has its own config, the file's project must still win
 		t.Fatal(err)
 	}

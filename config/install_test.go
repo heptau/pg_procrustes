@@ -20,7 +20,7 @@ func makeZip(t *testing.T, files map[string]string) []byte {
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
@@ -80,8 +80,8 @@ func TestInstallTemplatesFromZipFile(t *testing.T) {
 
 func TestInstallTemplatesFromDirectory(t *testing.T) {
 	src := t.TempDir()
-	os.WriteFile(filepath.Join(src, "a.yaml"), []byte("keywords:\n  case: lower\n"), 0o644)
-	os.WriteFile(filepath.Join(src, "notes.txt"), []byte("x"), 0o644)
+	_ = os.WriteFile(filepath.Join(src, "a.yaml"), []byte("keywords:\n  case: lower\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(src, "notes.txt"), []byte("x"), 0o644)
 	dest := filepath.Join(t.TempDir(), "d")
 	got, err := InstallTemplates(src, dest)
 	if err != nil || len(got) != 1 || got[0].Name != "a" {
@@ -96,7 +96,7 @@ func TestInstallTemplatesOverHTTP(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Write(data)
+		_, _ = w.Write(data)
 	}))
 	defer srv.Close()
 	dest := t.TempDir()
@@ -119,7 +119,7 @@ func TestInstallTemplatesRejectsBadInput(t *testing.T) {
 	}
 	for name, data := range cases {
 		p := filepath.Join(dir, name)
-		os.WriteFile(p, data, 0o644)
+		_ = os.WriteFile(p, data, 0o644)
 		dest := filepath.Join(dir, "dest-"+name)
 		if _, err := InstallTemplates(p, dest); err == nil {
 			t.Errorf("%s: expected an error", name)

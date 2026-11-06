@@ -113,7 +113,7 @@ func Serve(in io.Reader, out io.Writer, opts Options) int {
 			body, err := readFrame(br)
 			if err != nil {
 				if err != io.EOF {
-					fmt.Fprintf(opts.Log, "pg_procrustes lsp: read: %v\n", err)
+					_, _ = fmt.Fprintf(opts.Log, "pg_procrustes lsp: read: %v\n", err)
 				}
 				return
 			}
@@ -178,13 +178,13 @@ func readFrame(br *bufio.Reader) ([]byte, error) {
 func (s *server) send(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		fmt.Fprintf(s.opts.Log, "pg_procrustes lsp: marshal: %v\n", err)
+		_, _ = fmt.Fprintf(s.opts.Log, "pg_procrustes lsp: marshal: %v\n", err)
 		return
 	}
 	s.outMu.Lock()
 	defer s.outMu.Unlock()
-	fmt.Fprintf(s.out, "Content-Length: %d\r\n\r\n", len(data))
-	s.out.Write(data)
+	_, _ = fmt.Fprintf(s.out, "Content-Length: %d\r\n\r\n", len(data))
+	_, _ = s.out.Write(data)
 }
 
 func (s *server) reply(id json.RawMessage, result any) {
