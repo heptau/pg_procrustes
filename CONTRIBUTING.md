@@ -44,6 +44,8 @@ go build ./...
 go test ./... -count=1
 go test ./formatter/... -run TestPLpgSQL -v   # specific subset
 go test ./internal/layout/... -run TestSQLCase -v
+make lint            # golangci-lint, pinned version (same as CI)
+make install-hooks   # pre-push hook: gofmt, lint and tests before every push
 ```
 
 ## Adding a new config option

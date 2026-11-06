@@ -11,7 +11,7 @@ LDFLAGS := -ldflags "-s -w -X main.version=$(APP_VERSION)"
 
 .DEFAULT_GOAL := help
 
-.PHONY: builder-templates builder-examples help build test test-update bench lint fmt install clean \
+.PHONY: builder-templates builder-examples help build test test-update bench lint fmt install install-hooks clean \
         build-darwin-arm64 build-darwin-amd64 \
         build-linux-amd64 build-linux-arm64 \
         build-windows-amd64 build-windows-arm64 \
@@ -111,6 +111,10 @@ builder-examples: builder-templates ## Regenerate docs/config-builder-examples.j
 
 llms: ## Regenerate docs/llms-full.txt from README.md and .pg_procrustes.yaml
 	@scripts/gen_llms_full.sh
+
+install-hooks: ## Use .githooks/ (pre-push: gofmt, lint, tests — same as CI) for this clone
+	git config core.hooksPath .githooks
+	@echo "pre-push hook active (skip once with: git push --no-verify)"
 
 # ── cleanup ───────────────────────────────────────────────────────────────────
 

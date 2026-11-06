@@ -8,9 +8,15 @@ permissions:
   contents: write
 
 jobs:
+  # ── Nothing is published unless formatting, build, lint and tests pass ───────
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
   # ── Create the GitHub release immediately so assets can trickle in ───────────
   prepare:
     name: Create release
+    needs: ci
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
