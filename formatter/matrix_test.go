@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -294,6 +296,7 @@ var matrixVariants = []matrixVariant{
 		c.Layout.DDL.CreateDomain.Break = config.BreakAuto
 		c.Layout.DDL.CreateExtension.Break = config.BreakAuto
 	}},
+	{"blank_lines_max_1", func(c *config.Config) { c.BlankLines = config.BlankLinesMax1 }},
 	{"comments_both", func(c *config.Config) {
 		c.Comments = config.CommentsCfg{SpaceAfterMarker: config.CommentSpaceAdd, AlignTrailing: config.CommentAlignAlign}
 	}},
@@ -433,6 +436,17 @@ var matrixInline = []string{
 	"create domain d as int default 1 not null constraint pos check (value > 0) check (value < 100); create domain e as text collate \"C\" null;",
 	"create extension if not exists pgcrypto with schema public version '1.3' cascade; create extension hstore;",
 	"insert into t (a, b) values (1, 2) on conflict (a) do update set b = excluded.b where t.b < 3 returning a; insert into t (a) values (1) on conflict on constraint k do nothing;",
+	"select 'a\nb  c' as x, 2 from t where y = 'p\n  q' and z in ('m\n    n', 'o') order by 1;",
+	"select e'line1\nline2' as a, 'x\n\ty' || b as c from (select 'in\n   side' as b) s where a like '%\n%';",
+	"insert into t (a, b) values ('multi\nline  text', 1), ('other\n   row', 2) on conflict (a) do update set b = 'u\n v';",
+	"create table t (a text default 'one\n  two', b int check (a <> 'x\n y'), c text);",
+	"update t set a = 'a\n   b', c = case when d = 'q\n r' then 's\n  t' else 'u' end where e = 'w\n x';",
+	"with c as (select 'cte\n   text' as v) select v, 'out\n  er' as w from c join d on d.k = 'j\n   k';",
+	"select coalesce(nullif('long\n   literal', ''), 'x') as a, concat('a\n  b', 'c\n d') as b, 1 from t group by 1 having count(*) > 'h\n i'::int;",
+	"select 'trailing   \n\n\tTabbed \nlast' as a, 'x' from t where b = 'u  \n  v  ';",
+	"select 'a --not a comment\n/* nor this */ b' as x -- real comment\nfrom t;",
+	"select 'p\n\n\n\nq' as a;\n\n\n\n\nselect 2 as b;",
+	"create function f() returns text language plpgsql as $$ begin return 'x\n\n\n\ny'; end $$;",
 	"with data as (select 1) select * from data;",
 	"select a, -- first\n b -- second\n from t where x = 1 -- tail\n and y = 2;",
 	"select a from u union select b from v union all select 1;",
@@ -632,6 +646,9 @@ func TestConfigMatrix(t *testing.T) {
 				if fp != baseFP {
 					t.Errorf("AST fingerprint changed\n--- input ---\n%s\n--- output ---\n%s", src, out)
 				}
+				if got, want := stringLiterals(out), stringLiterals(src); !reflect.DeepEqual(got, want) {
+					t.Errorf("string literals changed (AST fingerprints ignore constant values)\n--- input ---\n%s\n--- output ---\n%s\n--- literals before ---\n%q\n--- after ---\n%q", src, out, want, got)
+				}
 				if shape := plShape(out); baseShape != "" && shape != baseShape { // an unparseable baseline (e.g. `;;` repaired by layout) has nothing to compare
 					t.Errorf("PL/pgSQL structure changed\n--- input ---\n%s\n--- output ---\n%s", src, out)
 				}
@@ -645,6 +662,27 @@ func TestConfigMatrix(t *testing.T) {
 			})
 		}
 	}
+}
+
+// stringLiterals returns the sorted '…' string constants of sql (dollar-quoted bodies are
+// formatted on purpose and left out). Layout and casing rules must never touch their text.
+func stringLiterals(sql string) []string {
+	res, err := pg_query.Scan(sql)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, t := range res.Tokens {
+		text := sql[t.Start:t.End]
+		if strings.HasPrefix(text, "$") {
+			continue
+		}
+		if i := strings.IndexByte(text, '\''); i >= 0 && i <= 2 && strings.TrimLeft(text[:i], "eEbBxXuU&nN") == "" {
+			out = append(out, strings.ReplaceAll(text, "\r\n", "\n")) // line_endings: crlf rewrites line breaks on purpose
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 var wsRE = regexp.MustCompile(`\s+`)

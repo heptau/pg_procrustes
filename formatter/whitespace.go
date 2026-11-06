@@ -303,7 +303,7 @@ func compactGaps(text string, commas, operators bool) string {
 		t, next := toks[i], toks[i+1]
 		tt, nt := text[t.Start:t.End], text[next.Start:next.End]
 		drop := commas && tt == ","
-		if operators && (isSymbolicOp(tt) || isSymbolicOp(nt)) && tt != "(" && nt != ")" {
+		if operators && (isSymbolicOp(tt) || isSymbolicOp(nt)) && tt != "(" && nt != ")" && glueSafe(tt, nt) {
 			drop = true
 		}
 		if !drop {
@@ -318,4 +318,25 @@ func compactGaps(text string, commas, operators bool) string {
 	}
 	b.WriteString(text[cur:])
 	return b.String()
+}
+
+const operatorChars = "+-*/<>=~!@#%^&|`?"
+
+// glueSafe reports whether the tokens prev and next can be written without a blank between
+// them: unless one ends and the other starts with an operator character the answer is yes;
+// otherwise the joined text must still be scanned as the same two tokens (`= ===` must not
+// become the operator `====`, `a - -1` not the comment `--`, `= ~b` not the operator `=~`).
+func glueSafe(prev, next string) bool {
+	if prev == "" || next == "" ||
+		!strings.ContainsRune(operatorChars, rune(prev[len(prev)-1])) ||
+		!strings.ContainsRune(operatorChars, rune(next[0])) {
+		return true
+	}
+	joined := prev + next
+	res, err := pg_query.Scan(joined)
+	if err != nil || len(res.Tokens) != 2 {
+		return false
+	}
+	t := res.Tokens
+	return joined[t[0].Start:t[0].End] == prev && joined[t[1].Start:t[1].End] == next
 }

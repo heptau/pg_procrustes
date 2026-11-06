@@ -166,6 +166,13 @@ func check(file, tmpl, src string, cfg *config.Config, add func(kind, tmpl, file
 			add("ast-changed", tmpl, file, "")
 		}
 	}
+	if cfg.LineEndings == "" || cfg.LineEndings == config.LineEndingPreserve {
+		// a fingerprint ignores constant values, so compare the text of the string constants
+		// themselves: no rule may change what is inside '…'
+		if a, b := stringConstants(src), stringConstants(out); a != b {
+			add("string-changed", tmpl, file, firstDiff(a, b))
+		}
+	}
 	if n, m := badBodyQueries(src), badBodyQueries(out); m > n {
 		add("function-body-broken", tmpl, file, fmt.Sprintf("%d SQL fragments in PL/pgSQL bodies do not parse (input: %d)", m, n))
 	}
@@ -177,6 +184,27 @@ func check(file, tmpl, src string, cfg *config.Config, add func(kind, tmpl, file
 	if again != out {
 		add("not-idempotent", tmpl, file, firstDiff(out, again))
 	}
+}
+
+// stringConstants returns the '…' string constants of sql (dollar-quoted bodies are formatted
+// on purpose and left out), sorted, one per line with line breaks written as ⏎.
+func stringConstants(sql string) string {
+	res, err := pg_query.Scan(sql)
+	if err != nil {
+		return ""
+	}
+	var lits []string
+	for _, t := range res.Tokens {
+		text := sql[t.Start:t.End]
+		if strings.HasPrefix(text, "$") {
+			continue
+		}
+		if i := strings.IndexByte(text, '\''); i >= 0 && i <= 2 && strings.TrimLeft(text[:i], "eEbBxXuU&nN") == "" {
+			lits = append(lits, strings.ReplaceAll(text, "\n", "⏎"))
+		}
+	}
+	sort.Strings(lits)
+	return strings.Join(lits, "\n")
 }
 
 func firstDiff(a, b string) string {

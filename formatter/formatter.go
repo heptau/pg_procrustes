@@ -759,7 +759,8 @@ func isKeywordName(name string) bool {
 	return err == nil && len(res.Tokens) == 1 && res.Tokens[0].KeywordKind != pg_query.KeywordKind_NO_KEYWORD
 }
 
-// collapseBlankLines replaces runs of excess consecutive newlines.
+// collapseBlankLines replaces runs of excess consecutive newlines. The text of string
+// constants that span lines (also inside dollar-quoted bodies) is data and stays as it is.
 func collapseBlankLines(s string, mode config.BlankLinesMode) string {
 	var max int
 	switch mode {
@@ -774,10 +775,58 @@ func collapseBlankLines(s string, mode config.BlankLinesMode) string {
 	}
 	target := strings.Repeat("\n", max)
 	excess := strings.Repeat("\n", max+1)
-	for strings.Contains(s, excess) {
-		s = strings.ReplaceAll(s, excess, target)
+	collapse := func(part string) string {
+		for strings.Contains(part, excess) {
+			part = strings.ReplaceAll(part, excess, target)
+		}
+		return part
 	}
-	return s
+	if !strings.Contains(s, excess) {
+		return s
+	}
+	var b strings.Builder
+	cur := 0
+	for _, r := range multilineStringRanges(s, 0) {
+		b.WriteString(collapse(s[cur:r[0]]))
+		b.WriteString(s[r[0]:r[1]])
+		cur = r[1]
+	}
+	b.WriteString(collapse(s[cur:]))
+	return b.String()
+}
+
+// multilineStringRanges returns the byte ranges (offset by base) of the string constants
+// of text that contain a line break — '…', E'…', U&'…', B'…', X'…' — in order, looking inside
+// dollar-quoted bodies too. Rules that rewrite whitespace must leave these ranges alone.
+func multilineStringRanges(text string, base int) [][2]int {
+	if !strings.Contains(text, "\n") || !strings.ContainsAny(text, "'$") {
+		return nil
+	}
+	res, err := pg_query.Scan(text)
+	if err != nil {
+		return nil
+	}
+	var out [][2]int
+	for _, t := range res.Tokens {
+		tok := text[t.Start:t.End]
+		if !strings.Contains(tok, "\n") {
+			continue
+		}
+		if strings.HasPrefix(tok, "$") {
+			// $tag$ body $tag$: the strings inside the body are data as well
+			if i := strings.IndexByte(tok[1:], '$'); i >= 0 {
+				open, closeAt := i+2, len(tok)-(i+2)
+				if closeAt > open {
+					out = append(out, multilineStringRanges(tok[open:closeAt], base+int(t.Start)+open)...)
+				}
+			}
+			continue
+		}
+		if i := strings.IndexByte(tok, '\''); i >= 0 && i <= 2 && strings.TrimLeft(tok[:i], "eEbBxXuU&nN") == "" {
+			out = append(out, [2]int{base + int(t.Start), base + int(t.End)})
+		}
+	}
+	return out
 }
 
 // processGap returns the gap string after applying paren spacing, operator
@@ -812,12 +861,19 @@ func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) 
 	}
 	if !hasNL && cfg.OperatorSpacing == config.OperatorSpacingCompact {
 		if (isSymbolicOp(prevText) || isSymbolicOp(nextText)) &&
-			prevText != "(" && nextText != ")" {
+			prevText != "(" && nextText != ")" && glueSafe(prevText, nextText) {
 			return ""
 		}
 	}
 
-	// Arithmetic spacing — only around operators proven binary (see binaryArithmetic).
+	// Arithmetic spacing — only around operators proven binary (see binaryArithmetic). A line break
+	// beside such an operator goes too in compact mode (unless a comment is next to it): other rules
+	// (CAST(x AS t) → x::t) can join the lines, and the blank they leave would be removed only by the
+	// next run.
+	if arith && hasNL && cfg.ArithmeticSpacing == config.ArithmeticSpacingCompact &&
+		!isCommentText(prevText) && !isCommentText(nextText) && isOnlyWhitespace(gap) {
+		hasNL = false
+	}
 	if arith && !hasNL {
 		switch cfg.ArithmeticSpacing {
 		case config.ArithmeticSpacingNormalize:
@@ -1589,7 +1645,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 				// (COMMENT ON … IS $$…$$, string values in expressions, etc.) the
 				// content is arbitrary text and must not be re-cased or reformatted.
 				prevLower := strings.ToLower(prevTokenText)
-				if prevLower == "as" || prevLower == "do" {
+				if (prevLower == "as" || prevLower == "do") && bodyIsSQLOrPLpgSQL(tokens, i) {
 					out, err := formatDollarQuoted(tokenText, cfg)
 					if err != nil {
 						buf.WriteString(tokenText)
@@ -1846,7 +1902,11 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 			if len(fc.Funcname) > 1 {
 				// Schema-qualified: pg_catalog.func() → schema + function positions.
 				pos.schemas[int(fc.Location)] = true
-				if prefix := funcNameStr(fc.Funcname[0]); prefix != "" {
+				// The function name follows "schema." only when the text really spells it: the
+				// parser reports pg_catalog.name for syntax such as SIMILAR TO / EXTRACT / TRIM,
+				// where "location + length of the schema + 1" is whatever follows the keyword
+				// (a SIMILAR TO 'AB' string constant lost its capitals that way).
+				if prefix := funcNameStr(fc.Funcname[0]); prefix != "" && pos.spellsQualified(int(fc.Location), prefix) {
 					pos.functions[int(fc.Location)+len(prefix)+1] = true
 				}
 			} else {
@@ -2191,6 +2251,7 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 	if isPLpgSQLBody(body) {
 		body = normalizeAssignments(body, cfg.PLpgSQLAssignment)
 	}
+	cfgInner.Nested = true
 	formatted, err := formatTolerant(body, &cfgInner)
 	if err != nil {
 		formatted = body
@@ -3517,8 +3578,23 @@ func resolveFunctionAliases(tokens []rawToken, pos *astPositions) {
 	if len(pos.functionAliases) == 0 {
 		return
 	}
+	var opens []int // indexes of the "(" not closed yet
 	for i := 0; i+1 < len(tokens); i++ {
-		if tokens[i].text != ")" {
+		switch tokens[i].text {
+		case "(":
+			opens = append(opens, i)
+			continue
+		case ")":
+		default:
+			continue
+		}
+		open := -1
+		if n := len(opens); n > 0 {
+			open = opens[n-1]
+			opens = opens[:n-1]
+		}
+		// JOIN … USING (i) AS x names the join, not a table function; its AS is required.
+		if open > 0 && strings.EqualFold(tokens[open-1].text, "using") {
 			continue
 		}
 		k := i + 1
@@ -3573,6 +3649,7 @@ var bareLabelCache sync.Map
 func layoutConfig(cfg *config.Config) *config.LayoutConfig {
 	lc := cfg.Layout
 	lc.ParenSpacing = cfg.ParenSpacing
+	lc.KeepStatementIndent = !cfg.Nested
 	return &lc
 }
 
@@ -3765,3 +3842,38 @@ func matchBracket(tokens []rawToken, k int) int {
 	}
 	return -1
 }
+
+// spellsQualified reports whether the source at loc reads `prefix.` (the schema of a
+// schema-qualified function call, as written, any case).
+func (p *astPositions) spellsQualified(loc int, prefix string) bool {
+	end := loc + len(prefix)
+	if p.sql == "" {
+		return true // no source to check against: keep the position the parser gave
+	}
+	return loc >= 0 && end < len(p.sql) && p.sql[end] == '.' && strings.EqualFold(p.sql[loc:end], prefix)
+}
+
+// bodyIsSQLOrPLpgSQL reports whether the dollar-quoted body at tokens[i] may be formatted: it is
+// unless the statement names another language (LANGUAGE plpythonu, plperl, pltcl, c, …), whose
+// code must come out exactly as it went in. A statement without LANGUAGE (an anonymous DO
+// block) is PL/pgSQL.
+func bodyIsSQLOrPLpgSQL(tokens []rawToken, i int) bool {
+	lo, hi := i, i
+	for lo > 0 && tokens[lo-1].text != ";" {
+		lo--
+	}
+	for hi < len(tokens) && tokens[hi].text != ";" {
+		hi++
+	}
+	for k := lo; k+1 < hi; k++ {
+		if strings.EqualFold(tokens[k].text, "language") {
+			lang := strings.ToLower(strings.Trim(tokens[k+1].text, `'"`))
+			return lang == "sql" || lang == "plpgsql"
+		}
+	}
+	return true
+}
+
+func isCommentText(t string) bool { return strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*") }
+
+func isOnlyWhitespace(s string) bool { return strings.TrimSpace(s) == "" }

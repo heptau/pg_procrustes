@@ -433,6 +433,11 @@ func splitColumn(item string) (columnParts, bool) {
 	body := toks[i:]
 	// Trailing line comment.
 	if n := len(body); n > 0 && strings.HasPrefix(body[n-1].text, "--") {
+		if n > 1 && strings.Contains(item[body[n-2].end:body[n-1].start], "\n") {
+			// a comment line of its own below the definition (it precedes the next entry):
+			// pulling it up behind the definition would move it on the next run
+			return cp, false
+		}
 		cp.comment = body[n-1].text
 		body = body[:n-1]
 	}

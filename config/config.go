@@ -764,6 +764,11 @@ type LayoutConfig struct {
 	// YAML: the formatter fills it in so layout joins lines next to ( and ) the same
 	// way the token pass would (keeps the output idempotent).
 	ParenSpacing ParenSpacingMode `yaml:"-"`
+
+	// KeepStatementIndent is set by the formatter for statements of a file: a statement that
+	// starts indented (inside BEGIN; … COMMIT;) is laid out relative to that indentation. It is
+	// off for function bodies, whose indentation the dollar-quote settings take care of.
+	KeepStatementIndent bool `yaml:"-"`
 }
 
 // DefaultLayout returns the default LayoutConfig (all fields set to preserve).
@@ -928,6 +933,10 @@ type Config struct {
 	SchemaQual        SchemaQualMode        `yaml:"schema_qualification"`
 	InlineSpacing     InlineSpacingMode     `yaml:"inline_spacing"`
 	Layout            LayoutConfig          `yaml:"layout"`
+
+	// Nested is set by the formatter while it formats a fragment of a statement (the body of a
+	// function) and never read from YAML.
+	Nested bool `yaml:"-"`
 }
 
 // defaultConfig is what an empty .pg_procrustes.yaml means: every rule is
