@@ -13,6 +13,7 @@ import (
 
 	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/formatter"
+	"github.com/heptau/pg_procrustes/internal/lsp"
 )
 
 // version is set at build time via -ldflags "-X main.version=..."
@@ -44,7 +45,7 @@ func reorderArgs(args []string) []string {
 		// a positional argument as a flag value.
 		name := strings.TrimLeft(a, "-")
 		switch name {
-		case "w", "check", "diff", "v", "version", "print-config", "list-templates", "install-templates":
+		case "w", "check", "diff", "v", "version", "print-config", "list-templates", "install-templates", "lsp":
 			flags = append(flags, a)
 		default:
 			// Assume it takes a value; grab the next token if present.
@@ -140,6 +141,7 @@ func main() {
 		printConfig   bool
 		listTemplates bool
 		installTmpls  bool
+		lspMode       bool
 		templatesFrom string
 		linesRange    string
 		stdinFilepath string
@@ -157,6 +159,7 @@ func main() {
 	flag.BoolVar(&printConfig, "print-config", false, "print the effective configuration (templates resolved, every option) and exit")
 	flag.BoolVar(&listTemplates, "list-templates", false, "list the installed templates and exit")
 	flag.BoolVar(&installTmpls, "install-templates", false, "download the templates of this version from the GitHub release into your user templates directory and exit")
+	flag.BoolVar(&lspMode, "lsp", false, "run as a Language Server (LSP over stdio): formatting, range formatting and syntax-error diagnostics")
 	flag.StringVar(&templatesFrom, "templates-from", "", "with --install-templates: take the templates from this URL (zip), .zip file or directory instead")
 	flag.StringVar(&syntaxErrors, "syntax-errors", "", "what to do with SQL that does not parse: fail | skip | ignore (default: syntax_errors from the config, else fail)")
 	flag.StringVar(&linesRange, "lines", "", "format only the statements that touch lines START:END (or one line N) of a single input; the rest is copied as written")
@@ -194,6 +197,9 @@ func main() {
 		}
 	}
 
+	if lspMode {
+		os.Exit(lsp.Serve(os.Stdin, os.Stdout, lsp.Options{ConfigPath: configPath, Version: releaseVersion(), Log: os.Stderr}))
+	}
 	if listTemplates {
 		printTemplates()
 		return
@@ -632,6 +638,9 @@ Flags:
                      file or of stdin; everything else is copied as written (for editors' range formatting)
   --stdin-filepath <path>  when reading stdin: the path the text belongs to; the config is looked up from
                      that file's directory (the file need not exist), not from the working directory
+  --lsp              run as a Language Server (LSP over stdio) for VS Code, Zed, Neovim, Helix, …:
+                     document and range formatting, syntax errors as diagnostics; the config is looked up
+                     per document (-c fixes one for all)
   --print-config     print the effective configuration (templates resolved, every option) and exit
   --install-templates  download the templates of this version from the GitHub release into
                      your user templates directory (for go install; Homebrew and the archives already carry them)

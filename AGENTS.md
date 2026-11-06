@@ -26,6 +26,7 @@ The formatter runs first; layout runs on its output.
 | `internal/layout/case_test.go` | Layout CASE expression tests |
 | `internal/layout/subquery.go` | `layout.subquery.break`: `flattenSubqueries` (before the clause layout) joins each outermost `(select …)` onto one line, `expandSubqueries` (after it) opens them and re-runs `applyCore` on the body one level deeper |
 | `internal/layout/layout_test.go` | Layout clause/content break tests |
+| `internal/lsp/server.go` | `pg_procrustes --lsp`: JSON-RPC/LSP server over stdio (initialize, full-text sync, formatting, range formatting, syntax-error diagnostics); `Serve(in, out, Options)`; tests in `server_test.go` drive it with scripted messages |
 | `.pg_procrustes.yaml` | Reference config with all options and inline comments |
 
 ## Core patterns
