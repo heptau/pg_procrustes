@@ -204,7 +204,7 @@ func main() {
 	}
 
 	// Expand globs from args.
-	files, err := expandGlobs(flag.Args())
+	files, err := expandInputs(flag.Args())
 	if err != nil {
 		die("%v", err)
 	}
@@ -237,7 +237,7 @@ func main() {
 	if printConfig {
 		target := stdinFilepath
 		if len(files) > 0 {
-			target = files[0]
+			target = files[0].path
 		}
 		printEffectiveConfig(configFor(target))
 		return
@@ -293,7 +293,8 @@ func main() {
 	}
 
 	exitCode := 0
-	for _, path := range files {
+	for _, in := range files {
+		path := in.path
 		src, out, ok := readAndFormat(path, configFor(path))
 		if !ok {
 			exitCode = 1
@@ -311,7 +312,12 @@ func main() {
 				fmt.Print(unifiedDiff(path, src, out))
 			}
 		case outDir != "":
-			dest := filepath.Join(outDir, filepath.Base(path))
+			dest := filepath.Join(outDir, in.rel)
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", dest, err)
+				exitCode = 1
+				continue
+			}
 			if err := os.WriteFile(dest, []byte(out), 0o644); err != nil {
 				fmt.Fprintf(os.Stderr, "pg_procrustes: %s: %v\n", dest, err)
 				exitCode = 1
@@ -343,33 +349,6 @@ func main() {
 		}
 	}
 	os.Exit(exitCode)
-}
-
-// expandGlobs expands glob patterns and returns deduplicated matched paths.
-// Patterns that match nothing are kept as-is so the open error surfaces naturally.
-func expandGlobs(args []string) ([]string, error) {
-	var out []string
-	seen := make(map[string]bool)
-	for _, arg := range args {
-		matches, err := filepath.Glob(arg)
-		if err != nil {
-			return nil, fmt.Errorf("invalid glob %q: %w", arg, err)
-		}
-		if len(matches) == 0 {
-			if !seen[arg] {
-				seen[arg] = true
-				out = append(out, arg)
-			}
-			continue
-		}
-		for _, m := range matches {
-			if !seen[m] {
-				seen[m] = true
-				out = append(out, m)
-			}
-		}
-	}
-	return out, nil
 }
 
 // readAndFormat reads path and returns (original, formatted, ok). Problems are
@@ -630,8 +609,10 @@ Usage:
   pg_procrustes [flags] [file ...]
 
 Reads SQL files and normalizes them according to the configuration file.
-With no file arguments reads from stdin. Glob patterns are expanded
-(e.g. "migrations/*.sql").
+With no file arguments reads from stdin. A directory is searched recursively
+for *.sql files, glob patterns are expanded ("migrations/*.sql") and ** matches
+any number of directories ("migrations/**/*.sql", quote it so the shell leaves
+it alone). Hidden directories and node_modules are not entered.
 
 Flags:
   -v, --version      print version and exit
@@ -639,7 +620,8 @@ Flags:
                      the file's directory and its parents; then in the working directory and its parents)
   -w                 write result back to source files (in-place)
   --backup[=.ext]    save original before overwriting (requires -w); default extension is .bak
-  --out-dir <dir>    write formatted files into this directory (cannot be combined with -w)
+  --out-dir <dir>    write formatted files into this directory, keeping their path below the searched
+                     directory (cannot be combined with -w)
   --check            exit 1 if any file would be reformatted (CI / pre-commit use)
   --diff             print unified diff of changes without writing
   --syntax-errors <m> what to do with SQL that does not parse: fail (default), skip, ignore
@@ -659,6 +641,8 @@ Flags:
 Examples:
   pg_procrustes query.sql
   pg_procrustes -w *.sql
+  pg_procrustes -w sql/
+  pg_procrustes --check 'migrations/**/*.sql'
   pg_procrustes -w --backup=.orig migrations/**/*.sql
   pg_procrustes --out-dir formatted/ *.sql
   pg_procrustes --check *.sql

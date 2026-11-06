@@ -214,6 +214,13 @@ Swap the `go install` step for the [Homebrew or binary download](#installation) 
 pg_procrustes -w query.sql
 pg_procrustes -w migrations/*.sql
 
+# Format a whole directory tree (every *.sql below it; .git, other hidden folders and node_modules are skipped)
+pg_procrustes -w sql/
+pg_procrustes --check .
+
+# ** matches any number of directories (quote it so the shell passes it on as it is)
+pg_procrustes -w 'migrations/**/*.sql'
+
 # Print formatted output to stdout
 pg_procrustes query.sql
 
@@ -237,8 +244,9 @@ pg_procrustes -w --syntax-errors skip migrations/*.sql
 pg_procrustes -w --backup query.sql
 pg_procrustes -w --backup=.orig query.sql
 
-# Write formatted files to a different directory
+# Write formatted files to a different directory (the path below the searched directory is kept)
 pg_procrustes --out-dir formatted/ migrations/*.sql
+pg_procrustes --out-dir formatted/ migrations/    # -> formatted/2026/001.sql, …
 
 # Show the configuration that is in effect (templates resolved, every option, which files it came from)
 pg_procrustes --print-config
