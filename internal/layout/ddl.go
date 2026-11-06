@@ -30,7 +30,7 @@ func isDDLStart(tokens []rawTok, from, to int) bool {
 		return false
 	}
 	switch strings.ToLower(tokens[i].text) {
-	case "create", "alter":
+	case "create", "alter", "grant", "revoke":
 		return true
 	}
 	return false
@@ -64,12 +64,20 @@ func rebuildDDL(sql string, tokens []rawTok, stmt statement, cfg *config.LayoutC
 		if open := createTableOpenParen(tokens, stmt, first); open >= 0 {
 			return rebuildCreateTable(sql, tokens, stmt, open, cfg, indentUnit, depth)
 		}
+		if out, ok := rebuildMoreCreate(sql, tokens, stmt, first, cfg, indentUnit, depth); ok {
+			return out, true
+		}
 	case "alter":
 		if w(first+1) == "table" {
 			if start := alterTableActionsStart(tokens, stmt, first); start >= 0 {
 				return rebuildAlterTable(sql, tokens, stmt, start, cfg, indentUnit, depth)
 			}
 		}
+		if w(first+1) == "sequence" {
+			return rebuildSequence(sql, tokens, stmt, first, cfg, indentUnit, depth)
+		}
+	case "grant", "revoke":
+		return rebuildGrant(sql, tokens, stmt, first, cfg, indentUnit, depth)
 	}
 	return "", false
 }
@@ -225,7 +233,13 @@ func reindentContinuation(item, indent string) string {
 }
 
 func rebuildCreateTable(sql string, tokens []rawTok, stmt statement, open int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
-	mode := cfg.DDL.CreateTable.Break
+	return rebuildParenList(sql, tokens, stmt, open, cfg.DDL.CreateTable.Break, cfg.DDL.CreateTable.Align, cfg, indentUnit, depth)
+}
+
+// rebuildParenList lays out the comma-separated list inside the "(" at open — the columns of
+// CREATE TABLE, the labels of CREATE TYPE … AS ENUM — one entry per line with the closing
+// parenthesis on a line of its own, or joined onto one line (never).
+func rebuildParenList(sql string, tokens []rawTok, stmt statement, open int, mode config.BreakMode, align config.ColumnAlignMode, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
 	if mode == "" || mode == config.BreakPreserve {
 		return "", false
 	}
@@ -264,7 +278,7 @@ func rebuildCreateTable(sql string, tokens []rawTok, stmt statement, open int, c
 
 	baseIndent := strings.Repeat(indentUnit, depth)
 	itemIndent := baseIndent + indentUnit
-	items = alignColumns(items, cfg.DDL.CreateTable.Align)
+	items = alignColumns(items, align)
 	sb.WriteString(ddlHead(sql, tokens, stmt, open))
 	emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, open+1, closeIdx), itemIndent)
 	sb.WriteByte('\n')
@@ -582,38 +596,7 @@ func rebuildCreateIndex(sql string, tokens []rawTok, stmt statement, idx int, cf
 	if len(starts) == 0 {
 		return "", false
 	}
-	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
-	parenMode := cfg.ParenSpacing
-	var sb strings.Builder
-	if !shouldBreak(flat, mode, cfg.LineLength) {
-		if mode != config.BreakNever {
-			return "", false
-		}
-		sb.WriteString(ddlHead(sql, tokens, stmt, starts[0]-1))
-		for k, s := range starts {
-			end := stmt.endTok
-			if k+1 < len(starts) {
-				end = starts[k+1]
-			}
-			sb.WriteByte(' ')
-			sb.WriteString(inlineContent(sql, tokens, s, end, parenMode))
-		}
-		finishDDL(&sb, tokens, stmt)
-		return sb.String(), true
-	}
-	indent := strings.Repeat(indentUnit, depth+1)
-	sb.WriteString(ddlHead(sql, tokens, stmt, starts[0]-1))
-	for k, s := range starts {
-		end := stmt.endTok
-		if k+1 < len(starts) {
-			end = starts[k+1]
-		}
-		sb.WriteByte('\n')
-		sb.WriteString(indent)
-		sb.WriteString(inlineContent(sql, tokens, s, end, parenMode))
-	}
-	finishDDL(&sb, tokens, stmt)
-	return sb.String(), true
+	return rebuildSegments(sql, tokens, stmt, starts, mode, cfg, indentUnit, depth)
 }
 
 // createFunctionOpenParen returns the index of the "(" opening the parameter list of

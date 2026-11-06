@@ -33,6 +33,12 @@ function M.setup(opts)
   conform.formatters.pg_procrustes = {
     command = M.options.bin,
     args = M.options.args,
+    -- range formatting (visual selection): only the statements touching the lines are formatted
+    range_args = function(_, ctx)
+      local args = vim.deepcopy(M.options.args)
+      vim.list_extend(args, { "--lines", ctx.range.start[1] .. ":" .. ctx.range["end"][1] })
+      return args
+    end,
     stdin = true,
   }
 
@@ -42,7 +48,8 @@ function M.setup(opts)
   end
 end
 
-function M.format(bufnr)
+-- Formats the whole buffer, or - with line1/line2 - only the statements that touch those lines.
+function M.format(bufnr, line1, line2)
   bufnr = bufnr or 0
 
   if not binary_ok() then
@@ -55,6 +62,9 @@ function M.format(bufnr)
 
   local cmd = { M.options.bin }
   vim.list_extend(cmd, M.options.args)
+  if line1 and line2 then
+    vim.list_extend(cmd, { "--lines", line1 .. ":" .. line2 })
+  end
 
   local result = vim.system(cmd, { stdin = input, text = true }):wait()
 

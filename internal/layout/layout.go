@@ -56,7 +56,7 @@ func IsNoop(cfg *config.LayoutConfig) bool {
 			return false
 		}
 	}
-	for _, b := range []config.BreakMode{cfg.DDL.CreateTable.Break, cfg.DDL.AlterTable.Break, cfg.DDL.CreateIndex.Break, cfg.DDL.CreateFunction.Params, cfg.DDL.CreateFunction.Options} {
+	for _, b := range cfg.DDL.DDLBreakModes() {
 		if b != "" && b != config.BreakPreserve {
 			return false
 		}
@@ -716,7 +716,18 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			stmt.clauses[ci-1].kind == clauseUnion &&
 			(unionBL == config.UnionBlankLineAfter || unionBL == config.UnionBlankLineBoth)
 
+		// CREATE VIEW v (a, b) AS …: the column list of the header may be laid out.
+		viewHdr, viewHdrOK := "", false
+		if ci == 0 && (cl.kind == clauseSelect || cl.kind == clauseWith) && hasCodeTokens(tokens, kwStart, cl.kwTok) {
+			viewHdr, viewHdrOK = viewHeader(sql, tokens, kwStart, cl.kwTok, cfg, indentUnit, depth)
+		}
+
 		if !doBreak {
+			if viewHdrOK {
+				sb.WriteString(viewHdr)
+				sb.WriteString(gapBetween(sql, tokens, cl.kwTok-1, cl.kwTok))
+				kwStart = cl.kwTok
+			}
 			if ci > 0 {
 				if prevIsUnionBlankAfter {
 					sb.WriteString("\n\n")
@@ -766,7 +777,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			sb.WriteString(clauseIndent)
 		} else if prefixed {
 			sb.WriteString(baseIndent)
-			sb.WriteString(strings.TrimSpace(originalText(sql, tokens, kwStart, cl.kwTok)))
+			if viewHdrOK {
+				sb.WriteString(viewHdr)
+			} else {
+				sb.WriteString(strings.TrimSpace(originalText(sql, tokens, kwStart, cl.kwTok)))
+			}
 			sb.WriteByte('\n')
 			sb.WriteString(clauseIndent)
 		} else {
@@ -2176,6 +2191,9 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		}
 		if first := firstCodeTok(tokens, stmt.startTok, i); first >= 0 && strings.EqualFold(tokens[first].text, "copy") {
 			return false
+		}
+		if isCreateTrigger(tokens, stmt.startTok, i) {
+			return false // CREATE CONSTRAINT TRIGGER … FROM referenced_table
 		}
 	}
 	switch kind {

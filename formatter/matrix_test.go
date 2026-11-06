@@ -240,6 +240,35 @@ var matrixVariants = []matrixVariant{
 		c.Layout.DDL.AlterTable.Break = config.BreakAlways
 		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
 	}},
+	{"ddl_more_always", func(c *config.Config) {
+		c.Layout.DDL.CreateView.Columns = config.BreakAlways
+		c.Layout.DDL.CreateTrigger.Break = config.BreakAlways
+		c.Layout.DDL.CreatePolicy.Break = config.BreakAlways
+		c.Layout.DDL.Grant.Break = config.BreakAlways
+		c.Layout.DDL.CreateType.Break = config.BreakAlways
+		c.Layout.DDL.CreateSequence.Break = config.BreakAlways
+	}},
+	{"ddl_more_never", func(c *config.Config) {
+		c.Layout.DDL.CreateView.Columns = config.BreakNever
+		c.Layout.DDL.CreateTrigger.Break = config.BreakNever
+		c.Layout.DDL.CreatePolicy.Break = config.BreakNever
+		c.Layout.DDL.Grant.Break = config.BreakNever
+		c.Layout.DDL.CreateType.Break = config.BreakNever
+		c.Layout.DDL.CreateSequence.Break = config.BreakNever
+	}},
+	{"ddl_more_auto_narrow_tabs_comma_start", func(c *config.Config) {
+		c.Layout.LineLength = 25
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.CommaPosition = config.CommaStart
+		c.Layout.Indent.Type = config.IndentTypeTab
+		c.Layout.DDL.CreateView.Columns = config.BreakAuto
+		c.Layout.DDL.CreateTrigger.Break = config.BreakAuto
+		c.Layout.DDL.CreatePolicy.Break = config.BreakAuto
+		c.Layout.DDL.Grant.Break = config.BreakAuto
+		c.Layout.DDL.CreateType.Break = config.BreakAuto
+		c.Layout.DDL.CreateSequence.Break = config.BreakAuto
+	}},
 	{"comments_both", func(c *config.Config) {
 		c.Comments = config.CommentsCfg{SpaceAfterMarker: config.CommentSpaceAdd, AlignTrailing: config.CommentAlignAlign}
 	}},
@@ -366,6 +395,13 @@ var matrixInline = []string{
 	"create unique index concurrently if not exists idx on public.users using btree (lower(email), created_at desc) include (name) where deleted_at is null and active;",
 	"create index on t (a); create index i2 on only t using gin (doc jsonb_path_ops) with (fastupdate = off) tablespace fast where a > 1;",
 	"create materialized view mv as select a, b from t where x > 1 with no data; create view v as select a from t with local check option;",
+	"create view v (a, b, c) with (security_barrier) as select 1, 2, 3; create or replace recursive view r (n) as values (1);",
+	"create trigger trg before insert or update of a, b on public.t for each row when (old.* is distinct from new.*) execute function f(1, 'x'); create event trigger et on ddl_command_start when tag in ('create table') execute function g();",
+	"create constraint trigger ct after insert on t from r deferrable initially deferred for each row execute procedure f(); create trigger t2 after update on t referencing old table as o new table as n for each statement execute function f();",
+	"create policy p on t as permissive for select to r1, r2 using (a = 1) with check (b = 2); create policy q on s for all using (exists (select 1 from t where t.id = s.id));",
+	"grant select, insert (a, b) on table t1, t2 to r1, r2 with grant option; grant r1 to r2 with admin option granted by r3; revoke grant option for select on t from public cascade; revoke all on all tables in schema s from r;",
+	"create type mood as enum ('sad', 'ok', 'happy'); create type pt as (x int, y int); create type r as range (subtype = int4); create type base (input = i, output = o);",
+	"create sequence if not exists s as bigint increment by 2 minvalue 1 no maxvalue start with 5 cache 10 no cycle owned by t.id; alter sequence s restart with 1 cycle; alter sequence s owner to r;",
 	"with data as (select 1) select * from data;",
 	"select a, -- first\n b -- second\n from t where x = 1 -- tail\n and y = 2;",
 	"select a from u union select b from v union all select 1;",

@@ -2890,6 +2890,186 @@ window.CB_OPTIONS = {
      }
     },
     {
+     "key": "layout.ddl.create_view.columns",
+     "label": "CREATE VIEW — column list",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Breaks the column list of CREATE [MATERIALIZED] VIEW v (a, b, …): one name per line, the closing parenthesis on its own line. comma_position and the indent size apply. Headers with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one column per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create view v_users (id, name, email, created_at) as select id, name, email, created_at from users;\n\ncreate view v_users (\n   id,\n   name,\n   email,\n   created_at\n) as select id, name, email, created_at from users;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_trigger.break",
+     "label": "CREATE TRIGGER — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the timing and events, ON, FROM, REFERENCING, FOR EACH, WHEN, [NOT] DEFERRABLE and EXECUTE parts of CREATE [CONSTRAINT | EVENT] TRIGGER on their own indented lines. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create trigger trg_audit after insert or update on public.users for each row when (old.* is distinct from new.*) execute function audit();\n\ncreate trigger trg_audit\n   after insert or update\n   on public.users\n   for each row\n   when (old.* is distinct from new.*)\n   execute function audit();",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_policy.break",
+     "label": "CREATE POLICY — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the ON, AS, FOR, TO, USING and WITH CHECK parts of CREATE POLICY on their own indented lines. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create policy own_rows on accounts for select to app_user using (owner = current_user) with check (owner = current_user);\n\ncreate policy own_rows\n   on accounts\n   for select\n   to app_user\n   using (owner = current_user)\n   with check (owner = current_user);",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.grant.break",
+     "label": "GRANT / REVOKE — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the ON, TO / FROM, WITH … , GRANTED BY and CASCADE / RESTRICT parts of GRANT and REVOKE on their own indented lines; the privilege and object lists stay as written. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one part per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "grant select, insert, update on table orders, items to app_user, reporting with grant option;\n\ngrant select, insert, update\n   on table orders, items\n   to app_user, reporting\n   with grant option;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_type.break",
+     "label": "CREATE TYPE — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Breaks the parenthesised list of CREATE TYPE (enum labels after AS ENUM, composite attributes after AS, range and base type options): one entry per line, the closing parenthesis on its own line.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one entry per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create type order_status as enum ('new', 'paid', 'shipped', 'cancelled');\n\ncreate type order_status as enum (\n   'new',\n   'paid',\n   'shipped',\n   'cancelled'\n);",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
+     "key": "layout.ddl.create_sequence.break",
+     "label": "CREATE SEQUENCE — break",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Puts the options of CREATE and ALTER SEQUENCE (AS, INCREMENT, MINVALUE, MAXVALUE, START, RESTART, CACHE, CYCLE, OWNED BY) on their own indented lines. Statements with a -- comment are left alone.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "never",
+       "one line"
+      ],
+      [
+       "always",
+       "one option per line"
+      ],
+      [
+       "auto",
+       "when longer than line_length"
+      ]
+     ],
+     "sample": {
+      "in": "create sequence order_seq as bigint increment by 1 minvalue 1 no maxvalue start with 1000 cache 20 no cycle;\n\ncreate sequence order_seq\n   as bigint\n   increment by 1\n   minvalue 1\n   no maxvalue\n   start with 1000\n   cache 20\n   no cycle;",
+      "with": {
+       "layout.line_length": "40"
+      }
+     }
+    },
+    {
      "key": "layout.union.blank_line",
      "label": "UNION blank line",
      "type": "select",

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/heptau/pg_procrustes/config"
@@ -140,6 +141,9 @@ func main() {
 		listTemplates bool
 		installTmpls  bool
 		templatesFrom string
+		linesRange    string
+		rangeStart    int
+		rangeEnd      int
 	)
 	flag.BoolVar(&writeInPlace, "w", false, "write result back to source files (in-place)")
 	flag.BoolVar(&checkMode, "check", false, "exit 1 if any file would be reformatted (CI mode)")
@@ -154,6 +158,7 @@ func main() {
 	flag.BoolVar(&installTmpls, "install-templates", false, "download the templates of this version from the GitHub release into your user templates directory and exit")
 	flag.StringVar(&templatesFrom, "templates-from", "", "with --install-templates: take the templates from this URL (zip), .zip file or directory instead")
 	flag.StringVar(&syntaxErrors, "syntax-errors", "", "what to do with SQL that does not parse: fail | skip | ignore (default: syntax_errors from the config, else fail)")
+	flag.StringVar(&linesRange, "lines", "", "format only the statements that touch lines START:END (or one line N) of a single input; the rest is copied as written")
 	flag.Usage = usage
 	os.Args = append(os.Args[:1], reorderArgs(os.Args[1:])...)
 	flag.Parse()
@@ -216,6 +221,22 @@ func main() {
 	files, err := expandGlobs(flag.Args())
 	if err != nil {
 		die("%v", err)
+	}
+
+	if linesRange != "" {
+		rangeStart, rangeEnd, err = parseLines(linesRange)
+		if err != nil {
+			die("--lines: %v", err)
+		}
+		if len(files) > 1 {
+			die("--lines works on a single file or on stdin")
+		}
+		if outDir != "" {
+			die("--lines and --out-dir are mutually exclusive")
+		}
+		formatSource = func(name, src string, cfg *config.Config) (string, bool) {
+			return formatRangeSource(name, src, cfg, rangeStart, rangeEnd)
+		}
 	}
 
 	// No files → read from stdin.
@@ -345,8 +366,42 @@ func readAndFormat(path string, cfg *config.Config) (src, out string, ok bool) {
 // "file:line:col: message" form with the offending line and a caret. With
 // syntax_errors: fail the result is not ok; with skip the statements that do not
 // parse are left as written and reported as warnings.
-func formatSource(name, src string, cfg *config.Config) (string, bool) {
-	out, diags, err := formatter.FormatWithDiagnostics(src, cfg)
+func defaultFormatSource(name, src string, cfg *config.Config) (string, bool) {
+	return formatRangeSource(name, src, cfg, 0, 0)
+}
+
+// formatSource is what the CLI uses to format one input; --lines swaps in a range version.
+var formatSource = defaultFormatSource
+
+// parseLines reads "START:END" or "N" (1-based, inclusive).
+func parseLines(s string) (int, int, error) {
+	a, b, found := strings.Cut(s, ":")
+	start, err := strconv.Atoi(strings.TrimSpace(a))
+	if err != nil || start < 1 {
+		return 0, 0, fmt.Errorf("want START:END or N (1-based line numbers), got %q", s)
+	}
+	end := start
+	if found {
+		if end, err = strconv.Atoi(strings.TrimSpace(b)); err != nil || end < start {
+			return 0, 0, fmt.Errorf("want START:END with END >= START, got %q", s)
+		}
+	}
+	return start, end, nil
+}
+
+// formatRangeSource formats src — as a whole when start is 0, else only the statements
+// that touch lines start:end — and reports syntax problems like formatSource did before.
+func formatRangeSource(name, src string, cfg *config.Config, start, end int) (string, bool) {
+	var (
+		out   string
+		diags []formatter.SyntaxError
+		err   error
+	)
+	if start > 0 {
+		out, diags, err = formatter.FormatRange(src, cfg, start, end)
+	} else {
+		out, diags, err = formatter.FormatWithDiagnostics(src, cfg)
+	}
 	var fatal formatter.SyntaxErrors
 	if errors.As(err, &fatal) {
 		reportSyntax(name, src, fatal, false)
@@ -567,6 +622,8 @@ Flags:
                      fail:   report every bad statement (file:line:col) and exit 1
                      skip:   format the valid statements, leave bad ones as written, warn
                      ignore: format everything at token level without checking
+  --lines <a:b>      format only the statements that touch lines a..b (or one line N) of a single
+                     file or of stdin; everything else is copied as written (for editors' range formatting)
   --print-config     print the effective configuration (templates resolved, every option) and exit
   --install-templates  download the templates of this version from the GitHub release into
                      your user templates directory (for go install; Homebrew and the archives already carry them)
@@ -580,6 +637,7 @@ Examples:
   pg_procrustes --out-dir formatted/ *.sql
   pg_procrustes --check *.sql
   pg_procrustes --diff query.sql
+  pg_procrustes --lines 10:25 -w query.sql
   cat query.sql | pg_procrustes`)
 }
 

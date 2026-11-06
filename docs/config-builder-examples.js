@@ -1179,6 +1179,40 @@ window.CB_EXAMPLES = {
    "t": "create unique index idx_users_email on public.users using btree (lower(email)) include (name) where deleted_at is null;\n\ncreate unique index idx_users_email\n   on public.users\n   using btree (lower(email))\n   include (name)\n   where deleted_at is null;"
   }
  },
+ "layout.ddl.create_policy.break": {
+  "": {
+   "t": "create policy own_rows on accounts for select to app_user using (owner = current_user) with check (owner = current_user);\n\ncreate policy own_rows\n   on accounts\n   for select\n   to app_user\n   using (owner = current_user)\n   with check (owner = current_user);"
+  },
+  "always": {
+   "t": "create policy own_rows\n  on accounts\n  for select\n  to app_user\n  using (owner = current_user)\n  with check (owner = current_user);\n\ncreate policy own_rows\n  on accounts\n  for select\n  to app_user\n  using (owner = current_user)\n  with check (owner = current_user);"
+  },
+  "auto": {
+   "t": "create policy own_rows\n  on accounts\n  for select\n  to app_user\n  using (owner = current_user)\n  with check (owner = current_user);\n\ncreate policy own_rows\n  on accounts\n  for select\n  to app_user\n  using (owner = current_user)\n  with check (owner = current_user);"
+  },
+  "never": {
+   "t": "create policy own_rows on accounts for select to app_user using (owner = current_user) with check (owner = current_user);\n\ncreate policy own_rows on accounts for select to app_user using (owner = current_user) with check (owner = current_user);"
+  },
+  "preserve": {
+   "t": "create policy own_rows on accounts for select to app_user using (owner = current_user) with check (owner = current_user);\n\ncreate policy own_rows\n   on accounts\n   for select\n   to app_user\n   using (owner = current_user)\n   with check (owner = current_user);"
+  }
+ },
+ "layout.ddl.create_sequence.break": {
+  "": {
+   "t": "create sequence order_seq as bigint increment by 1 minvalue 1 no maxvalue start with 1000 cache 20 no cycle;\n\ncreate sequence order_seq\n   as bigint\n   increment by 1\n   minvalue 1\n   no maxvalue\n   start with 1000\n   cache 20\n   no cycle;"
+  },
+  "always": {
+   "t": "create sequence order_seq\n  as bigint\n  increment by 1\n  minvalue 1\n  no maxvalue\n  start with 1000\n  cache 20\n  no cycle;\n\ncreate sequence order_seq\n  as bigint\n  increment by 1\n  minvalue 1\n  no maxvalue\n  start with 1000\n  cache 20\n  no cycle;"
+  },
+  "auto": {
+   "t": "create sequence order_seq\n  as bigint\n  increment by 1\n  minvalue 1\n  no maxvalue\n  start with 1000\n  cache 20\n  no cycle;\n\ncreate sequence order_seq\n  as bigint\n  increment by 1\n  minvalue 1\n  no maxvalue\n  start with 1000\n  cache 20\n  no cycle;"
+  },
+  "never": {
+   "t": "create sequence order_seq as bigint increment by 1 minvalue 1 no maxvalue start with 1000 cache 20 no cycle;\n\ncreate sequence order_seq as bigint increment by 1 minvalue 1 no maxvalue start with 1000 cache 20 no cycle;"
+  },
+  "preserve": {
+   "t": "create sequence order_seq as bigint increment by 1 minvalue 1 no maxvalue start with 1000 cache 20 no cycle;\n\ncreate sequence order_seq\n   as bigint\n   increment by 1\n   minvalue 1\n   no maxvalue\n   start with 1000\n   cache 20\n   no cycle;"
+  }
+ },
  "layout.ddl.create_table.align": {
   "": {
    "t": "create table users (\n  id bigint not null,\n  created_at timestamp with time zone not null,\n  name text\n);"
@@ -1211,6 +1245,74 @@ window.CB_EXAMPLES = {
   },
   "preserve": {
    "t": "create table users (id bigint not null, name text, constraint pk primary key (id));\n\ncreate table t (\n   a int,\n   b int\n);"
+  }
+ },
+ "layout.ddl.create_trigger.break": {
+  "": {
+   "t": "create trigger trg_audit after insert or update on public.users for each row when (old.* is distinct from new.*) execute function audit();\n\ncreate trigger trg_audit\n   after insert or update\n   on public.users\n   for each row\n   when (old.* is distinct from new.*)\n   execute function audit();"
+  },
+  "always": {
+   "t": "create trigger trg_audit\n  after insert or update\n  on public.users\n  for each row\n  when (old.* is distinct from new.*)\n  execute function audit();\n\ncreate trigger trg_audit\n  after insert or update\n  on public.users\n  for each row\n  when (old.* is distinct from new.*)\n  execute function audit();"
+  },
+  "auto": {
+   "t": "create trigger trg_audit\n  after insert or update\n  on public.users\n  for each row\n  when (old.* is distinct from new.*)\n  execute function audit();\n\ncreate trigger trg_audit\n  after insert or update\n  on public.users\n  for each row\n  when (old.* is distinct from new.*)\n  execute function audit();"
+  },
+  "never": {
+   "t": "create trigger trg_audit after insert or update on public.users for each row when (old.* is distinct from new.*) execute function audit();\n\ncreate trigger trg_audit after insert or update on public.users for each row when (old.* is distinct from new.*) execute function audit();"
+  },
+  "preserve": {
+   "t": "create trigger trg_audit after insert or update on public.users for each row when (old.* is distinct from new.*) execute function audit();\n\ncreate trigger trg_audit\n   after insert or update\n   on public.users\n   for each row\n   when (old.* is distinct from new.*)\n   execute function audit();"
+  }
+ },
+ "layout.ddl.create_type.break": {
+  "": {
+   "t": "create type order_status as enum ('new', 'paid', 'shipped', 'cancelled');\n\ncreate type order_status as enum (\n   'new',\n   'paid',\n   'shipped',\n   'cancelled'\n);"
+  },
+  "always": {
+   "t": "create type order_status as enum (\n  'new',\n  'paid',\n  'shipped',\n  'cancelled'\n);\n\ncreate type order_status as enum (\n  'new',\n  'paid',\n  'shipped',\n  'cancelled'\n);"
+  },
+  "auto": {
+   "t": "create type order_status as enum (\n  'new',\n  'paid',\n  'shipped',\n  'cancelled'\n);\n\ncreate type order_status as enum (\n  'new',\n  'paid',\n  'shipped',\n  'cancelled'\n);"
+  },
+  "never": {
+   "t": "create type order_status as enum ('new', 'paid', 'shipped', 'cancelled');\n\ncreate type order_status as enum ('new', 'paid', 'shipped', 'cancelled');"
+  },
+  "preserve": {
+   "t": "create type order_status as enum ('new', 'paid', 'shipped', 'cancelled');\n\ncreate type order_status as enum (\n   'new',\n   'paid',\n   'shipped',\n   'cancelled'\n);"
+  }
+ },
+ "layout.ddl.create_view.columns": {
+  "": {
+   "t": "create view v_users (id, name, email, created_at) as\nselect id, name, email, created_at\nfrom users;\n\ncreate view v_users (\n   id,\n   name,\n   email,\n   created_at\n) as\nselect id, name, email, created_at\nfrom users;"
+  },
+  "always": {
+   "t": "create view v_users (\n  id,\n  name,\n  email,\n  created_at\n) as\nselect id, name, email, created_at\nfrom users;\n\ncreate view v_users (\n  id,\n  name,\n  email,\n  created_at\n) as\nselect id, name, email, created_at\nfrom users;"
+  },
+  "auto": {
+   "t": "create view v_users (\n  id,\n  name,\n  email,\n  created_at\n) as\nselect id, name, email, created_at\nfrom users;\n\ncreate view v_users (\n  id,\n  name,\n  email,\n  created_at\n) as\nselect id, name, email, created_at\nfrom users;"
+  },
+  "never": {
+   "t": "create view v_users (id, name, email, created_at) as\nselect id, name, email, created_at\nfrom users;\n\ncreate view v_users (id, name, email, created_at) as\nselect id, name, email, created_at\nfrom users;"
+  },
+  "preserve": {
+   "t": "create view v_users (id, name, email, created_at) as\nselect id, name, email, created_at\nfrom users;\n\ncreate view v_users (\n   id,\n   name,\n   email,\n   created_at\n) as\nselect id, name, email, created_at\nfrom users;"
+  }
+ },
+ "layout.ddl.grant.break": {
+  "": {
+   "t": "grant select, insert, update on table orders, items to app_user, reporting with grant option;\n\ngrant select, insert, update\n   on table orders, items\n   to app_user, reporting\n   with grant option;"
+  },
+  "always": {
+   "t": "grant select, insert, update\n  on table orders, items\n  to app_user, reporting\n  with grant option;\n\ngrant select, insert, update\n  on table orders, items\n  to app_user, reporting\n  with grant option;"
+  },
+  "auto": {
+   "t": "grant select, insert, update\n  on table orders, items\n  to app_user, reporting\n  with grant option;\n\ngrant select, insert, update\n  on table orders, items\n  to app_user, reporting\n  with grant option;"
+  },
+  "never": {
+   "t": "grant select, insert, update on table orders, items to app_user, reporting with grant option;\n\ngrant select, insert, update on table orders, items to app_user, reporting with grant option;"
+  },
+  "preserve": {
+   "t": "grant select, insert, update on table orders, items to app_user, reporting with grant option;\n\ngrant select, insert, update\n   on table orders, items\n   to app_user, reporting\n   with grant option;"
   }
  },
  "layout.indent.normalize": {

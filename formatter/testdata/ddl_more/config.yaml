@@ -1,0 +1,8 @@
+layout:
+  ddl:
+    create_view: {columns: always}
+    create_trigger: {break: always}
+    create_policy: {break: always}
+    grant: {break: always}
+    create_type: {break: always}
+    create_sequence: {break: always}

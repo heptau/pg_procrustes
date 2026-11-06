@@ -1,0 +1,61 @@
+CREATE OR REPLACE VIEW v (
+   a,
+   b
+) WITH (security_barrier) AS SELECT a, b FROM t WHERE x = 1 WITH LOCAL CHECK OPTION;
+CREATE TRIGGER trg
+   BEFORE INSERT OR UPDATE
+   ON public.t
+   FOR EACH ROW
+   WHEN (OLD.* IS DISTINCT FROM NEW.*)
+   EXECUTE FUNCTION f(1, 2);
+CREATE EVENT TRIGGER et
+   ON ddl_command_start
+   WHEN tag IN ('create table', 'drop table')
+   EXECUTE FUNCTION f();
+CREATE CONSTRAINT TRIGGER ct
+   AFTER INSERT
+   ON t
+   FROM r
+   DEFERRABLE INITIALLY DEFERRED
+   FOR EACH ROW
+   EXECUTE PROCEDURE f();
+CREATE POLICY p
+   ON t
+   AS permissive
+   FOR SELECT
+   TO r1, r2
+   USING (a = 1)
+   WITH CHECK (b = 2);
+GRANT SELECT, INSERT, UPDATE
+   ON TABLE a, b
+   TO r1, r2
+   WITH GRANT OPTION;
+GRANT r1
+   TO r2;
+REVOKE GRANT OPTION FOR SELECT
+   ON t
+   FROM r1
+   CASCADE;
+CREATE TYPE mood AS ENUM (
+   'sad',
+   'ok',
+   'happy'
+);
+CREATE TYPE pt AS (
+   x integer,
+   y integer
+);
+CREATE SEQUENCE IF NOT EXISTS s
+   AS bigint
+   INCREMENT BY 2
+   MINVALUE 1
+   NO MAXVALUE
+   START WITH 5
+   CACHE 10
+   NO CYCLE
+   OWNED BY t.id;
+ALTER SEQUENCE s
+   RESTART WITH 1
+   CYCLE;
+CREATE POLICY q ON t -- the comment keeps this statement as written
+  USING (TRUE);

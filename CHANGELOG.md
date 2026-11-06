@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `--lines START:END` (or `--lines N`) formats only the statements that touch those lines of a single file or of stdin and copies the rest exactly as written — for range formatting in editors. A statement that is only partly inside the range is formatted completely, statements outside it are not parsed (an error elsewhere does not matter), `syntax_errors` applies to the selected ones, `-- pg_procrustes: off` regions and line numbers of CRLF files are respected, and the whole-text settings (`blank_lines`, `blank_lines_between_statements`, `statement_break`, `semicolons: add`, `trailing_newline`, `line_endings`) are not applied. Library: `formatter.FormatRange`. The Neovim plugin gets `:'<,'>PgProcrustesFormat` and conform.nvim range formatting (`range_args`)
+- DDL layout for the remaining statements, all `preserve | never | always | auto` (default `preserve`) and left alone when the statement has a `--` comment: `layout.ddl.create_view.columns` (column list of `CREATE [MATERIALIZED] VIEW v (a, b)`, one name per line, `)` on its own line), `layout.ddl.create_trigger.break` (`CREATE [CONSTRAINT | EVENT] TRIGGER`: timing and events, `ON`, `FROM`, `REFERENCING`, `FOR EACH`, `WHEN`, `[NOT] DEFERRABLE`, `EXECUTE` each on an indented line), `layout.ddl.create_policy.break` (`ON`, `AS`, `FOR`, `TO`, `USING`, `WITH CHECK`), `layout.ddl.grant.break` (`GRANT` / `REVOKE`: `ON`, `TO` / `FROM`, `WITH …`, `GRANTED BY`, `CASCADE`; the privilege and object lists stay as written), `layout.ddl.create_type.break` (the parenthesised list of `CREATE TYPE` — enum labels, composite attributes — one entry per line) and `layout.ddl.create_sequence.break` (options of `CREATE` / `ALTER SEQUENCE`: `AS`, `INCREMENT`, `MINVALUE`, `MAXVALUE`, `START`, `RESTART`, `CACHE`, `CYCLE`, `OWNED BY`). Documented in README, the reference config and the Config Builder (all languages); new golden cases `ddl_more` and `ddl_more_auto` and test-matrix variants
+
+### Fixed
+
+- `FROM` of `CREATE CONSTRAINT TRIGGER … FROM table` is no longer taken for the `FROM` clause of a query
+
 ## [0.4.0] — 2026-11-06
 
 ### Added

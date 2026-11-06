@@ -1,0 +1,9 @@
+layout:
+  line_length: 60
+  ddl:
+    create_view: {columns: auto}
+    create_trigger: {break: auto}
+    create_policy: {break: auto}
+    grant: {break: auto}
+    create_type: {break: auto}
+    create_sequence: {break: auto}

@@ -64,7 +64,7 @@ use({
 })
 ```
 
-If [conform.nvim](https://github.com/stevearc/conform.nvim) is installed, `sql` buffers get `pg_procrustes` registered as a formatter automatically — `require("conform").format()` and format-on-save pick it up like any other formatter. Without conform.nvim, use `:PgProcrustesFormat` to format the current buffer directly. Run `:checkhealth pg_procrustes` to verify the setup. See `:help pg_procrustes` for details, or [pg_procrustes.80.cz](https://pg_procrustes.80.cz).
+If [conform.nvim](https://github.com/stevearc/conform.nvim) is installed, `sql` buffers get `pg_procrustes` registered as a formatter automatically — `require("conform").format()` and format-on-save pick it up like any other formatter. Without conform.nvim, use `:PgProcrustesFormat` to format the current buffer directly; with a range (`:'<,'>PgProcrustesFormat`, or conform's range formatting of a visual selection) only the statements touching those lines are formatted. Run `:checkhealth pg_procrustes` to verify the setup. See `:help pg_procrustes` for details, or [pg_procrustes.80.cz](https://pg_procrustes.80.cz).
 
 **Zed** has built-in support for external formatters — no extension needed. Add this to your project (`.zed/settings.json`) or user (`~/.config/zed/settings.json`) settings:
 
@@ -226,6 +226,10 @@ pg_procrustes --check *.sql
 # Show a unified diff without writing
 pg_procrustes --diff query.sql
 
+# Format only the statements that touch lines 10-25 (one line: --lines 12); the rest is copied as written
+pg_procrustes -w --lines 10:25 query.sql
+cat query.sql | pg_procrustes --lines 10:25
+
 # Format what parses, leave broken statements as written (default is to refuse them)
 pg_procrustes -w --syntax-errors skip migrations/*.sql
 
@@ -242,6 +246,10 @@ pg_procrustes --print-config
 # List the installed templates
 pg_procrustes --list-templates
 ```
+
+### Formatting a selection
+
+`--lines START:END` (1-based, inclusive) formats only the statements that touch those lines of a single file or of stdin, and copies everything else exactly as written. The unit is always the whole statement: one that is only partly inside the range is formatted completely, because a half-formatted statement would not be idempotent. Statements outside the range are not even parsed, so a syntax error elsewhere in the file does not matter (`syntax_errors` applies to the selected ones). Settings that work on the whole text — `blank_lines`, `blank_lines_between_statements`, `statement_break`, `semicolons: add`, `trailing_newline`, `line_endings` — are not applied. In Go: `formatter.FormatRange(sql, cfg, start, end)`. The Neovim plugin and conform.nvim use it for a visual selection / `:'<,'>PgProcrustesFormat`.
 
 ### Leaving a part alone
 
@@ -590,6 +598,33 @@ layout:
                                #              USING btree (a, b)
                                #              WHERE a > 1;
                                #   never:  collapse to one line;  auto: break when longer than line_length
+    create_view:
+      columns: preserve        # preserve | never | always | auto   (CREATE [MATERIALIZED] VIEW v (a, b, …) AS …)
+                               #   always: one column name per line, ")" on its own line
+                               #           CREATE VIEW v (
+                               #              a,
+                               #              b
+                               #           ) AS
+                               #   never:  one line;  auto: break when the header is longer than line_length
+    create_trigger:
+      break: preserve          # preserve | never | always | auto   (CREATE [CONSTRAINT | EVENT] TRIGGER)
+                               #   always: timing/events, ON, FROM, REFERENCING, FOR EACH, WHEN, [NOT] DEFERRABLE
+                               #           and EXECUTE each on an indented line
+                               #           CREATE TRIGGER trg
+                               #              AFTER INSERT OR UPDATE
+                               #              ON t
+                               #              FOR EACH ROW
+                               #              EXECUTE FUNCTION f();
+    create_policy:
+      break: preserve          # preserve | never | always | auto   (ON, AS, FOR, TO, USING, WITH CHECK each on a line)
+    grant:
+      break: preserve          # preserve | never | always | auto   (GRANT and REVOKE: ON, TO / FROM, WITH …, GRANTED BY,
+                               #   CASCADE each on a line; the privilege and object lists stay as written)
+    create_type:
+      break: preserve          # preserve | never | always | auto   (CREATE TYPE … AS ENUM (…) / AS (…): one entry per line)
+    create_sequence:
+      break: preserve          # preserve | never | always | auto   (CREATE / ALTER SEQUENCE: AS, INCREMENT, MINVALUE,
+                               #   MAXVALUE, START, RESTART, CACHE, CYCLE, OWNED BY each on a line)
 
   case:
     break: preserve          # preserve | never | always | auto
@@ -1187,6 +1222,33 @@ layout:
                                #              USING btree (a, b)
                                #              WHERE a > 1;
                                #   never:  collapse to one line;  auto: break when longer than line_length
+    create_view:
+      columns: preserve        # preserve | never | always | auto   (CREATE [MATERIALIZED] VIEW v (a, b, …) AS …)
+                               #   always: one column name per line, ")" on its own line
+                               #           CREATE VIEW v (
+                               #              a,
+                               #              b
+                               #           ) AS
+                               #   never:  one line;  auto: break when the header is longer than line_length
+    create_trigger:
+      break: preserve          # preserve | never | always | auto   (CREATE [CONSTRAINT | EVENT] TRIGGER)
+                               #   always: timing/events, ON, FROM, REFERENCING, FOR EACH, WHEN, [NOT] DEFERRABLE
+                               #           and EXECUTE each on an indented line
+                               #           CREATE TRIGGER trg
+                               #              AFTER INSERT OR UPDATE
+                               #              ON t
+                               #              FOR EACH ROW
+                               #              EXECUTE FUNCTION f();
+    create_policy:
+      break: preserve          # preserve | never | always | auto   (ON, AS, FOR, TO, USING, WITH CHECK each on a line)
+    grant:
+      break: preserve          # preserve | never | always | auto   (GRANT and REVOKE: ON, TO / FROM, WITH …, GRANTED BY,
+                               #   CASCADE each on a line; the privilege and object lists stay as written)
+    create_type:
+      break: preserve          # preserve | never | always | auto   (CREATE TYPE … AS ENUM (…) / AS (…): one entry per line)
+    create_sequence:
+      break: preserve          # preserve | never | always | auto   (CREATE / ALTER SEQUENCE: AS, INCREMENT, MINVALUE,
+                               #   MAXVALUE, START, RESTART, CACHE, CYCLE, OWNED BY each on a line)
   dollar_quote:
     newline_after_open: preserve   # preserve | add | remove  (\n after opening $$)
     newline_before_close: preserve # preserve | add | remove  (\n before closing $$)

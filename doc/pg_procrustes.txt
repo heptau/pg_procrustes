@@ -34,7 +34,9 @@ format-on-save through conform.nvim) picks it up like any other formatter.
 
 :PgProcrustesFormat                                     *:PgProcrustesFormat*
     Format the current buffer with pg_procrustes, independent of
-    conform.nvim.
+    conform.nvim. With a range (:'<,'>PgProcrustesFormat) only the
+    statements that touch those lines are formatted; the rest of the
+    buffer is left as it is.
 
 ==============================================================================
 4. Health                                                 *pg_procrustes-health*

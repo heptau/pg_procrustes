@@ -498,6 +498,36 @@ type CreateIndexCfg struct {
 	Break BreakMode `yaml:"break"` // preserve | never | always | auto — ON, USING, INCLUDE, WITH, WHERE each on a line
 }
 
+// CreateTriggerCfg configures CREATE [CONSTRAINT | EVENT] TRIGGER statements.
+type CreateTriggerCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — timing/events, ON, FROM, REFERENCING, FOR EACH, WHEN, EXECUTE each on a line
+}
+
+// CreatePolicyCfg configures CREATE POLICY statements.
+type CreatePolicyCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — ON, AS, FOR, TO, USING, WITH CHECK each on a line
+}
+
+// GrantCfg configures GRANT and REVOKE statements.
+type GrantCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — ON, TO / FROM, WITH …, GRANTED BY, CASCADE each on a line
+}
+
+// CreateTypeCfg configures the parenthesised list of CREATE TYPE (enum labels, composite attributes).
+type CreateTypeCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — one label / attribute per line
+}
+
+// CreateSequenceCfg configures the options of CREATE / ALTER SEQUENCE.
+type CreateSequenceCfg struct {
+	Break BreakMode `yaml:"break"` // preserve | never | always | auto — INCREMENT, MINVALUE, START, CACHE, CYCLE, … each on a line
+}
+
+// CreateViewCfg configures the header of CREATE [MATERIALIZED] VIEW.
+type CreateViewCfg struct {
+	Columns BreakMode `yaml:"columns"` // preserve | never | always | auto — one column name per line
+}
+
 // CreateFunctionCfg configures the header of CREATE FUNCTION / PROCEDURE.
 type CreateFunctionCfg struct {
 	Params  BreakMode `yaml:"params"`  // preserve | never | always | auto — one parameter per line
@@ -510,6 +540,29 @@ type DDLConfig struct {
 	CreateIndex    CreateIndexCfg    `yaml:"create_index"`
 	CreateTable    CreateTableCfg    `yaml:"create_table"`
 	AlterTable     AlterTableCfg     `yaml:"alter_table"`
+	CreateView     CreateViewCfg     `yaml:"create_view"`
+	CreateTrigger  CreateTriggerCfg  `yaml:"create_trigger"`
+	CreatePolicy   CreatePolicyCfg   `yaml:"create_policy"`
+	Grant          GrantCfg          `yaml:"grant"`
+	CreateType     CreateTypeCfg     `yaml:"create_type"`
+	CreateSequence CreateSequenceCfg `yaml:"create_sequence"`
+}
+
+// DDLBreakModes lists every break option of layout.ddl by its config key.
+func (d DDLConfig) DDLBreakModes() map[string]BreakMode {
+	return map[string]BreakMode{
+		"layout.ddl.create_table.break":      d.CreateTable.Break,
+		"layout.ddl.alter_table.break":       d.AlterTable.Break,
+		"layout.ddl.create_index.break":      d.CreateIndex.Break,
+		"layout.ddl.create_function.params":  d.CreateFunction.Params,
+		"layout.ddl.create_function.options": d.CreateFunction.Options,
+		"layout.ddl.create_view.columns":     d.CreateView.Columns,
+		"layout.ddl.create_trigger.break":    d.CreateTrigger.Break,
+		"layout.ddl.create_policy.break":     d.CreatePolicy.Break,
+		"layout.ddl.grant.break":             d.Grant.Break,
+		"layout.ddl.create_type.break":       d.CreateType.Break,
+		"layout.ddl.create_sequence.break":   d.CreateSequence.Break,
+	}
 }
 
 type UnionCfg struct {
@@ -716,6 +769,12 @@ func defaultLayout() LayoutConfig {
 		DDL: DDLConfig{
 			CreateTable:    CreateTableCfg{Break: BreakPreserve, Align: ColumnAlignPreserve},
 			AlterTable:     AlterTableCfg{Break: BreakPreserve},
+			CreateView:     CreateViewCfg{Columns: BreakPreserve},
+			CreateTrigger:  CreateTriggerCfg{Break: BreakPreserve},
+			CreatePolicy:   CreatePolicyCfg{Break: BreakPreserve},
+			Grant:          GrantCfg{Break: BreakPreserve},
+			CreateType:     CreateTypeCfg{Break: BreakPreserve},
+			CreateSequence: CreateSequenceCfg{Break: BreakPreserve},
 			CreateIndex:    CreateIndexCfg{Break: BreakPreserve},
 			CreateFunction: CreateFunctionCfg{Params: BreakPreserve, Options: BreakPreserve},
 		},
@@ -1201,13 +1260,7 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("layout.content.join_on_position must be preserve|inline|newline, got %q", cfg.Layout.Content.JoinOnPosition)
 	}
-	for name, b := range map[string]BreakMode{
-		"layout.ddl.create_table.break":      cfg.Layout.DDL.CreateTable.Break,
-		"layout.ddl.alter_table.break":       cfg.Layout.DDL.AlterTable.Break,
-		"layout.ddl.create_index.break":      cfg.Layout.DDL.CreateIndex.Break,
-		"layout.ddl.create_function.params":  cfg.Layout.DDL.CreateFunction.Params,
-		"layout.ddl.create_function.options": cfg.Layout.DDL.CreateFunction.Options,
-	} {
+	for name, b := range cfg.Layout.DDL.DDLBreakModes() {
 		switch b {
 		case BreakPreserve, BreakNever, BreakAlways, BreakAuto, "":
 		default:
