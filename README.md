@@ -1,8 +1,21 @@
 # pg_procrustes
 
-[![CI](https://github.com/heptau/pg_procrustes/actions/workflows/ci.yml/badge.svg)](https://github.com/heptau/pg_procrustes/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/heptau/pg_procrustes)](https://goreportcard.com/report/github.com/heptau/pg_procrustes)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/heptau/pg_procrustes/ci.yml?branch=main&label=CI)](https://github.com/heptau/pg_procrustes/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/heptau/pg_procrustes)](https://github.com/heptau/pg_procrustes/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/heptau/pg_procrustes.svg)](https://pkg.go.dev/github.com/heptau/pg_procrustes)
+[![Go version](https://img.shields.io/github/go-mod/go-version/heptau/pg_procrustes)](go.mod)
+[![License: MIT](https://img.shields.io/github/license/heptau/pg_procrustes)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/heptau/pg_procrustes?style=flat&logo=github)](https://github.com/heptau/pg_procrustes/stargazers)
+
+[![Install with Homebrew](https://img.shields.io/badge/install%20with-Homebrew-orange?logo=homebrew&logoColor=white)](#installation)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](#installation)
+[![Downloads](https://img.shields.io/github/downloads/heptau/pg_procrustes/total?label=Downloads&logo=github)](https://github.com/heptau/pg_procrustes/releases)
+[![Docs](https://img.shields.io/badge/docs-pg__procrustes.80.cz-indigo?logo=read-the-docs&logoColor=white)](https://pg_procrustes.80.cz/)
+[![Config Builder](https://img.shields.io/badge/Config-Builder-blueviolet)](https://pg_procrustes.80.cz/config-builder.html)
+
+[![Parser](https://img.shields.io/badge/parser-libpg__query-336791?logo=postgresql&logoColor=white)](https://github.com/pganalyze/libpg_query)
+[![Editors](https://img.shields.io/badge/editors-LSP%20%7C%20Neovim%20%7C%20VS%20Code-blue?logo=visualstudiocode&logoColor=white)](#editor-integration)
+[![pre-commit](https://img.shields.io/badge/pre--commit-supported-brightgreen?logo=pre-commit&logoColor=white)](#editor-integration)
 
 A fast, flexible PostgreSQL formatter in Go. Driven by the native PostgreSQL parser, it understands your code like the DB itself. You design the Procrustean bed via rich config, and it shapes your queries with precision. 🛏️📐
 

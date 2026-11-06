@@ -10,12 +10,12 @@ For the complete documentation in a single file (README + fully commented refere
 
 - Language: Go (CGO, uses libpg_query via pg_query_go)
 - License: MIT
-- Config file: `.pg_procrustes.yaml` (auto-detected from the current directory upward, or `-c <path>`)
+- Config file: `.pg_procrustes.yaml` (auto-detected from the directory of each file upward, then from the working directory upward, or `-c <path>`)
 - Platforms: macOS (arm64, amd64), Linux (amd64, arm64), Windows (amd64, arm64)
 - Install: `brew install heptau/tap/pg-procrustes`, `go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest` (then `pg_procrustes --install-templates` for the templates), or a binary from GitHub Releases (the archives include `templates/`)
 - Templates: ready-made configs shipped as files (`postgresql` ≈ what PostgreSQL prints, `ai` = lean for LLM prompts, `modern` = lower-case keywords, one item per line with leading commas, friendly to git); a config starts from one with `template: modern` (or a file path, or a list; the file's own settings win)
 - Leaving a part alone: everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` (or `/* … */`) is copied to the output untouched
-- Editor integration: Neovim plugin (conform.nvim formatter, `:PgProcrustesFormat`), plus config-only setups for Zed, VS Code, JetBrains/DataGrip, Emacs, Helix, Vim (ALE)
+- Editor integration: a built-in Language Server (`pg_procrustes --lsp`: format document / selection, syntax errors as diagnostics) for any editor with an LSP client; Neovim plugin (conform.nvim formatter, `:PgProcrustesFormat`, range formatting), plus config-only setups for Zed, VS Code, JetBrains/DataGrip, Emacs, Helix, Sublime Text, Vim (ALE)
 
 ## CLI usage
 
@@ -23,12 +23,17 @@ For the complete documentation in a single file (README + fully commented refere
 pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 ```
 
+A directory argument is searched recursively for `*.sql` (hidden directories and `node_modules` are skipped); glob patterns work and `**` matches any number of directories (`'migrations/**/*.sql'`, quoted).
+
 - `-w` — write result back to source files
 - `--check` — exit 1 if any file would change (CI / pre-commit)
 - `--diff` — print unified diff without writing
 - `--syntax-errors <fail|skip|ignore>` — what to do with SQL that does not parse (default `fail`: report `file:line:col`, exit 1; `skip` formats the valid statements and leaves the rest as written)
 - `--backup[=.ext]` — save original before overwriting (requires `-w`)
 - `--out-dir <dir>` — write formatted files to a different directory
+- `--lines <a:b>` — format only the statements that touch those lines of a single file or stdin, copy the rest as written (range formatting)
+- `--stdin-filepath <path>` — with stdin: the path the text belongs to, so the config is looked up from its directory
+- `--lsp` — run as a Language Server over stdio
 - `-c <path>` — explicit config file path
 - `--print-config` — print the effective configuration (templates resolved, every option) and the files it was built from
 - `--list-templates` — list the installed templates
@@ -42,11 +47,12 @@ pg_procrustes [flags] [file ...]      # no files → read stdin, write stdout
 - Alias `AS`: add / remove; `<>` vs `!=`; `NOT IN` vs `<> ALL`; `CAST(x AS t)` vs `x::t`; explicit/implicit `ASC`; short/long JOIN form; removing `public.` and safe double quotes
 - Spacing: operators, commas, parentheses, inline whitespace; trailing whitespace, trailing newline, semicolons, blank lines
 - Layout: clause breaking (including WINDOW), content breaking (comma lists, AND/OR conditions, wrapping of long argument lists and OVER (…) specifications), CASE expressions, subqueries and CTE bodies opened on their own lines (`layout.subquery.break`), `(` placed above its `)` (`layout.paren_indent.open`), UNION blank lines, paren-indented blocks, indentation
+- DDL layout (`layout.ddl.*`, all `preserve | never | always | auto`): CREATE TABLE (one column per line, `align`), ALTER TABLE (actions, constraint parts), CREATE FUNCTION / PROCEDURE, INDEX, VIEW, TRIGGER, POLICY, TYPE, SEQUENCE, DOMAIN, EXTENSION, partitions, DROP, GRANT / REVOKE
 - PL/pgSQL: DECLARE/BEGIN/EXCEPTION/END structure, IF/ELSIF/ELSE, LOOP/FOR/WHILE, CASE statements, `:=` vs `=` for assignments (`plpgsql_assignment`)
 
 ## Top-level config keys
 
-`template`, `reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `statement_break`, `plpgsql_assignment`, `line_endings`, `comments`, `blank_lines_between_statements`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `subquery`, `dollar_quote`, `paren_indent`).
+`template`, `reserved_keywords`, `keywords`, `data_types`, `literals`, `operators`, `schemas`, `tables`, `columns`, `functions`, `conditional_functions`, `system_functions`, `aliases`, `plpgsql_variables`, `plpgsql_keywords`, `trailing_whitespace`, `trailing_newline`, `semicolons`, `inequality_op`, `join_form`, `operator_spacing`, `comma_spacing`, `syntax_errors`, `statement_break`, `plpgsql_assignment`, `line_endings`, `comments`, `blank_lines_between_statements`, `arithmetic_spacing`, `blank_lines`, `paren_spacing`, `inline_spacing`, `quoted_identifiers`, `schema_qualification`, `cast_style`, `order_asc`, `not_in`, `layout` (`line_length`, `indent`, `clauses`, `content`, `case`, `union`, `subquery`, `dollar_quote`, `paren_indent`, `ddl`).
 
 ## Docs
 

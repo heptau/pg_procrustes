@@ -5,19 +5,33 @@
 ```
 pg_procrustes/
 ├── cmd/pg_procrustes/      # CLI entry point
+├── config/
+│   ├── config.go           # All config structs, defaults, validation
+│   └── template.go         # `template:` resolution (names, files, chains, merging)
+├── formatter/
+│   ├── formatter.go        # Token loop (casing, operators, spacing)
+│   ├── syntax.go           # Format() entry point, syntax_errors policy, statement chunking
+│   ├── keywords.go         # Keyword/identifier casing
+│   ├── operators.go        # Operator normalization
+│   ├── plpgsql.go          # Dollar-quote detection, PL/pgSQL reformatter
+│   ├── rangefmt.go         # FormatRange (--lines, LSP range formatting)
+│   ├── verbatim.go         # -- pg_procrustes: off / on regions
+│   ├── testdata/           # Golden cases (input.sql, config.yaml, want.sql)
+│   └── *_test.go
 ├── internal/
-│   ├── config/
-│   │   └── config.go       # All config structs, defaults, validation
-│   ├── formatter/
-│   │   ├── formatter.go    # Main Format() entry point
-│   │   ├── keywords.go     # Keyword/identifier casing
-│   │   ├── operators.go    # Operator normalization
-│   │   ├── plpgsql.go      # Dollar-quote detection, PL/pgSQL reformatter
+│   ├── layout/
+│   │   ├── layout.go       # Apply() — clause breaking, content breaking, CASE
+│   │   ├── subquery.go     # layout.subquery.break
+│   │   ├── ddl.go, ddl_more.go  # layout.ddl.*
 │   │   └── *_test.go
-│   └── layout/
-│       ├── layout.go       # Apply() — clause breaking, content breaking, CASE
-│       └── *_test.go
-└── .pg_procrustes.yaml        # Reference config (all options, all commented)
+│   └── lsp/
+│       └── server.go       # pg_procrustes --lsp (LSP over stdio)
+├── templates/              # Shipped template configs (postgresql, ai, modern)
+├── scripts/                # Release, corpus_check and docs generators
+├── docs/                   # Website (index.html, Config Builder), llms.txt, llms-full.txt
+├── doc/, lua/, plugin/     # Neovim plugin and its help file
+├── .githooks/              # pre-push hook (make install-hooks)
+└── .pg_procrustes.yaml     # Reference config (all options, all commented)
 ```
 
 ## Architecture: two-layer pipeline

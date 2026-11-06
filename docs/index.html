@@ -646,6 +646,7 @@
   <a href="#content" data-i18n="nav_content">Content breaking</a>
   <a href="#case-sql" data-i18n="nav_case_sql">CASE expressions</a>
   <a href="#subqueries" data-i18n="nav_subqueries">Subqueries &amp; windows</a>
+  <a href="#ddl" data-i18n="nav_ddl">DDL statements</a>
   <a href="#plpgsql" data-i18n="nav_plpgsql">PL/pgSQL</a>
   <a href="#plpgsql-if" data-i18n="nav_plpgsql_if">IF blocks</a>
   <a href="#plpgsql-loop" data-i18n="nav_plpgsql_loop">LOOP blocks</a>
@@ -751,6 +752,27 @@ use({
       <code>require("conform").format()</code> and format-on-save pick it up like any other formatter. Without conform.nvim, use <code>:PgProcrustesFormat</code> to format the current buffer directly.
       Run <code>:checkhealth pg_procrustes</code> to verify the setup, or <code>:help pg_procrustes</code> for the full reference.
     </p>
+    <p data-i18n="editor_neovim_range_p">With a range (<code>:'&lt;,'&gt;PgProcrustesFormat</code>) only the statements touching those lines are formatted.</p>
+
+    <h3 data-i18n="lsp_h3">Language server (LSP)</h3>
+    <p data-i18n="lsp_p"><code>pg_procrustes --lsp</code> speaks the Language Server Protocol over stdin/stdout, so any editor with an LSP client can use it without a formatter plugin: <em>Format Document</em>, <em>Format Selection</em> (only the statements touching the selection, as with <code>--lines</code>) and syntax errors as diagnostics while you type (a warning with <code>syntax_errors: skip</code>). The config is looked up from each document's own directory and re-read on every request; <code>-c path</code> fixes one config for everything. A document that does not parse is never touched.</p>
+    <pre><code><span class="cm">-- Neovim 0.11+</span>
+vim.lsp.config("pg_procrustes", {
+  cmd = { "pg_procrustes", "--lsp" },
+  filetypes = { "sql" },
+  root_markers = { ".pg_procrustes.yaml", ".git" },
+})
+vim.lsp.enable("pg_procrustes")</code></pre>
+    <pre><code><span class="cm"># Helix: ~/.config/helix/languages.toml</span>
+[language-server.pg_procrustes]
+command = "pg_procrustes"
+args = ["--lsp"]
+
+[[language]]
+name = "sql"
+language-servers = ["pg_procrustes"]
+auto-format = true</code></pre>
+    <p data-i18n="lsp_other_p">Emacs (eglot): <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. For VS Code, Zed and Sublime Text see the README; the sections below are the config-only alternatives with an external formatter.</p>
 
     <h3>Zed</h3>
     <p data-i18n="editor_zed_p">Zed has built-in support for external formatters — no extension needed. Add this to your project settings (<code>.zed/settings.json</code>) or user settings (<code>~/.config/zed/settings.json</code>):</p>
@@ -898,6 +920,13 @@ jobs:
 pg_procrustes -w query.sql
 pg_procrustes -w migrations/*.sql
 
+<span class="cm"># a directory is searched recursively for *.sql; ** matches any number of directories (quote it)</span>
+pg_procrustes -w sql/
+pg_procrustes --check <span class="str">'migrations/**/*.sql'</span>
+
+<span class="cm"># format only the statements that touch lines 10–25 (for editors' range formatting)</span>
+pg_procrustes --lines 10:25 -w query.sql
+
 <span class="cm"># print formatted output to stdout</span>
 pg_procrustes query.sql
 
@@ -925,6 +954,9 @@ pg_procrustes --version</code></pre>
         <tr><td><code>--check</code></td><td data-i18n="usage_flag_check">Exit 1 if any file would be reformatted — useful in CI and pre-commit hooks</td></tr>
         <tr><td><code>--syntax-errors &lt;mode&gt;</code></td><td>What to do with SQL that does not parse: <code>fail</code> (default — report <code>file:line:col</code>, exit 1), <code>skip</code> (format the valid statements, leave the rest as written) or <code>ignore</code></td></tr>
         <tr><td><code>--diff</code></td><td data-i18n="usage_flag_diff">Print a unified diff of changes without writing</td></tr>
+        <tr><td><code>--lines &lt;a:b&gt;</code></td><td data-i18n="usage_flag_lines">Format only the statements that touch lines <code>a</code>..<code>b</code> (or one line <code>N</code>) of a single file or of stdin; everything else is copied as written</td></tr>
+        <tr><td><code>--stdin-filepath &lt;path&gt;</code></td><td data-i18n="usage_flag_stdinpath">When reading stdin: the path the text belongs to (it need not exist); the config is looked up from that file's directory instead of the working directory</td></tr>
+        <tr><td><code>--lsp</code></td><td data-i18n="usage_flag_lsp">Run as a Language Server (LSP over stdio): document and range formatting and syntax errors as diagnostics; the config is looked up per document</td></tr>
         <tr><td><code>--print-config</code></td><td data-i18n="usage_flag_printconfig">Print the effective configuration (templates resolved, every option) and the files it was built from, then exit</td></tr>
         <tr><td><code>--list-templates</code></td><td data-i18n="usage_flag_listtemplates">List the installed templates and where they are, then exit</td></tr>
         <tr><td><code>--install-templates</code></td><td data-i18n="usage_flag_installtemplates">Download the templates of this release from GitHub into your user templates directory</td></tr>
@@ -1378,6 +1410,49 @@ line_endings:         preserve   <span class="cm"># preserve | lf | crlf</span><
 ) <span class="kw">AS</span> running</code></pre>
   </section>
 
+  <!-- ── DDL ── -->
+  <section id="ddl">
+    <h2 data-i18n="ddl_h2">DDL statements</h2>
+    <p data-i18n="ddl_p"><code>layout.ddl</code> lays out the common DDL statements. Every option takes <code>preserve</code> (default, leave as written), <code>never</code> (one line), <code>always</code> or <code>auto</code> (break only when the statement is longer than <code>line_length</code>); a statement with a <code>--</code> comment inside is left alone.</p>
+    <div class="ba-stack">
+      <div>
+        <div class="ba-label" data-i18n="lbl_before">Before</div>
+        <pre><code><span class="kw">CREATE TABLE</span> t (id bigint <span class="kw">NOT NULL</span>, note text, created timestamptz <span class="kw">DEFAULT</span> now());
+<span class="kw">ALTER TABLE</span> t <span class="kw">ADD COLUMN</span> a int, <span class="kw">ADD CONSTRAINT</span> fk <span class="kw">FOREIGN KEY</span> (a) <span class="kw">REFERENCES</span> u (a) <span class="kw">ON DELETE CASCADE</span>;</code></pre>
+      </div>
+      <div>
+        <div class="ba-label" data-i18n="ddl_lbl_after">After — create_table.break: always, align: types, alter_table.break / constraints: always</div>
+        <pre><code><span class="kw">CREATE TABLE</span> t (
+  id      bigint <span class="kw">NOT NULL</span>,
+  note    text,
+  created timestamptz <span class="kw">DEFAULT</span> now()
+);
+<span class="kw">ALTER TABLE</span> t
+  <span class="kw">ADD COLUMN</span> a int,
+  <span class="kw">ADD CONSTRAINT</span> fk
+    <span class="kw">FOREIGN KEY</span> (a)
+    <span class="kw">REFERENCES</span> u (a)
+    <span class="kw">ON DELETE CASCADE</span>;</code></pre>
+      </div>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr><th data-i18n="ddl_th_option">Option</th><th data-i18n="ddl_th_lays">Lays out</th></tr></thead>
+      <tbody>
+        <tr><td><code>create_table.break</code>, <code>.align</code></td><td data-i18n="ddl_r1">one column / constraint per line, <code>)</code> on its own line; <code>align: none | types | all</code> pads names and types into columns</td></tr>
+        <tr><td><code>alter_table.break</code>, <code>.constraints</code></td><td data-i18n="ddl_r2">one action per line; the parts of <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) on indented lines</td></tr>
+        <tr><td><code>create_function.params</code>, <code>.options</code></td><td data-i18n="ddl_r3">parameter list one per line; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … each on a line</td></tr>
+        <tr><td><code>create_index.break</code></td><td><code>ON</code>, <code>USING</code>, <code>INCLUDE</code>, <code>WITH</code>, <code>TABLESPACE</code>, <code>WHERE</code></td></tr>
+        <tr><td><code>create_view.columns</code></td><td data-i18n="ddl_r5">column list of <code>CREATE [MATERIALIZED] VIEW v (a, b)</code></td></tr>
+        <tr><td><code>create_trigger.break</code>, <code>create_policy.break</code></td><td data-i18n="ddl_r6">timing/events, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code>; policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code></td></tr>
+        <tr><td><code>grant.break</code></td><td><code>GRANT</code> / <code>REVOKE</code>: <code>ON</code>, <code>TO</code> / <code>FROM</code>, <code>WITH …</code>, <code>GRANTED BY</code>, <code>CASCADE</code></td></tr>
+        <tr><td><code>create_type.break</code>, <code>create_sequence.break</code></td><td data-i18n="ddl_r8">enum labels / composite attributes one per line; sequence options each on a line</td></tr>
+        <tr><td><code>create_partition.break</code>, <code>drop.break</code></td><td data-i18n="ddl_r9"><code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, …; <code>DROP</code> with several objects one per line</td></tr>
+        <tr><td><code>create_domain.break</code>, <code>create_extension.break</code></td><td><code>DEFAULT</code>, <code>COLLATE</code>, <code>NOT NULL</code>, <code>CHECK</code>; <code>WITH SCHEMA</code>, <code>VERSION</code>, <code>CASCADE</code></td></tr>
+      </tbody>
+    </table></div>
+    <p data-i18n="ddl_footer_p">All options are listed with examples in the <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">reference config</a> and in the <a href="config-builder.html">Config Builder</a>.</p>
+  </section>
+
   <!-- ── PLPGSQL ── -->
   <section id="plpgsql">
     <h2 data-i18n="plpgsql_h2">PL/pgSQL formatting</h2>
@@ -1725,6 +1800,27 @@ total := total + i;
     tmpl_p2: `<code>pg_procrustes --list-templates</code> ukáže, co je nainstalováno, <code>--print-config</code> výsledek. <a href="config-builder.html">Config Builder</a> nabízí stejné šablony a umí napsat krátký soubor (<code>template: modern</code> plus vaše odchylky).`,
     layout_paren_open_p: `<code>open: own_line</code> přesune <code>(</code> bloku přes více řádků z konce řádku na vlastní řádek do sloupce odpovídající <code>)</code>.`,
     nav_subqueries: `Poddotazy a okna`,
+    nav_ddl: `DDL příkazy`,
+    ddl_h2: `DDL příkazy`,
+    ddl_p: `<code>layout.ddl</code> upravuje rozložení běžných DDL příkazů. Každá volba přijímá <code>preserve</code> (výchozí, ponechat jak je), <code>never</code> (jeden řádek), <code>always</code> nebo <code>auto</code> (zalomit, jen když je příkaz delší než <code>line_length</code>); příkaz s komentářem <code>--</code> uvnitř zůstane beze změny.`,
+    ddl_lbl_after: `Po — create_table.break: always, align: types, alter_table.break / constraints: always`,
+    ddl_th_option: `Volba`,
+    ddl_th_lays: `Co rozloží`,
+    ddl_r1: `jeden sloupec / constraint na řádek, <code>)</code> na vlastním řádku; <code>align: none | types | all</code> zarovná názvy a typy do sloupců`,
+    ddl_r2: `jedna akce na řádek; části <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) na odsazených řádcích`,
+    ddl_r3: `seznam parametrů po jednom na řádek; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … každé na řádku`,
+    ddl_r5: `seznam sloupců v <code>CREATE [MATERIALIZED] VIEW v (a, b)</code>`,
+    ddl_r6: `časování/události, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code>; u policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code>`,
+    ddl_r8: `hodnoty enum / atributy složeného typu po jednom na řádek; volby sekvence každá na řádku`,
+    ddl_r9: `<code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, …; <code>DROP</code> s více objekty po jednom na řádek`,
+    ddl_footer_p: `Všechny volby s příklady jsou v <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">referenční konfiguraci</a> a v <a href="config-builder.html">Config Builderu</a>.`,
+    lsp_h3: `Language server (LSP)`,
+    lsp_p: `<code>pg_procrustes --lsp</code> mluví Language Server Protocolem přes stdin/stdout, takže ho použije každý editor s LSP klientem bez pluginu pro formátování: <em>Formátovat dokument</em>, <em>Formátovat výběr</em> (jen příkazy zasahující do výběru, jako u <code>--lines</code>) a syntaktické chyby jako diagnostika během psaní (varování při <code>syntax_errors: skip</code>). Konfigurace se hledá od adresáře každého dokumentu a čte se při každém požadavku; <code>-c cesta</code> vynutí jednu konfiguraci pro vše. Dokument, který se nedá zparsovat, se nikdy nezmění.`,
+    lsp_other_p: `Emacs (eglot): <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. VS Code, Zed a Sublime Text najdete v README; sekce níže jsou alternativy jen s konfigurací a externím formátovačem.`,
+    editor_neovim_range_p: `S rozsahem (<code>:'&lt;,'&gt;PgProcrustesFormat</code>) se formátují jen příkazy zasahující do těchto řádků.`,
+    usage_flag_lines: `Formátuje jen příkazy zasahující do řádků <code>a</code>..<code>b</code> (nebo jednoho řádku <code>N</code>) jednoho souboru nebo stdin; zbytek se zkopíruje beze změny`,
+    usage_flag_stdinpath: `Při čtení ze stdin: cesta, ke které text patří (nemusí existovat); konfigurace se hledá od adresáře tohoto souboru místo pracovního adresáře`,
+    usage_flag_lsp: `Spustí jako Language Server (LSP přes stdio): formátování dokumentu a výběru a syntaktické chyby jako diagnostika; konfigurace se hledá pro každý dokument zvlášť`,
     sub_h2: `Poddotazy a okna`,
     sub_p1: `<code>layout.subquery.break</code> rozloží poddotazy v závorkách a těla CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — stejnými pravidly o úroveň hlouběji: <code>(</code> zůstane na řádku, tělo je pod ním a <code>)</code> dostane vlastní řádek. <code>never</code> je spojí na jeden řádek, <code>auto</code> otevře jen ty na řádku delším než <code>line_length</code>, <code>preserve</code> (výchozí) je nechá být.`,
     sub_lbl_after: `Potom — clauses.break: always, subquery.break: always`,
@@ -1962,6 +2058,27 @@ total := total + i;
   tmpl_p2: `<code>pg_procrustes --list-templates</code> muestra lo instalado y <code>--print-config</code> el resultado. El <a href="config-builder.html">Config Builder</a> ofrece las mismas plantillas y puede escribir un archivo corto (<code>template: modern</code> más sus diferencias).`,
   layout_paren_open_p: `<code>open: own_line</code> mueve el <code>(</code> de un bloque de varias líneas del final de su línea a una línea propia, en la columna del <code>)</code> correspondiente.`,
   nav_subqueries: `Subconsultas y ventanas`,
+  nav_ddl: `Sentencias DDL`,
+  ddl_h2: `Sentencias DDL`,
+  ddl_p: `<code>layout.ddl</code> da formato a las sentencias DDL más habituales. Cada opción acepta <code>preserve</code> (por defecto, dejar como está), <code>never</code> (una línea), <code>always</code> o <code>auto</code> (dividir solo cuando la sentencia supera <code>line_length</code>); una sentencia con un comentario <code>--</code> dentro se deja intacta.`,
+  ddl_lbl_after: `Después — create_table.break: always, align: types, alter_table.break / constraints: always`,
+  ddl_th_option: `Opción`,
+  ddl_th_lays: `Qué distribuye`,
+  ddl_r1: `una columna / restricción por línea, <code>)</code> en su propia línea; <code>align: none | types | all</code> alinea nombres y tipos en columnas`,
+  ddl_r2: `una acción por línea; las partes de <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) en líneas con sangría`,
+  ddl_r3: `lista de parámetros de uno en uno; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … cada uno en una línea`,
+  ddl_r5: `lista de columnas de <code>CREATE [MATERIALIZED] VIEW v (a, b)</code>`,
+  ddl_r6: `momento/eventos, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code>; en policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code>`,
+  ddl_r8: `valores de enum / atributos de tipo compuesto de uno en uno; opciones de secuencia cada una en una línea`,
+  ddl_r9: `<code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, …; <code>DROP</code> con varios objetos de uno en uno`,
+  ddl_footer_p: `Todas las opciones, con ejemplos, están en la <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">configuración de referencia</a> y en el <a href="config-builder.html">Config Builder</a>.`,
+  lsp_h3: `Servidor de lenguaje (LSP)`,
+  lsp_p: `<code>pg_procrustes --lsp</code> habla el Language Server Protocol por stdin/stdout, así que cualquier editor con cliente LSP puede usarlo sin un plugin de formato: <em>Formatear documento</em>, <em>Formatear selección</em> (solo las sentencias que tocan la selección, como con <code>--lines</code>) y errores de sintaxis como diagnósticos mientras escribes (una advertencia con <code>syntax_errors: skip</code>). La configuración se busca desde el directorio de cada documento y se relee en cada petición; <code>-c ruta</code> fija una sola configuración para todo. Un documento que no se puede analizar nunca se modifica.`,
+  lsp_other_p: `Emacs (eglot): <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. Para VS Code, Zed y Sublime Text consulta el README; las secciones siguientes son alternativas solo con configuración y un formateador externo.`,
+  editor_neovim_range_p: `Con un rango (<code>:'&lt;,'&gt;PgProcrustesFormat</code>) solo se formatean las sentencias que tocan esas líneas.`,
+  usage_flag_lines: `Formatea solo las sentencias que tocan las líneas <code>a</code>..<code>b</code> (o una línea <code>N</code>) de un único archivo o de stdin; el resto se copia tal cual`,
+  usage_flag_stdinpath: `Al leer de stdin: la ruta a la que pertenece el texto (no tiene que existir); la configuración se busca desde el directorio de ese archivo en lugar del directorio de trabajo`,
+  usage_flag_lsp: `Se ejecuta como servidor de lenguaje (LSP por stdio): formato de documento y selección y errores de sintaxis como diagnósticos; la configuración se busca por documento`,
   sub_h2: `Subconsultas y ventanas`,
   sub_p1: `<code>layout.subquery.break</code> dispone las subconsultas entre paréntesis y los cuerpos de CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — con las mismas reglas, un nivel más adentro: <code>(</code> se queda en su línea, el cuerpo va debajo y <code>)</code> ocupa su propia línea. <code>never</code> las une en una línea, <code>auto</code> abre solo las de líneas más largas que <code>line_length</code> y <code>preserve</code> (por defecto) las deja como están.`,
   sub_lbl_after: `Después — clauses.break: always, subquery.break: always`,
@@ -2198,6 +2315,27 @@ total := total + i;
     tmpl_p2: `<code>pg_procrustes --list-templates</code> zeigt, was installiert ist, <code>--print-config</code> das Ergebnis. Der <a href="config-builder.html">Config Builder</a> bietet dieselben Vorlagen und kann eine kurze Datei schreiben (<code>template: modern</code> plus Ihre Abweichungen).`,
     layout_paren_open_p: `<code>open: own_line</code> verschiebt die <code>(</code> eines mehrzeiligen Blocks vom Zeilenende in eine eigene Zeile, in die Spalte der passenden <code>)</code>.`,
     nav_subqueries: `Unterabfragen &amp; Fenster`,
+    nav_ddl: `DDL-Anweisungen`,
+    ddl_h2: `DDL-Anweisungen`,
+    ddl_p: `<code>layout.ddl</code> gestaltet die gängigen DDL-Anweisungen. Jede Option akzeptiert <code>preserve</code> (Standard, unverändert lassen), <code>never</code> (eine Zeile), <code>always</code> oder <code>auto</code> (nur umbrechen, wenn die Anweisung länger als <code>line_length</code> ist); eine Anweisung mit einem <code>--</code>-Kommentar darin bleibt unangetastet.`,
+    ddl_lbl_after: `Danach — create_table.break: always, align: types, alter_table.break / constraints: always`,
+    ddl_th_option: `Option`,
+    ddl_th_lays: `Was umgebrochen wird`,
+    ddl_r1: `eine Spalte / ein Constraint pro Zeile, <code>)</code> in einer eigenen Zeile; <code>align: none | types | all</code> richtet Namen und Typen in Spalten aus`,
+    ddl_r2: `eine Aktion pro Zeile; die Teile von <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) in eingerückten Zeilen`,
+    ddl_r3: `Parameterliste einzeln pro Zeile; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … jeweils in einer Zeile`,
+    ddl_r5: `Spaltenliste von <code>CREATE [MATERIALIZED] VIEW v (a, b)</code>`,
+    ddl_r6: `Zeitpunkt/Ereignisse, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code>; bei Policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code>`,
+    ddl_r8: `Enum-Werte / Attribute eines zusammengesetzten Typs einzeln pro Zeile; Sequenz-Optionen jeweils in einer Zeile`,
+    ddl_r9: `<code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, …; <code>DROP</code> mit mehreren Objekten einzeln pro Zeile`,
+    ddl_footer_p: `Alle Optionen mit Beispielen stehen in der <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">Referenzkonfiguration</a> und im <a href="config-builder.html">Config Builder</a>.`,
+    lsp_h3: `Language Server (LSP)`,
+    lsp_p: `<code>pg_procrustes --lsp</code> spricht das Language Server Protocol über stdin/stdout, sodass jeder Editor mit LSP-Client es ohne Formatter-Plugin nutzen kann: <em>Dokument formatieren</em>, <em>Auswahl formatieren</em> (nur die Anweisungen, die die Auswahl berühren, wie bei <code>--lines</code>) und Syntaxfehler als Diagnosen während des Tippens (eine Warnung bei <code>syntax_errors: skip</code>). Die Konfiguration wird ab dem Verzeichnis jedes Dokuments gesucht und bei jeder Anfrage neu gelesen; <code>-c Pfad</code> legt eine Konfiguration für alles fest. Ein Dokument, das sich nicht parsen lässt, wird nie verändert.`,
+    lsp_other_p: `Emacs (eglot): <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. Für VS Code, Zed und Sublime Text siehe README; die folgenden Abschnitte sind Alternativen nur mit Konfiguration und externem Formatter.`,
+    editor_neovim_range_p: `Mit einem Bereich (<code>:'&lt;,'&gt;PgProcrustesFormat</code>) werden nur die Anweisungen formatiert, die diese Zeilen berühren.`,
+    usage_flag_lines: `Formatiert nur die Anweisungen, die die Zeilen <code>a</code>..<code>b</code> (oder eine Zeile <code>N</code>) einer einzelnen Datei oder von stdin berühren; alles andere wird unverändert übernommen`,
+    usage_flag_stdinpath: `Beim Lesen von stdin: der Pfad, zu dem der Text gehört (muss nicht existieren); die Konfiguration wird ab dem Verzeichnis dieser Datei statt ab dem Arbeitsverzeichnis gesucht`,
+    usage_flag_lsp: `Läuft als Language Server (LSP über stdio): Dokument- und Bereichsformatierung sowie Syntaxfehler als Diagnosen; die Konfiguration wird pro Dokument gesucht`,
     sub_h2: `Unterabfragen &amp; Fenster`,
     sub_p1: `<code>layout.subquery.break</code> legt Unterabfragen in Klammern und CTE-Rümpfe — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — mit denselben Regeln eine Ebene tiefer aus: <code>(</code> bleibt in seiner Zeile, der Rumpf steht darunter, <code>)</code> bekommt eine eigene Zeile. <code>never</code> fügt sie in einer Zeile zusammen, <code>auto</code> öffnet nur Zeilen, die länger als <code>line_length</code> sind, <code>preserve</code> (Standard) lässt sie unverändert.`,
     sub_lbl_after: `Danach — clauses.break: always, subquery.break: always`,
@@ -2434,6 +2572,27 @@ total := total + i;
     tmpl_p2: `<code>pg_procrustes --list-templates</code> montre ce qui est installé, <code>--print-config</code> le résultat. Le <a href="config-builder.html">Config Builder</a> propose les mêmes modèles et peut écrire un fichier court (<code>template: modern</code> plus vos différences).`,
     layout_paren_open_p: `<code>open: own_line</code> déplace la <code>(</code> d’un bloc sur plusieurs lignes de la fin de sa ligne vers une ligne à elle, dans la colonne de la <code>)</code> correspondante.`,
     nav_subqueries: `Sous-requêtes &amp; fenêtres`,
+    nav_ddl: `Instructions DDL`,
+    ddl_h2: `Instructions DDL`,
+    ddl_p: `<code>layout.ddl</code> met en forme les instructions DDL courantes. Chaque option accepte <code>preserve</code> (par défaut, laisser tel quel), <code>never</code> (une seule ligne), <code>always</code> ou <code>auto</code> (couper seulement si l'instruction dépasse <code>line_length</code>) ; une instruction contenant un commentaire <code>--</code> est laissée intacte.`,
+    ddl_lbl_after: `Après — create_table.break: always, align: types, alter_table.break / constraints: always`,
+    ddl_th_option: `Option`,
+    ddl_th_lays: `Ce qui est mis en forme`,
+    ddl_r1: `une colonne / contrainte par ligne, <code>)</code> sur sa propre ligne ; <code>align: none | types | all</code> aligne noms et types en colonnes`,
+    ddl_r2: `une action par ligne ; les parties de <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) sur des lignes indentées`,
+    ddl_r3: `liste de paramètres un par ligne ; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … chacun sur une ligne`,
+    ddl_r5: `liste des colonnes de <code>CREATE [MATERIALIZED] VIEW v (a, b)</code>`,
+    ddl_r6: `moment/événements, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code> ; pour policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code>`,
+    ddl_r8: `valeurs d'enum / attributs de type composite un par ligne ; options de séquence chacune sur une ligne`,
+    ddl_r9: `<code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, … ; <code>DROP</code> avec plusieurs objets un par ligne`,
+    ddl_footer_p: `Toutes les options, avec des exemples, figurent dans la <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">configuration de référence</a> et dans le <a href="config-builder.html">Config Builder</a>.`,
+    lsp_h3: `Serveur de langage (LSP)`,
+    lsp_p: `<code>pg_procrustes --lsp</code> parle le Language Server Protocol sur stdin/stdout : tout éditeur doté d'un client LSP peut donc l'utiliser sans plugin de formatage — <em>Formater le document</em>, <em>Formater la sélection</em> (seulement les instructions touchant la sélection, comme avec <code>--lines</code>) et erreurs de syntaxe en diagnostics pendant la frappe (un avertissement avec <code>syntax_errors: skip</code>). La configuration est cherchée depuis le répertoire de chaque document et relue à chaque requête ; <code>-c chemin</code> en impose une seule pour tout. Un document qui ne peut pas être analysé n'est jamais modifié.`,
+    lsp_other_p: `Emacs (eglot) : <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. Pour VS Code, Zed et Sublime Text, voir le README ; les sections suivantes sont des alternatives par simple configuration avec un formateur externe.`,
+    editor_neovim_range_p: `Avec une plage (<code>:'&lt;,'&gt;PgProcrustesFormat</code>), seules les instructions touchant ces lignes sont formatées.`,
+    usage_flag_lines: `Ne formate que les instructions touchant les lignes <code>a</code>..<code>b</code> (ou une ligne <code>N</code>) d'un seul fichier ou de stdin ; le reste est copié tel quel`,
+    usage_flag_stdinpath: `En lecture sur stdin : le chemin auquel appartient le texte (il n'a pas besoin d'exister) ; la configuration est cherchée depuis le répertoire de ce fichier plutôt que depuis le répertoire de travail`,
+    usage_flag_lsp: `S'exécute comme serveur de langage (LSP via stdio) : formatage du document et de la sélection, erreurs de syntaxe en diagnostics ; la configuration est cherchée par document`,
     sub_h2: `Sous-requêtes &amp; fenêtres`,
     sub_p1: `<code>layout.subquery.break</code> met en forme les sous-requêtes entre parenthèses et les corps de CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — avec les mêmes règles, un niveau plus bas : <code>(</code> reste sur sa ligne, le corps vient en dessous et <code>)</code> a sa propre ligne. <code>never</code> les regroupe sur une ligne, <code>auto</code> n’ouvre que celles d’une ligne plus longue que <code>line_length</code>, <code>preserve</code> (par défaut) les laisse telles quelles.`,
     sub_lbl_after: `Après — clauses.break: always, subquery.break: always`,
@@ -2670,6 +2829,27 @@ total := total + i;
     tmpl_p2: `<code>pg_procrustes --list-templates</code> mostra o que está instalado e <code>--print-config</code> o resultado. O <a href="config-builder.html">Config Builder</a> oferece os mesmos modelos e pode escrever um arquivo curto (<code>template: modern</code> mais as suas diferenças).`,
     layout_paren_open_p: `<code>open: own_line</code> move o <code>(</code> de um bloco de várias linhas do fim da linha para uma linha própria, na coluna do <code>)</code> correspondente.`,
     nav_subqueries: `Subconsultas e janelas`,
+    nav_ddl: `Instruções DDL`,
+    ddl_h2: `Instruções DDL`,
+    ddl_p: `<code>layout.ddl</code> formata as instruções DDL mais comuns. Cada opção aceita <code>preserve</code> (padrão, manter como está), <code>never</code> (uma linha), <code>always</code> ou <code>auto</code> (quebrar só quando a instrução for maior que <code>line_length</code>); uma instrução com um comentário <code>--</code> dentro é deixada intacta.`,
+    ddl_lbl_after: `Depois — create_table.break: always, align: types, alter_table.break / constraints: always`,
+    ddl_th_option: `Opção`,
+    ddl_th_lays: `O que distribui`,
+    ddl_r1: `uma coluna / restrição por linha, <code>)</code> na sua própria linha; <code>align: none | types | all</code> alinha nomes e tipos em colunas`,
+    ddl_r2: `uma ação por linha; as partes de <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) em linhas recuadas`,
+    ddl_r3: `lista de parâmetros um por linha; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … cada um numa linha`,
+    ddl_r5: `lista de colunas de <code>CREATE [MATERIALIZED] VIEW v (a, b)</code>`,
+    ddl_r6: `momento/eventos, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code>; em policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code>`,
+    ddl_r8: `valores de enum / atributos de tipo composto um por linha; opções de sequência cada uma numa linha`,
+    ddl_r9: `<code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, …; <code>DROP</code> com vários objetos um por linha`,
+    ddl_footer_p: `Todas as opções, com exemplos, estão na <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">configuração de referência</a> e no <a href="config-builder.html">Config Builder</a>.`,
+    lsp_h3: `Servidor de linguagem (LSP)`,
+    lsp_p: `<code>pg_procrustes --lsp</code> fala o Language Server Protocol por stdin/stdout, então qualquer editor com cliente LSP pode usá-lo sem plugin de formatação: <em>Formatar documento</em>, <em>Formatar seleção</em> (só as instruções que tocam a seleção, como com <code>--lines</code>) e erros de sintaxe como diagnósticos enquanto você digita (um aviso com <code>syntax_errors: skip</code>). A configuração é procurada a partir do diretório de cada documento e relida a cada requisição; <code>-c caminho</code> fixa uma só para tudo. Um documento que não pode ser analisado nunca é alterado.`,
+    lsp_other_p: `Emacs (eglot): <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. Para VS Code, Zed e Sublime Text veja o README; as seções abaixo são alternativas só com configuração e um formatador externo.`,
+    editor_neovim_range_p: `Com um intervalo (<code>:'&lt;,'&gt;PgProcrustesFormat</code>) só as instruções que tocam essas linhas são formatadas.`,
+    usage_flag_lines: `Formata só as instruções que tocam as linhas <code>a</code>..<code>b</code> (ou uma linha <code>N</code>) de um único arquivo ou de stdin; o resto é copiado como está`,
+    usage_flag_stdinpath: `Ao ler de stdin: o caminho a que o texto pertence (não precisa existir); a configuração é procurada a partir do diretório desse arquivo em vez do diretório de trabalho`,
+    usage_flag_lsp: `Executa como servidor de linguagem (LSP via stdio): formatação de documento e seleção e erros de sintaxe como diagnósticos; a configuração é procurada por documento`,
     sub_h2: `Subconsultas e janelas`,
     sub_p1: `<code>layout.subquery.break</code> organiza as subconsultas entre parênteses e os corpos de CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — com as mesmas regras, um nível mais fundo: <code>(</code> fica na sua linha, o corpo vai abaixo e <code>)</code> ganha uma linha própria. <code>never</code> junta-as numa linha, <code>auto</code> abre apenas as de linhas mais longas que <code>line_length</code> e <code>preserve</code> (padrão) deixa-as como estão.`,
     sub_lbl_after: `Depois — clauses.break: always, subquery.break: always`,
@@ -2906,6 +3086,27 @@ total := total + i;
   tmpl_p2: `<code>pg_procrustes --list-templates</code> mostra ciò che è installato e <code>--print-config</code> il risultato. Il <a href="config-builder.html">Config Builder</a> offre gli stessi modelli e può scrivere un file breve (<code>template: modern</code> più le sue differenze).`,
   layout_paren_open_p: `<code>open: own_line</code> sposta la <code>(</code> di un blocco su più righe dalla fine della riga a una riga propria, nella colonna della <code>)</code> corrispondente.`,
   nav_subqueries: `Sottoquery e finestre`,
+  nav_ddl: `Istruzioni DDL`,
+  ddl_h2: `Istruzioni DDL`,
+  ddl_p: `<code>layout.ddl</code> dispone le istruzioni DDL più comuni. Ogni opzione accetta <code>preserve</code> (predefinito, lascia com'è), <code>never</code> (una riga), <code>always</code> o <code>auto</code> (va a capo solo quando l'istruzione supera <code>line_length</code>); un'istruzione con un commento <code>--</code> al suo interno viene lasciata intatta.`,
+  ddl_lbl_after: `Dopo — create_table.break: always, align: types, alter_table.break / constraints: always`,
+  ddl_th_option: `Opzione`,
+  ddl_th_lays: `Cosa dispone`,
+  ddl_r1: `una colonna / vincolo per riga, <code>)</code> su una riga a sé; <code>align: none | types | all</code> allinea nomi e tipi in colonne`,
+  ddl_r2: `un'azione per riga; le parti di <code>ADD CONSTRAINT</code> (<code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>REFERENCES</code>, <code>ON DELETE</code>, …) su righe rientrate`,
+  ddl_r3: `elenco dei parametri uno per riga; <code>RETURNS</code>, <code>LANGUAGE</code>, <code>STABLE</code>, <code>SECURITY DEFINER</code>, … ciascuno su una riga`,
+  ddl_r5: `elenco delle colonne di <code>CREATE [MATERIALIZED] VIEW v (a, b)</code>`,
+  ddl_r6: `momento/eventi, <code>ON</code>, <code>FOR EACH</code>, <code>WHEN</code>, <code>EXECUTE</code>; per policy <code>ON</code>, <code>AS</code>, <code>FOR</code>, <code>TO</code>, <code>USING</code>, <code>WITH CHECK</code>`,
+  ddl_r8: `valori di enum / attributi di tipo composto uno per riga; opzioni di sequenza ciascuna su una riga`,
+  ddl_r9: `<code>PARTITION OF</code>, <code>FOR VALUES</code>, <code>PARTITION BY</code>, …; <code>DROP</code> con più oggetti uno per riga`,
+  ddl_footer_p: `Tutte le opzioni, con esempi, sono nella <a href="https://github.com/heptau/pg_procrustes/blob/main/.pg_procrustes.yaml">configurazione di riferimento</a> e nel <a href="config-builder.html">Config Builder</a>.`,
+  lsp_h3: `Language server (LSP)`,
+  lsp_p: `<code>pg_procrustes --lsp</code> parla il Language Server Protocol su stdin/stdout, quindi qualsiasi editor con un client LSP può usarlo senza plugin di formattazione: <em>Formatta documento</em>, <em>Formatta selezione</em> (solo le istruzioni che toccano la selezione, come con <code>--lines</code>) ed errori di sintassi come diagnostica mentre scrivi (un avviso con <code>syntax_errors: skip</code>). La configurazione viene cercata a partire dalla directory di ogni documento e riletta a ogni richiesta; <code>-c percorso</code> ne fissa una sola per tutto. Un documento che non può essere analizzato non viene mai modificato.`,
+  lsp_other_p: `Emacs (eglot): <code>(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))</code>. Per VS Code, Zed e Sublime Text vedi il README; le sezioni seguenti sono alternative con sola configurazione e un formattatore esterno.`,
+  editor_neovim_range_p: `Con un intervallo (<code>:'&lt;,'&gt;PgProcrustesFormat</code>) vengono formattate solo le istruzioni che toccano quelle righe.`,
+  usage_flag_lines: `Formatta solo le istruzioni che toccano le righe <code>a</code>..<code>b</code> (o una riga <code>N</code>) di un singolo file o di stdin; il resto viene copiato com'è`,
+  usage_flag_stdinpath: `Leggendo da stdin: il percorso a cui appartiene il testo (non deve esistere); la configurazione viene cercata a partire dalla directory di quel file anziché dalla directory di lavoro`,
+  usage_flag_lsp: `Si avvia come language server (LSP via stdio): formattazione di documento e selezione ed errori di sintassi come diagnostica; la configurazione viene cercata per documento`,
   sub_h2: `Sottoquery e finestre`,
   sub_p1: `<code>layout.subquery.break</code> dispone le sottoquery tra parentesi e i corpi dei CTE — <code>(SELECT …)</code>, <code>(WITH …)</code>, <code>(VALUES …)</code> — con le stesse regole, un livello più in basso: <code>(</code> resta sulla sua riga, il corpo va sotto e <code>)</code> ha una riga propria. <code>never</code> le unisce su una riga, <code>auto</code> apre solo quelle su una riga più lunga di <code>line_length</code>, <code>preserve</code> (predefinito) le lascia com’erano.`,
   sub_lbl_after: `Dopo — clauses.break: always, subquery.break: always`,

@@ -66,6 +66,45 @@ use({
 
 If [conform.nvim](https://github.com/stevearc/conform.nvim) is installed, `sql` buffers get `pg_procrustes` registered as a formatter automatically — `require("conform").format()` and format-on-save pick it up like any other formatter. Without conform.nvim, use `:PgProcrustesFormat` to format the current buffer directly; with a range (`:'<,'>PgProcrustesFormat`, or conform's range formatting of a visual selection) only the statements touching those lines are formatted. Run `:checkhealth pg_procrustes` to verify the setup. See `:help pg_procrustes` for details, or [pg_procrustes.80.cz](https://pg_procrustes.80.cz).
 
+**Language server (LSP)** — `pg_procrustes --lsp` speaks the Language Server Protocol over stdin/stdout, so any editor with an LSP client can use it without a formatter plugin: *Format Document*, *Format Selection* (only the statements touching the selection are formatted, as with `--lines`) and syntax errors as diagnostics while you type (a warning with `syntax_errors: skip`). The config is looked up from each document's own directory and re-read on every request, so editing `.pg_procrustes.yaml` takes effect at once; `-c path` fixes one config for everything (or pass `initializationOptions: { "configPath": "…" }`). A document that does not parse is never touched. Examples:
+
+```lua
+-- Neovim 0.11+
+vim.lsp.config("pg_procrustes", {
+  cmd = { "pg_procrustes", "--lsp" },
+  filetypes = { "sql" },
+  root_markers = { ".pg_procrustes.yaml", ".git" },
+})
+vim.lsp.enable("pg_procrustes")
+```
+
+```toml
+# Helix: ~/.config/helix/languages.toml
+[language-server.pg_procrustes]
+command = "pg_procrustes"
+args = ["--lsp"]
+
+[[language]]
+name = "sql"
+language-servers = ["pg_procrustes"]
+auto-format = true
+```
+
+```elisp
+;; Emacs (eglot)
+(add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))
+```
+
+VS Code has no setting for "run this binary as the language server for SQL" — it needs an extension. The settings-only [Generic LSP Client](https://marketplace.visualstudio.com/items?itemName=llllvvuu.llllvvuu-glspc) works (it can register only **one** language server, so it does not combine with another generic-client server):
+
+```json
+"glspc.serverCommand": "pg_procrustes",
+"glspc.serverCommandArguments": ["--lsp"],
+"glspc.languageId": "sql"
+```
+
+If VS Code cannot find the binary (it does not always see your shell's `PATH`), give the absolute path in `glspc.serverCommand` or set `glspc.environmentVariables`; `glspc.trace.server: "verbose"` logs the conversation to the "Generic LSP Client" output channel. Zed likewise registers language servers only through extensions, so for Zed keep the external formatter below. Sublime Text's [LSP](https://lsp.sublimetext.io/client_configuration) package takes a custom client with `"enabled": true`, `"command": ["pg_procrustes", "--lsp"]` and `"selector": "source.sql"`.
+
 **Zed** has built-in support for external formatters — no extension needed. Add this to your project (`.zed/settings.json`) or user (`~/.config/zed/settings.json`) settings:
 
 ```json
