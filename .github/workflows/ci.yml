@@ -43,6 +43,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Read the pinned golangci-lint version from the Makefile
+        id: lintver
+        run: echo "version=$(sed -n 's/^GOLANGCI_LINT_VERSION := //p' Makefile)" >> "$GITHUB_OUTPUT"
+
       - uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.2.1
+          version: ${{ steps.lintver.outputs.version }}
