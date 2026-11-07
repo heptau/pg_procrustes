@@ -22,3 +22,11 @@ go.work.sum
 
 # macOS
 .DS_Store
+
+# Editor extensions
+editors/**/node_modules/
+editors/vscode/out/
+editors/vscode/*.vsix
+editors/zed/target/
+editors/zed/extension.wasm
+editors/zed/grammars/

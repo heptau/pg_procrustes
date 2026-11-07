@@ -1,0 +1,101 @@
+{
+  "name": "pg-procrustes",
+  "displayName": "pg_procrustes",
+  "description": "PostgreSQL SQL and PL/pgSQL formatter driven by the native PostgreSQL parser: format document / selection and syntax errors while you type.",
+  "version": "0.1.0",
+  "publisher": "heptau",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "homepage": "https://pg_procrustes.80.cz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heptau/pg_procrustes.git",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/heptau/pg_procrustes/issues"
+  },
+  "categories": [
+    "Formatters",
+    "Linters"
+  ],
+  "keywords": [
+    "postgresql",
+    "postgres",
+    "sql",
+    "plpgsql",
+    "formatter"
+  ],
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "activationEvents": [
+    "onLanguage:sql",
+    "onLanguage:pgsql"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted workspace the pg_procrustes executable is not started from a path set in the workspace settings.",
+      "restrictedConfigurations": [
+        "pgProcrustes.path"
+      ]
+    }
+  },
+  "contributes": {
+    "configuration": {
+      "title": "pg_procrustes",
+      "properties": {
+        "pgProcrustes.path": {
+          "type": "string",
+          "default": "pg_procrustes",
+          "scope": "machine-overridable",
+          "markdownDescription": "The `pg_procrustes` executable: a name looked up on `PATH` (and in the usual install folders such as `/opt/homebrew/bin`, `/usr/local/bin` and `~/go/bin`) or an absolute path."
+        },
+        "pgProcrustes.configPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "A fixed `.pg_procrustes.yaml` for every document. Leave empty to use the nearest `.pg_procrustes.yaml` above each file (re-read on every format)."
+        },
+        "pgProcrustes.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Logs the conversation with the language server to the \"pg_procrustes\" output channel."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "pgProcrustes.restart",
+        "title": "pg_procrustes: Restart Language Server"
+      },
+      {
+        "command": "pgProcrustes.showOutput",
+        "title": "pg_procrustes: Show Output"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap",
+    "typecheck": "tsc --noEmit -p .",
+    "package": "npm run typecheck && npm run compile && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run typecheck && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify"
+  },
+  "dependencies": {
+    "vscode-languageclient": "11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/vscode": "1.91.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  }
+}

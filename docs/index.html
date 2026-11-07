@@ -756,6 +756,7 @@ use({
 
     <h3 data-i18n="lsp_h3">Language server (LSP)</h3>
     <p data-i18n="lsp_p"><code>pg_procrustes --lsp</code> speaks the Language Server Protocol over stdin/stdout, so any editor with an LSP client can use it without a formatter plugin: <em>Format Document</em>, <em>Format Selection</em> (only the statements touching the selection, as with <code>--lines</code>) and syntax errors as diagnostics while you type (a warning with <code>syntax_errors: skip</code>). The config is looked up from each document's own directory and re-read on every request; <code>-c path</code> fixes one config for everything. A document that does not parse is never touched.</p>
+    <p data-i18n="lsp_ext_p">Dedicated extensions for <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) and <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>) are in the repository; they start <code>pg_procrustes --lsp</code> and add the editor's settings (binary path, fixed config, trace). They are not on a marketplace yet — build them from source as described in their READMEs: <code>npm run package</code> and <code>code --install-extension</code> for VS Code, <em>zed: install dev extension</em> for Zed.</p>
     <pre><code><span class="cm">-- Neovim 0.11+</span>
 vim.lsp.config("pg_procrustes", {
   cmd = { "pg_procrustes", "--lsp" },
@@ -1801,6 +1802,7 @@ total := total + i;
     layout_paren_open_p: `<code>open: own_line</code> přesune <code>(</code> bloku přes více řádků z konce řádku na vlastní řádek do sloupce odpovídající <code>)</code>.`,
     nav_subqueries: `Poddotazy a okna`,
     nav_ddl: `DDL příkazy`,
+    lsp_ext_p: `V repozitáři jsou i samostatná rozšíření pro <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) a <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>); spouštějí <code>pg_procrustes --lsp</code> a přidávají nastavení editoru (cesta k binárce, pevná konfigurace, trace). Zatím nejsou v žádném marketplace — sestavte je ze zdrojů podle jejich README: <code>npm run package</code> a <code>code --install-extension</code> pro VS Code, <em>zed: install dev extension</em> pro Zed.`,
     ddl_h2: `DDL příkazy`,
     ddl_p: `<code>layout.ddl</code> upravuje rozložení běžných DDL příkazů. Každá volba přijímá <code>preserve</code> (výchozí, ponechat jak je), <code>never</code> (jeden řádek), <code>always</code> nebo <code>auto</code> (zalomit, jen když je příkaz delší než <code>line_length</code>); příkaz s komentářem <code>--</code> uvnitř zůstane beze změny.`,
     ddl_lbl_after: `Po — create_table.break: always, align: types, alter_table.break / constraints: always`,
@@ -2059,6 +2061,7 @@ total := total + i;
   layout_paren_open_p: `<code>open: own_line</code> mueve el <code>(</code> de un bloque de varias líneas del final de su línea a una línea propia, en la columna del <code>)</code> correspondiente.`,
   nav_subqueries: `Subconsultas y ventanas`,
   nav_ddl: `Sentencias DDL`,
+  lsp_ext_p: `En el repositorio hay extensiones propias para <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) y <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>); inician <code>pg_procrustes --lsp</code> y añaden los ajustes del editor (ruta del binario, configuración fija, trace). Todavía no están en ningún marketplace: compílalas desde el código fuente como indican sus README: <code>npm run package</code> y <code>code --install-extension</code> para VS Code, <em>zed: install dev extension</em> para Zed.`,
   ddl_h2: `Sentencias DDL`,
   ddl_p: `<code>layout.ddl</code> da formato a las sentencias DDL más habituales. Cada opción acepta <code>preserve</code> (por defecto, dejar como está), <code>never</code> (una línea), <code>always</code> o <code>auto</code> (dividir solo cuando la sentencia supera <code>line_length</code>); una sentencia con un comentario <code>--</code> dentro se deja intacta.`,
   ddl_lbl_after: `Después — create_table.break: always, align: types, alter_table.break / constraints: always`,
@@ -2316,6 +2319,7 @@ total := total + i;
     layout_paren_open_p: `<code>open: own_line</code> verschiebt die <code>(</code> eines mehrzeiligen Blocks vom Zeilenende in eine eigene Zeile, in die Spalte der passenden <code>)</code>.`,
     nav_subqueries: `Unterabfragen &amp; Fenster`,
     nav_ddl: `DDL-Anweisungen`,
+    lsp_ext_p: `Im Repository liegen eigene Erweiterungen für <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) und <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>); sie starten <code>pg_procrustes --lsp</code> und ergänzen die Einstellungen des Editors (Pfad zum Binary, feste Konfiguration, Trace). Sie sind noch in keinem Marktplatz — bauen Sie sie wie in ihren READMEs beschrieben aus dem Quellcode: <code>npm run package</code> und <code>code --install-extension</code> für VS Code, <em>zed: install dev extension</em> für Zed.`,
     ddl_h2: `DDL-Anweisungen`,
     ddl_p: `<code>layout.ddl</code> gestaltet die gängigen DDL-Anweisungen. Jede Option akzeptiert <code>preserve</code> (Standard, unverändert lassen), <code>never</code> (eine Zeile), <code>always</code> oder <code>auto</code> (nur umbrechen, wenn die Anweisung länger als <code>line_length</code> ist); eine Anweisung mit einem <code>--</code>-Kommentar darin bleibt unangetastet.`,
     ddl_lbl_after: `Danach — create_table.break: always, align: types, alter_table.break / constraints: always`,
@@ -2573,6 +2577,7 @@ total := total + i;
     layout_paren_open_p: `<code>open: own_line</code> déplace la <code>(</code> d’un bloc sur plusieurs lignes de la fin de sa ligne vers une ligne à elle, dans la colonne de la <code>)</code> correspondante.`,
     nav_subqueries: `Sous-requêtes &amp; fenêtres`,
     nav_ddl: `Instructions DDL`,
+    lsp_ext_p: `Des extensions dédiées pour <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) et <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>) se trouvent dans le dépôt ; elles lancent <code>pg_procrustes --lsp</code> et ajoutent les réglages de l'éditeur (chemin du binaire, configuration fixe, trace). Elles ne sont pas encore sur une place de marché — compilez-les depuis les sources comme décrit dans leurs README : <code>npm run package</code> puis <code>code --install-extension</code> pour VS Code, <em>zed: install dev extension</em> pour Zed.`,
     ddl_h2: `Instructions DDL`,
     ddl_p: `<code>layout.ddl</code> met en forme les instructions DDL courantes. Chaque option accepte <code>preserve</code> (par défaut, laisser tel quel), <code>never</code> (une seule ligne), <code>always</code> ou <code>auto</code> (couper seulement si l'instruction dépasse <code>line_length</code>) ; une instruction contenant un commentaire <code>--</code> est laissée intacte.`,
     ddl_lbl_after: `Après — create_table.break: always, align: types, alter_table.break / constraints: always`,
@@ -2830,6 +2835,7 @@ total := total + i;
     layout_paren_open_p: `<code>open: own_line</code> move o <code>(</code> de um bloco de várias linhas do fim da linha para uma linha própria, na coluna do <code>)</code> correspondente.`,
     nav_subqueries: `Subconsultas e janelas`,
     nav_ddl: `Instruções DDL`,
+    lsp_ext_p: `No repositório há extensões dedicadas para <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) e <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>); elas iniciam <code>pg_procrustes --lsp</code> e adicionam as configurações do editor (caminho do binário, configuração fixa, trace). Ainda não estão em nenhum marketplace — compile-as a partir do código-fonte conforme os README delas: <code>npm run package</code> e <code>code --install-extension</code> para o VS Code, <em>zed: install dev extension</em> para o Zed.`,
     ddl_h2: `Instruções DDL`,
     ddl_p: `<code>layout.ddl</code> formata as instruções DDL mais comuns. Cada opção aceita <code>preserve</code> (padrão, manter como está), <code>never</code> (uma linha), <code>always</code> ou <code>auto</code> (quebrar só quando a instrução for maior que <code>line_length</code>); uma instrução com um comentário <code>--</code> dentro é deixada intacta.`,
     ddl_lbl_after: `Depois — create_table.break: always, align: types, alter_table.break / constraints: always`,
@@ -3087,6 +3093,7 @@ total := total + i;
   layout_paren_open_p: `<code>open: own_line</code> sposta la <code>(</code> di un blocco su più righe dalla fine della riga a una riga propria, nella colonna della <code>)</code> corrispondente.`,
   nav_subqueries: `Sottoquery e finestre`,
   nav_ddl: `Istruzioni DDL`,
+  lsp_ext_p: `Nel repository ci sono estensioni dedicate per <strong>VS Code</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/vscode"><code>editors/vscode</code></a>) e <strong>Zed</strong> (<a href="https://github.com/heptau/pg_procrustes/tree/main/editors/zed"><code>editors/zed</code></a>); avviano <code>pg_procrustes --lsp</code> e aggiungono le impostazioni dell'editor (percorso del binario, configurazione fissa, trace). Non sono ancora su alcun marketplace — compilale dai sorgenti come descritto nei loro README: <code>npm run package</code> e <code>code --install-extension</code> per VS Code, <em>zed: install dev extension</em> per Zed.`,
   ddl_h2: `Istruzioni DDL`,
   ddl_p: `<code>layout.ddl</code> dispone le istruzioni DDL più comuni. Ogni opzione accetta <code>preserve</code> (predefinito, lascia com'è), <code>never</code> (una riga), <code>always</code> o <code>auto</code> (va a capo solo quando l'istruzione supera <code>line_length</code>); un'istruzione con un commento <code>--</code> al suo interno viene lasciata intatta.`,
   ddl_lbl_after: `Dopo — create_table.break: always, align: types, alter_table.break / constraints: always`,

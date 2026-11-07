@@ -26,6 +26,9 @@ pg_procrustes/
 │   │   └── *_test.go
 │   └── lsp/
 │       └── server.go       # pg_procrustes --lsp (LSP over stdio)
+├── editors/
+│   ├── vscode/             # VS Code extension (TypeScript, client of --lsp)
+│   └── zed/                # Zed extension (Rust → WASM)
 ├── templates/              # Shipped template configs (postgresql, ai, modern)
 ├── scripts/                # Release, corpus_check and docs generators
 ├── docs/                   # Website (index.html, Config Builder), llms.txt, llms-full.txt
@@ -61,6 +64,21 @@ go test ./internal/layout/... -run TestSQLCase -v
 make lint            # golangci-lint, pinned version (same as CI)
 make install-hooks   # pre-push hook: gofmt, lint and tests before every push
 ```
+
+### Editor extensions
+
+The extensions are thin clients of `pg_procrustes --lsp`; the formatting logic stays in Go, so a formatting change needs no change in `editors/`.
+
+```bash
+# VS Code (Node 20+): typecheck and build editors/vscode/pg-procrustes-<version>.vsix
+cd editors/vscode && npm ci && npm run package
+code --install-extension pg-procrustes-*.vsix   # or press F5 in the folder for a dev host
+
+# Zed: cargo check here; in Zed run "zed: install dev extension" and pick editors/zed
+cd editors/zed && cargo check --locked
+```
+
+Both have their own version (`package.json`, `extension.toml` + `Cargo.toml`) independent of the formatter's `VERSION`; bump it when the extension itself changes. Publishing (VS Code Marketplace, a pull request to `zed-industries/extensions`) is done by hand.
 
 ## Adding a new config option
 

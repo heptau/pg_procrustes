@@ -27,6 +27,8 @@ The formatter runs first; layout runs on its output.
 | `internal/layout/subquery.go` | `layout.subquery.break`: `flattenSubqueries` (before the clause layout) joins each outermost `(select …)` onto one line, `expandSubqueries` (after it) opens them and re-runs `applyCore` on the body one level deeper |
 | `internal/layout/layout_test.go` | Layout clause/content break tests |
 | `internal/lsp/server.go` | `pg_procrustes --lsp`: JSON-RPC/LSP server over stdio (initialize, full-text sync, formatting, range formatting, syntax-error diagnostics); `Serve(in, out, Options)`; tests in `server_test.go` drive it with scripted messages |
+| `editors/vscode/` | VS Code extension: TypeScript client of `pg_procrustes --lsp` (`src/extension.ts`, bundled by esbuild, `npm run package` → `.vsix`); CI builds it |
+| `editors/zed/` | Zed extension: Rust → WASM crate (`src/pg_procrustes.rs`, `extension.toml`) that registers `pg_procrustes` as the language server of SQL; CI runs `cargo check --locked` |
 | `.pg_procrustes.yaml` | Reference config with all options and inline comments |
 
 ## Core patterns

@@ -15,7 +15,7 @@ For the complete documentation in a single file (README + fully commented refere
 - Install: `brew install heptau/tap/pg-procrustes`, `go install github.com/heptau/pg_procrustes/cmd/pg_procrustes@latest` (then `pg_procrustes --install-templates` for the templates), or a binary from GitHub Releases (the archives include `templates/`)
 - Templates: ready-made configs shipped as files (`postgresql` ≈ what PostgreSQL prints, `ai` = lean for LLM prompts, `modern` = lower-case keywords, one item per line with leading commas, friendly to git); a config starts from one with `template: modern` (or a file path, or a list; the file's own settings win)
 - Leaving a part alone: everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` (or `/* … */`) is copied to the output untouched
-- Editor integration: a built-in Language Server (`pg_procrustes --lsp`: format document / selection, syntax errors as diagnostics) for any editor with an LSP client; Neovim plugin (conform.nvim formatter, `:PgProcrustesFormat`, range formatting), plus config-only setups for Zed, VS Code, JetBrains/DataGrip, Emacs, Helix, Sublime Text, Vim (ALE)
+- Editor integration: a built-in Language Server (`pg_procrustes --lsp`: format document / selection, syntax errors as diagnostics) for any editor with an LSP client, with dedicated extensions for VS Code (`editors/vscode`) and Zed (`editors/zed`) in the repository (build from source, not on a marketplace yet); Neovim plugin (conform.nvim formatter, `:PgProcrustesFormat`, range formatting), plus config-only setups for Zed, VS Code, JetBrains/DataGrip, Emacs, Helix, Sublime Text, Vim (ALE)
 
 ## CLI usage
 

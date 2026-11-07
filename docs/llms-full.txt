@@ -95,7 +95,9 @@ auto-format = true
 (add-to-list 'eglot-server-programs '(sql-mode . ("pg_procrustes" "--lsp")))
 ```
 
-VS Code has no setting for "run this binary as the language server for SQL" — it needs an extension. The settings-only [Generic LSP Client](https://marketplace.visualstudio.com/items?itemName=llllvvuu.llllvvuu-glspc) works (it can register only **one** language server, so it does not combine with another generic-client server):
+**Dedicated extensions** for VS Code and Zed live in this repository ([`editors/vscode`](editors/vscode) and [`editors/zed`](editors/zed)); they only start `pg_procrustes --lsp` and add the settings of the editor (binary path, fixed config, trace). They are not on the VS Code Marketplace or in Zed's extension list yet — build and install them from source as described in their READMEs (`npm run package` and `code --install-extension` for VS Code, *zed: install dev extension* for Zed).
+
+Without the extension, VS Code has no setting for "run this binary as the language server for SQL". The settings-only [Generic LSP Client](https://marketplace.visualstudio.com/items?itemName=llllvvuu.llllvvuu-glspc) works (it can register only **one** language server, so it does not combine with another generic-client server):
 
 ```json
 "glspc.serverCommand": "pg_procrustes",
@@ -103,7 +105,7 @@ VS Code has no setting for "run this binary as the language server for SQL" — 
 "glspc.languageId": "sql"
 ```
 
-If VS Code cannot find the binary (it does not always see your shell's `PATH`), give the absolute path in `glspc.serverCommand` or set `glspc.environmentVariables`; `glspc.trace.server: "verbose"` logs the conversation to the "Generic LSP Client" output channel. Zed likewise registers language servers only through extensions, so for Zed keep the external formatter below. Sublime Text's [LSP](https://lsp.sublimetext.io/client_configuration) package takes a custom client with `"enabled": true`, `"command": ["pg_procrustes", "--lsp"]` and `"selector": "source.sql"`.
+If VS Code cannot find the binary (it does not always see your shell's `PATH`), give the absolute path in `glspc.serverCommand` or set `glspc.environmentVariables`; `glspc.trace.server: "verbose"` logs the conversation to the "Generic LSP Client" output channel. Zed registers language servers only through extensions, so without [`editors/zed`](editors/zed) keep the external formatter below. Sublime Text's [LSP](https://lsp.sublimetext.io/client_configuration) package takes a custom client with `"enabled": true`, `"command": ["pg_procrustes", "--lsp"]` and `"selector": "source.sql"`.
 
 **Zed** has built-in support for external formatters — no extension needed. Add this to your project (`.zed/settings.json`) or user (`~/.config/zed/settings.json`) settings:
 

@@ -51,3 +51,25 @@ jobs:
       - uses: golangci/golangci-lint-action@v7
         with:
           version: ${{ steps.lintver.outputs.version }}
+
+  editors:
+    name: Editor extensions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+
+      - name: VS Code extension (typecheck and package)
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npm run package
+
+      - name: Zed extension (cargo check)
+        working-directory: editors/zed
+        run: cargo check --locked
