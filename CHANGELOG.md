@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-07
+
 ### Added
 
 - `pg_procrustes --lsp`: a Language Server (LSP over stdio, standard library only, new package `internal/lsp`) for VS Code, Zed, Neovim, Helix, Emacs, Sublime Text and any other editor with an LSP client — `textDocument/formatting`, `textDocument/rangeFormatting` (backed by `formatter.FormatRange`) and syntax errors as diagnostics (error; warning with `syntax_errors: skip`; published after the last queued change). Edits cover only the lines that differ, positions are UTF-16 as the protocol requires, the config is looked up per document and re-read on every request (`-c` or `initializationOptions.configPath` fix one), and a document that does not parse or a result that would be empty is never turned into an edit. README gets setup examples
