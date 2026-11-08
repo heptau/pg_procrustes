@@ -9,6 +9,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `layout.clauses.align: right` — the "river" style: the keywords of a statement's clauses are right-aligned on a common edge (the longest one, e.g. `GROUP BY`) and their content hangs after them (`SELECT a.id,` / `       a.name` / `  FROM accounts` / ` WHERE …`), `JOIN` lines hang under the content of `FROM` instead of widening the river, the columns of `INSERT INTO t (a, b)` line up below the first one, and each query of a `UNION` has its own width. Meant for `content.first_item: inline`; only clauses that are broken take part. Stays idempotent for statements that start indented (`BEGIN; … COMMIT;`, PL/pgSQL bodies: the padding of the first keyword is told apart from the indentation by what all lines of the statement share). Documented in README, reference config and Config Builder (all languages); tests in `internal/layout/river_test.go`
 
+### Fixed
+
+- `EXTRACT(… FROM …)` and `x AT TIME ZONE y` no longer lose their capitals: the parser reports them as `pg_catalog.extract` / `pg_catalog.timezone` calls located at the keyword, which was classified as a schema name and written in the `schemas` case (`extract(MONTH FROM _at at TIME ZONE …)`); a keyword the text does not spell as `schema.name` is now left to the keyword rules
+- Layout: a multi-line item that opens a parenthesis — a CTE body (`v AS` + `(` … `)`) or a `VALUES` row written over several lines — is shifted as a whole into the item's indent; before, the `(` and the body stood at the indent of the clause and the closing `)` at the margin (`WITH` / `    v AS` / `(` / `    …` / `)`; `VALUES` / `    (` / `    'a',` / `),`) when the source had the `)` further left than the clause content. Test in `internal/layout/paren_item_test.go`
+- `SELECT DISTINCT ON (u.id) u.id, … FROM unnest(…) AS u(id, d)` no longer gets a bogus `AS` (`DISTINCT ON (u.id) AS u.id`, invalid SQL) with `aliases.as: add`: a name after a `)` that matches the alias of a table function is not taken for that alias when it is followed by `.` or the parenthesis closes a `DISTINCT ON` key list. Golden case `extract_at_distinct_on`
+
 ## [0.5.0] — 2026-11-07
 
 ### Added

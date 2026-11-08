@@ -1901,12 +1901,13 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		if fc.Location >= 0 {
 			if len(fc.Funcname) > 1 {
 				// Schema-qualified: pg_catalog.func() → schema + function positions.
-				pos.schemas[int(fc.Location)] = true
 				// The function name follows "schema." only when the text really spells it: the
-				// parser reports pg_catalog.name for syntax such as SIMILAR TO / EXTRACT / TRIM,
-				// where "location + length of the schema + 1" is whatever follows the keyword
-				// (a SIMILAR TO 'AB' string constant lost its capitals that way).
+				// parser reports pg_catalog.name for syntax such as SIMILAR TO / EXTRACT / TRIM /
+				// AT TIME ZONE, where "location + length of the schema + 1" is whatever follows the
+				// keyword (a SIMILAR TO 'AB' string constant lost its capitals that way) and the
+				// token at the location is a keyword (EXTRACT, AT), not a schema name.
 				if prefix := funcNameStr(fc.Funcname[0]); prefix != "" && pos.spellsQualified(int(fc.Location), prefix) {
+					pos.schemas[int(fc.Location)] = true
 					pos.functions[int(fc.Location)+len(prefix)+1] = true
 				}
 			} else {
@@ -3628,6 +3629,14 @@ func resolveFunctionAliases(tokens []rawToken, pos *astPositions) {
 			k++
 		}
 		if k < len(tokens) && pos.functionAliases[strings.ToLower(tokens[k].text)] {
+			// DISTINCT ON (u.id) u.id: the name after the ")" is a column reference (qualified,
+			// or the key list of DISTINCT ON), not the alias of a table function.
+			if k+1 < len(tokens) && tokens[k+1].text == "." {
+				continue
+			}
+			if k == i+1 && open > 0 && strings.EqualFold(tokens[open-1].text, "on") {
+				continue
+			}
 			pos.aliases[tokens[k].start] = true
 		}
 	}

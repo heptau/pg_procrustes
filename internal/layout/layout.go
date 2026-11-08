@@ -1084,6 +1084,19 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if firstNewline < 0 {
 				return item
 			}
+			// A parenthesis the item opens (a VALUES row, a CTE body: `v AS (` / `v AS` + `(`) closes on
+			// a line of its own, and that `)` belongs at the indent of the item. When it stands further
+			// left, the whole item is shifted right by the difference, body and parentheses together
+			// (judging by the body alone left `(` at the item's indent and the `)` at the margin).
+			if shift := closingParenShift(item, contentIndent); shift != "" {
+				parts := strings.Split(item, "\n")
+				for j := 1; j < len(parts); j++ {
+					if strings.TrimSpace(parts[j]) != "" {
+						parts[j] = shift + parts[j]
+					}
+				}
+				return strings.Join(parts, "\n")
+			}
 			// Judge by the first non-blank continuation line; a blank line right after
 			// the first newline must not make every pass add another level of indent.
 			// Lone parentheses say little about the item's indent (paren_indent.open: own_line
@@ -1210,6 +1223,30 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	}
 
 	return sb.String()
+}
+
+// closingParenShift returns the text to add in front of the continuation lines of a multi-line
+// item so that the first line starting with ")" that closes a parenthesis opened on an earlier
+// line of the item (at nesting level one) stands at indent. It is "" when there is no such line
+// or it already stands at indent or further right.
+func closingParenShift(item, indent string) string {
+	lines := strings.Split(item, "\n")
+	depth := 0
+	for j, ln := range lines {
+		t := strings.TrimLeft(ln, " \t")
+		if j > 0 && depth == 1 && strings.HasPrefix(t, ")") {
+			have := ln[:len(ln)-len(t)]
+			if strings.HasPrefix(have, indent) || !strings.HasPrefix(indent, have) {
+				return ""
+			}
+			return indent[len(have):]
+		}
+		d, _ := parenScanLine(ln)
+		if depth += d; depth < 0 {
+			depth = 0
+		}
+	}
+	return ""
 }
 
 // wrapLimit is the line length items are wrapped at (0 when they are not wrapped).
