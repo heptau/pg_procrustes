@@ -92,7 +92,7 @@ func Apply(sql string, cfg *config.LayoutConfig) (result string, err error) {
 	// column 0 and then moved back: the layout of its other lines does not depend on where the
 	// first one stands, and a second run reads what the first wrote the same way.
 	if cfg.KeepStatementIndent {
-		if dedented, indents, ok := dedentStatements(sql); ok {
+		if dedented, indents, ok := dedentStatements(sql, cfg.Clauses.Align == config.AlignRight); ok {
 			if laid, ok := reindentStatements(applyAll(dedented, cfg, indentUnit), indents); ok {
 				result = laid
 			}
@@ -153,15 +153,26 @@ func applyCore(sql string, cfg *config.LayoutConfig, indentUnit string) string {
 	lastTokEnd := stmtEndOffset(tokens, lastStmt, firstTokStart)
 	trailingGap := sql[lastTokEnd:]
 
+	// river: a statement whose first keyword is shorter than the river starts with blanks of its
+	// own; the blanks in front of it in the input (the same blanks of an earlier run) go.
+	riverPad := func(gap, rebuilt string) string {
+		if cfg.Clauses.Align == config.AlignRight && strings.HasPrefix(rebuilt, " ") {
+			return strings.TrimRight(gap, " \t")
+		}
+		return gap
+	}
+
 	var parts []string
 	for i, stmt := range stmts {
+		rebuilt := rebuildStatement(sql, tokens, stmt, cfg, indentUnit, 0)
 		// Preserve inter-statement gap (between end of previous stmt and start of this one).
 		if i > 0 {
 			prevEnd := stmtEndOffset(tokens, stmts[i-1], 0)
 			curStart := tokens[stmt.startTok].start
-			parts = append(parts, sql[prevEnd:curStart])
+			parts = append(parts, riverPad(sql[prevEnd:curStart], rebuilt))
+		} else {
+			leadingGap = riverPad(leadingGap, rebuilt)
 		}
-		rebuilt := rebuildStatement(sql, tokens, stmt, cfg, indentUnit, 0)
 		parts = append(parts, rebuilt)
 	}
 
@@ -659,6 +670,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 
 	var sb strings.Builder
 
+	var riverW []riverSlot // river slot per clause (clauses.align: right), nil otherwise
+	if cfg.Clauses.Align == config.AlignRight {
+		riverW = riverWidths(sql, tokens, stmt, cfg, stmtFlatLen)
+	}
+
 	for ci, cl := range stmt.clauses {
 		kwStart := stmt.startTok
 		if ci > 0 {
@@ -785,6 +801,20 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if alignMode == config.AlignIndent && ci > 0 && !opensStatement(cl.kind) {
 			clauseIndent = baseIndent + indentUnit
 		}
+		// river: the keyword is padded so it ends on the common edge; the content hangs after it.
+		riverKw, riverHang := "", ""
+		riverWidth := 0
+		if riverW != nil && riverW[ci].width > 0 {
+			riverWidth = riverW[ci].width
+			riverKw, _ = riverKeyword(sql, tokens, stmt, ci)
+			if riverW[ci].hang {
+				clauseIndent = baseIndent + strings.Repeat(" ", riverWidth+1)
+				riverHang = clauseIndent + strings.Repeat(" ", runeLen(riverKw)+1)
+			} else {
+				clauseIndent = baseIndent + strings.Repeat(" ", riverWidth-runeLen(riverKw))
+				riverHang = baseIndent + strings.Repeat(" ", riverWidth+1)
+			}
+		}
 
 		// A leading SELECT/WITH preceded by a statement prefix (CREATE VIEW v AS,
 		// CREATE TABLE t AS, EXPLAIN, …): keep the prefix on its own line and start
@@ -816,6 +846,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			kwFrom = cl.kwTok
 		}
 		kwText := strings.TrimSpace(originalText(sql, tokens, kwFrom, kwEnd))
+		if riverKw != "" {
+			kwText = riverKw
+		}
 		sb.WriteString(kwText)
 		if ci == 0 && !prefixed {
 			// The first clause of a statement that does not start with it (CREATE INDEX … WHERE) is
@@ -847,6 +880,10 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		} else {
 			contentAlign = resolveContentAlign(contentAlign, sql, tokens, cl.kwTok, kwEnd, conEnd)
 		}
+		if riverHang != "" {
+			contentFirstItem = config.FirstItemInline // the first item stands right after the keyword
+			contentAlign = config.AlignIndent
+		}
 		contentFlatLen := flatLength(sql, tokens, kwEnd, conEnd)
 		doContentBreak := shouldBreak(contentFlatLen, contentBreakMode, cfg.LineLength)
 		if contentBreakMode == config.BreakAuto && subqueryMode(cfg) == config.BreakAlways && cl.kind != clauseFrom && cl.kind != clauseJoin && hasSubquery(tokens, kwEnd, conEnd) {
@@ -876,7 +913,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// lines (e.g. ORDER BY items each on their own line), and placing that verbatim
 			// on the same line as the keyword would embed raw newlines in the output.
 			content := inlineContent(sql, tokens, kwEnd, conEnd, cfg.ParenSpacing)
-			content = reformatCaseExprs(content, clauseIndent, cfg.Case, indentUnit, cfg.LineLength)
+			caseBase := clauseIndent
+			if riverHang != "" {
+				caseBase = riverHang
+			}
+			content = reformatCaseExprs(content, caseBase, cfg.Case, indentUnit, cfg.LineLength)
 			sb.WriteString(content)
 			continue
 		}
@@ -884,6 +925,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		contentIndent := clauseIndent + indentUnit
 		if contentAlign == config.AlignSame {
 			contentIndent = clauseIndent
+		}
+		if riverHang != "" {
+			contentIndent = riverHang
 		}
 
 		// MERGE WHEN [NOT] MATCHED … THEN action: the action goes on its own indented line.
@@ -905,6 +949,12 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			openIdx, closeIdx := findInsertColumnParen(tokens, kwEnd, conEnd)
 			if openIdx >= 0 {
 				prefix := strings.TrimSpace(inlineContent(sql, tokens, kwEnd, openIdx, cfg.ParenSpacing))
+				if riverHang != "" { // river: the columns stand below the first one, not below the keyword
+					contentIndent = riverHang + " "
+					if prefix != "" {
+						contentIndent += strings.Repeat(" ", runeLen(prefix)+1)
+					}
+				}
 				colItems := splitAtComma(sql, tokens, openIdx+1, closeIdx)
 				sb.WriteByte(' ')
 				if prefix != "" {
@@ -945,9 +995,13 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 							sb.WriteString(item)
 						}
 					}
-					sb.WriteByte('\n')
-					sb.WriteString(clauseIndent)
-					sb.WriteByte(')')
+					if riverHang != "" && !strings.Contains(colItems[len(colItems)-1], "--") {
+						sb.WriteByte(')') // river: the list closes behind its last column
+					} else {
+						sb.WriteByte('\n')
+						sb.WriteString(clauseIndent)
+						sb.WriteByte(')')
+					}
 				} else {
 					sb.WriteString("(\n")
 					colStart := resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, openIdx+1, closeIdx)
@@ -2525,21 +2579,35 @@ func statementSpan(tokens []rawTok, stmt statement) (int, int) {
 // dedentStatements removes the indentation of each statement that starts a line (also from the
 // lines below its first line) and returns that indentation per statement. ok is false when
 // no statement starts indented.
-func dedentStatements(sql string) (string, []string, bool) {
+func dedentStatements(sql string, river bool) (string, []string, bool) {
 	tokens, stmts, ok := scanStatements(sql)
 	if !ok {
 		return sql, nil, false
 	}
+	inside := multilineTokenLineStarts(sql)
+	firstLen := make([]int, len(stmts)) // blanks that start the first line of each statement
 	indents := make([]string, len(stmts))
 	any := false
 	for i, st := range stmts {
 		indents[i] = lineIndentBefore(sql, tokens[st.startTok].start)
-		any = any || indents[i] != ""
+		firstLen[i] = len(indents[i])
+		if river {
+			// river: the first keyword may be padded to the edge of the river, so the indentation
+			// of the statement is what all its lines have in common
+			start, end := statementSpan(tokens, st)
+			if start > len(sql) {
+				start = len(sql)
+			}
+			if end > len(sql) {
+				end = len(sql)
+			}
+			indents[i] = commonIndent(indents[i], sql[start:end], start, inside)
+		}
+		any = any || firstLen[i] > 0
 	}
 	if !any {
 		return sql, nil, false
 	}
-	inside := multilineTokenLineStarts(sql)
 	var b strings.Builder
 	cur := 0
 	for i, st := range stmts {
@@ -2550,7 +2618,7 @@ func dedentStatements(sql string) (string, []string, bool) {
 		if end > len(sql) {
 			end = len(sql)
 		}
-		b.WriteString(sql[cur : start-len(indents[i])]) // (the blanks that start the first line go too)
+		b.WriteString(sql[cur : start-firstLen[i]]) // (the blanks that start the first line go too)
 		b.WriteString(mapLinesBelowFirst(sql[start:end], start, inside, func(line string) string {
 			return strings.TrimPrefix(line, indents[i])
 		}))
@@ -2558,6 +2626,25 @@ func dedentStatements(sql string) (string, []string, bool) {
 	}
 	b.WriteString(sql[cur:])
 	return b.String(), indents, true
+}
+
+// commonIndent is the longest leading blank prefix shared by first (the indent of the first line)
+// and the indent of every other line of text that does not start inside a multi-line token.
+func commonIndent(first, text string, base int, inside map[int]bool) string {
+	common := first
+	mapLinesBelowFirst(text, base, inside, func(line string) string {
+		if strings.TrimSpace(line) == "" {
+			return line
+		}
+		ind := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+		n := 0
+		for n < len(common) && n < len(ind) && common[n] == ind[n] {
+			n++
+		}
+		common = common[:n]
+		return line
+	})
+	return common
 }
 
 // reindentStatements puts the indentation back on every line of each statement of laid-out text. ok is false when the statements are not those that were dedented.

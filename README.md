@@ -542,7 +542,14 @@ layout:
 
   clauses:
     break: preserve          # preserve | never | always | auto
-    align: same              # same | indent
+    align: same              # same | indent | right
+                             #   right = "river": keywords right-aligned on a common edge, content hangs after them
+                             #   (use with content.first_item: inline; JOIN lines hang under the FROM content):
+                             #     SELECT a.id,
+                             #            a.name
+                             #       FROM accounts AS a
+                             #      WHERE a.id > 1
+                             #   Only clauses that are broken join the river; each query of a UNION has its own width.
     # per-clause overrides (inherit from clauses.break / clauses.align when omitted):
     # from, join, where, group_by, having, window, order_by, limit, offset,
     # values, on_conflict, set, using, returning, with, exception,

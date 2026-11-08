@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `layout.clauses.align: right` — the "river" style: the keywords of a statement's clauses are right-aligned on a common edge (the longest one, e.g. `GROUP BY`) and their content hangs after them (`SELECT a.id,` / `       a.name` / `  FROM accounts` / ` WHERE …`), `JOIN` lines hang under the content of `FROM` instead of widening the river, the columns of `INSERT INTO t (a, b)` line up below the first one, and each query of a `UNION` has its own width. Meant for `content.first_item: inline`; only clauses that are broken take part. Stays idempotent for statements that start indented (`BEGIN; … COMMIT;`, PL/pgSQL bodies: the padding of the first keyword is told apart from the indentation by what all lines of the statement share). Documented in README, reference config and Config Builder (all languages); tests in `internal/layout/river_test.go`
+
 ## [0.5.0] — 2026-11-07
 
 ### Added

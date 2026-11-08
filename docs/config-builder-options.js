@@ -1189,7 +1189,7 @@ window.CB_OPTIONS = {
      "label": "Default clause align",
      "type": "select",
      "def": "same",
-     "desc": "Default alignment mode: same keeps content on the same indent as the keyword; indent pushes content one level deeper.",
+     "desc": "Default alignment mode: same keeps content on the same indent as the keyword; indent pushes content one level deeper; right right-aligns the keywords on a common edge so the content hangs after them (\"river\", works with first_item: inline).",
      "values": [
       [
        "same",
@@ -1198,6 +1198,10 @@ window.CB_OPTIONS = {
       [
        "indent",
        "content indented under clause"
+      ],
+      [
+       "right",
+       "keywords right-aligned (river)"
       ]
      ],
      "sample": {

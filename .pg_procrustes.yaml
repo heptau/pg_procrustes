@@ -165,7 +165,15 @@ layout:
   clauses:
     break: preserve             # preserve | never | always | auto
                                 #   auto: break all clauses when flat statement length > line_length
-    align: same                 # same | indent  (indent places clause keyword one level deeper than SELECT)
+    align: same                 # same | indent | right
+                                #   indent: places clause keyword one level deeper than SELECT
+                                #   right:  "river" — keywords right-aligned on a common edge, content hangs after them
+                                #           (use with content.first_item: inline; JOIN lines hang under the FROM content):
+                                #             SELECT a.id,
+                                #                    a.name
+                                #               FROM accounts AS a
+                                #              WHERE a.id > 1
+                                #           Only broken clauses join the river; each query of a UNION has its own width.
     # per-clause overrides (inherit clauses.break / clauses.align when omitted):
     # into:       { break: auto, align: same }
     # from:       { break: auto, align: same }

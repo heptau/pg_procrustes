@@ -342,6 +342,9 @@ window.CB_EXAMPLES = {
   "indent": {
    "t": "select id, name\n  from users\n  where active = true;"
   },
+  "right": {
+   "t": "select id, name\n  from users\n where active = true;"
+  },
   "same": {
    "t": "select id, name\nfrom users\nwhere active = true;"
   }

@@ -278,6 +278,7 @@ type AlignMode string
 const (
 	AlignSame     AlignMode = "same"
 	AlignIndent   AlignMode = "indent"
+	AlignRight    AlignMode = "right"    // clauses.align only: "river" — keywords right-aligned, content hangs after them
 	AlignPreserve AlignMode = "preserve" // content.align only: keep the indent the input uses
 )
 
@@ -1248,6 +1249,11 @@ func validate(cfg *Config) error {
 		default:
 			return fmt.Errorf("%s must be break|inline, got %q", r.name, r.v)
 		}
+	}
+	switch cfg.Layout.Clauses.Align {
+	case AlignSame, AlignIndent, AlignRight, "":
+	default:
+		return fmt.Errorf("layout.clauses.align must be same|indent|right, got %q", cfg.Layout.Clauses.Align)
 	}
 	for _, nr := range cfg.Layout.Clauses.ClauseRules() {
 		switch nr.Rule.Break {

@@ -78,6 +78,12 @@ var matrixVariants = []matrixVariant{
 		c.Layout.Clauses.Align = config.AlignIndent
 		c.Layout.Content.Break = config.BreakAlways
 	}},
+	{"always_river", func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Content.FirstItem = config.FirstItemInline
+	}},
 	{"always_tabs", func(c *config.Config) {
 		c.Layout.Clauses.Break = config.BreakAlways
 		c.Layout.Content.Break = config.BreakAlways

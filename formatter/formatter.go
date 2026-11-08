@@ -2666,8 +2666,34 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 	cfgNoLayout.Semicolons = config.SemicolonPreserve
 	cfgNoLayout.TrailingNewline = config.TrailingNewlinePreserve // a statement inside a body is not a file
 
-	applyLayoutToSQL := func(prefix, sqlText string) (string, bool) {
+	// applyLayoutToSQL returns the laid-out statement; drop is the number of blanks at the end of
+	// prefix that the result replaces (layout.clauses.align: right pads the first keyword).
+	applyLayoutToSQL := func(prefix, sqlText string) (out string, ok bool, drop int) {
 		baseIndent := lastLineIndent(prefix)
+		lc := layoutConfig(cfg)
+		if lc.Clauses.Align == config.AlignRight && strings.TrimSpace(prefix[strings.LastIndexByte(prefix, '\n')+1:]) != "" {
+			// RETURN QUERY SELECT …: the statement does not start its line, so there is no
+			// edge to pad its keyword to
+			lc.Clauses.Align = config.AlignSame
+		}
+		if lc.Clauses.Align == config.AlignRight {
+			// The blanks in front of the statement may be the river padding of a former run:
+			// the body indent is what they share with the lines below.
+			base := baseIndent
+			for _, ln := range strings.Split(sqlText, "\n")[1:] {
+				if strings.TrimSpace(ln) == "" {
+					continue
+				}
+				ind := ln[:len(ln)-len(strings.TrimLeft(ln, " \t"))]
+				n := 0
+				for n < len(base) && n < len(ind) && base[n] == ind[n] {
+					n++
+				}
+				base = base[:n]
+			}
+			drop = len(baseIndent) - len(base)
+			baseIndent = base
+		}
 
 		// Strip the body's base indent from continuation lines so that
 		// reindentLines adds it back exactly once (without this, Phase 2
@@ -2684,17 +2710,17 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 		}
 
 		// Phase 2: apply layout (clause breaking, indentation normalization).
-		formatted, fmtErr := layout.Apply(sqlText, layoutConfig(cfg))
+		formatted, fmtErr := layout.Apply(sqlText, lc)
 		layoutChanged := fmtErr == nil && formatted != sqlText
 
 		if !preChanged && !layoutChanged {
-			return "", false
+			return "", false, 0
 		}
 		if !layoutChanged {
 			// Only formatter rules changed (e.g. AS added), no clause restructuring.
-			return reindentLines(sqlText, baseIndent), true
+			return reindentLines(sqlText, baseIndent), true, 0
 		}
-		return reindentLines(formatted, baseIndent), true
+		return reindentLines(formatted, baseIndent), true, drop
 	}
 
 	for _, tok := range scanResult.Tokens {
@@ -2766,8 +2792,8 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 			rawBlock := body[sqlStart:tokStart]
 			sqlText := strings.TrimRight(rawBlock, " \t\n;")
 			gapBeforeLoop := strings.TrimLeft(rawBlock[len(sqlText):], ";")
-			if reformatted, ok := applyLayoutToSQL(prefix, sqlText); ok {
-				result.WriteString(prefix)
+			if reformatted, ok, drop := applyLayoutToSQL(prefix, sqlText); ok {
+				result.WriteString(prefix[:len(prefix)-drop])
 				result.WriteString(reformatted)
 				result.WriteString(gapBeforeLoop)
 			} else {
@@ -2784,8 +2810,8 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 			// Everything from lastEnd to sqlStart is prefix (BEGIN, RETURN QUERY, etc.)
 			prefix := body[lastEnd:sqlStart]
 			sqlText := strings.TrimRight(body[sqlStart:tokStart], " \t")
-			if reformatted, ok := applyLayoutToSQL(prefix, sqlText); ok {
-				result.WriteString(prefix)
+			if reformatted, ok, drop := applyLayoutToSQL(prefix, sqlText); ok {
+				result.WriteString(prefix[:len(prefix)-drop])
 				result.WriteString(reformatted)
 				result.WriteByte(';')
 			} else {
