@@ -732,6 +732,28 @@ func markPLpgSQLVars(tokens []rawToken, pos *astPositions, names map[string]bool
 	}
 }
 
+// resolveXMLNames registers the names after AS in the arguments of XMLFOREST / XMLATTRIBUTES
+// (xmlforest(a AS costs)) as names (AS is required there, so not aliases): they name elements and attributes, and a name that is also a
+// keyword (costs, number, type) would be written as the keyword.
+func resolveXMLNames(tokens []rawToken, pos *astPositions) {
+	var calls []bool // for each open parenthesis: is it the call of xmlforest / xmlattributes
+	for i, t := range tokens {
+		switch t.text {
+		case "(":
+			calls = append(calls, i > 0 && (strings.EqualFold(tokens[i-1].text, "xmlforest") || strings.EqualFold(tokens[i-1].text, "xmlattributes")))
+		case ")":
+			if len(calls) > 0 {
+				calls = calls[:len(calls)-1]
+			}
+		default:
+			if len(calls) > 0 && calls[len(calls)-1] && strings.EqualFold(t.text, "as") && i+1 < len(tokens) &&
+				tokens[i+1].kind != pg_query.KeywordKind_RESERVED_KEYWORD && !strings.HasPrefix(tokens[i+1].text, `"`) {
+				pos.columns[tokens[i+1].start] = true
+			}
+		}
+	}
+}
+
 // isInsertTarget reports whether the INTO before tokens[i] belongs to an INSERT (or MERGE … INSERT)
 // of the same statement rather than to a SELECT … INTO.
 func isInsertTarget(tokens []rawToken, i int) bool {
@@ -1328,6 +1350,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 	resolveFunctionParams(tokens, pos)
 	resolveDDLColumns(tokens, pos)
 	resolvePLpgSQLVars(tokens, pos, vars)
+	resolveXMLNames(tokens, pos)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
 	//

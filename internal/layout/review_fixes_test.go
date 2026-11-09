@@ -84,3 +84,17 @@ func TestForOrderByIsNotAClause(t *testing.T) {
 		t.Errorf("FOR ORDER BY treated as a clause: %q", got)
 	}
 }
+
+func TestCommentAfterKeywordHangsContent(t *testing.T) {
+	cfg := parenItemCfg()
+	cfg.Clauses.Break = config.BreakAlways
+	for _, sql := range []string{
+		"SELECT a FROM t\nWHERE --c\n  a IS NOT NULL\nORDER BY a;",
+		"SELECT a FROM t WHERE --c\na IS NOT NULL;",
+	} {
+		got := applyIdem(t, sql, cfg)
+		if strings.Contains(got, "\na IS NOT NULL") {
+			t.Errorf("content after the comment stands at the margin: %q", got)
+		}
+	}
+}

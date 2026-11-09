@@ -933,6 +933,15 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				caseBase = riverHang
 			}
 			content = reformatCaseExprs(content, caseBase, cfg.Case, indentUnit, cfg.LineLength)
+			if i := strings.IndexByte(content, '\n'); i >= 0 && strings.HasPrefix(strings.TrimLeft(content, " \t"), "--") && !strings.Contains(content[i+1:], "\n") {
+				// a line comment after the keyword ends its line: what follows hangs below the keyword
+				// like the content of a broken clause, not at the margin
+				hang := clauseIndent + indentUnit
+				if riverHang != "" {
+					hang = riverHang
+				}
+				content = content[:i+1] + hang + strings.TrimLeft(content[i+1:], " \t")
+			}
 			sb.WriteString(content)
 			continue
 		}
@@ -1088,6 +1097,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			lead, body := splitLeadingCommentLines(item)
 			if lead == "" || strings.TrimSpace(body) == "" {
 				return reindentBody(item)
+			}
+			// (the first line below the comments starts a line of its own: blanks it has left of the
+			// item's indent, from the keyword line, are brought to it)
+			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; ws != "" && len(ws) < len(contentIndent) && strings.HasPrefix(contentIndent, ws) {
+				body = contentIndent + body[len(ws):]
 			}
 			rest := reindentBody(body)
 			if !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") && (rest != body || !strings.Contains(body, "\n")) {
