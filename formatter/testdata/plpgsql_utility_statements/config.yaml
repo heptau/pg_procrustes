@@ -1,0 +1,9 @@
+reserved_keywords:
+  case: upper
+keywords:
+  case: upper
+plpgsql_keywords:
+  case: upper
+functions:
+  case: lower
+inline_spacing: normalize

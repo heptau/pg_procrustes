@@ -685,16 +685,24 @@ func collectPLpgSQLVars(tokens []rawToken, params map[string]bool) map[string]bo
 			itemStart = declaring
 			continue
 		case (w == "for" || w == "foreach") && lw(i-1) != "loop" && lw(i+1) != "update" && lw(i+1) != "share":
-			// FOR a, b IN …  /  FOREACH a IN ARRAY …
+			// FOR a, b IN …  /  FOREACH a IN ARRAY …  (FOR EACH ROW and FOR TABLE x have no IN
+			// right after the names)
+			var loopVars []string
 			for k := i + 1; k < len(tokens) && k < i+8; k++ {
 				if isComment(k) {
 					continue
 				}
+				if tokens[k].text == "(" || tokens[k].text == ";" || lw(k) == "each" {
+					break
+				}
 				if lw(k) == "in" || lw(k) == "slice" {
+					for _, v := range loopVars {
+						names[v] = true
+					}
 					break
 				}
 				if tokens[k].text != "," {
-					names[lw(k)] = true
+					loopVars = append(loopVars, lw(k))
 				}
 			}
 		}
@@ -1997,7 +2005,9 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 				// (COMMENT ON … IS $$…$$, string values in expressions, etc.) the
 				// content is arbitrary text and must not be re-cased or reformatted.
 				prevLower := strings.ToLower(prevTokenText)
-				if (prevLower == "as" || prevLower == "do") && bodyIsSQLOrPLpgSQL(tokens, i) {
+				// (DO LANGUAGE plpgsql $$ … $$: the language comes between DO and the body)
+				doLang := i >= 3 && strings.EqualFold(tokens[i-2].text, "language") && strings.EqualFold(tokens[i-3].text, "do")
+				if (prevLower == "as" || prevLower == "do" || doLang) && bodyIsSQLOrPLpgSQL(tokens, i) {
 					out, err := formatDollarQuoted(tokenText, cfg, pos.funcParams)
 					if err != nil {
 						buf.WriteString(tokenText)
@@ -3038,12 +3048,13 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 
 	var result strings.Builder
 	parenDepth := 0
-	lastEnd := 0      // position in body up to which we have already written output
-	sqlStart := -1    // byte position where the current SQL clause keyword starts
-	forInSQL := false // true when tracking a FOR r IN SELECT...LOOP cursor query
-	prevLower := ""   // last non-paren token seen at paren depth 0 (lowercase)
-	condStart := -1   // start of an IF / ELSIF / WHILE condition being scanned
-	condEnd := ""     // keyword that ends that condition (then | loop)
+	lastEnd := 0         // position in body up to which we have already written output
+	sqlStart := -1       // byte position where the current SQL clause keyword starts
+	inPrivilege := false // inside a GRANT / REVOKE statement
+	forInSQL := false    // true when tracking a FOR r IN SELECT...LOOP cursor query
+	prevLower := ""      // last non-paren token seen at paren depth 0 (lowercase)
+	condStart := -1      // start of an IF / ELSIF / WHILE condition being scanned
+	condEnd := ""        // keyword that ends that condition (then | loop)
 
 	// cfgNoLayout is used for a re-format pass on each extracted SQL statement.
 	// The outer Format(body, ...) call fails to parse the PL/pgSQL body (pg_query.Parse
@@ -3174,7 +3185,10 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			continue
 		}
 
-		if sqlStart < 0 && sqlClauseStarters[lower] {
+		if sqlStart < 0 && (lower == "grant" || lower == "revoke") {
+			inPrivilege = true // GRANT SELECT, UPDATE ON …: the privileges are no statements
+		}
+		if sqlStart < 0 && !inPrivilege && sqlClauseStarters[lower] {
 			// Found the start of a SQL statement; remember position.
 			// If SELECT follows IN (FOR r IN SELECT...LOOP), mark it as a cursor query
 			// so we terminate at LOOP rather than the first unrelated ';'.
@@ -3226,6 +3240,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		}
 
 		if text == ";" && sqlStart < 0 {
+			inPrivilege = false
 			// Non-SQL statement ending (RAISE, assignment, END, etc.): output verbatim.
 			result.WriteString(body[lastEnd:tokEnd])
 			lastEnd = tokEnd
