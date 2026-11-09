@@ -377,6 +377,59 @@ func findAliasToken(tokens []rawToken, exprStart int, aliasName string) int {
 	return -1
 }
 
+// resolveAliasColumns registers the column names that follow a table alias or a CTE name:
+// FROM f(…) AS x(database text, class text), FROM t AS u(a, b), WITH c(a, b) AS (…), CREATE VIEW
+// v (a, b) AS …. Their AST nodes carry no location, so the token stream is scanned: the first token
+// of each comma-separated item of the parenthesis is a column (a name that is also a keyword —
+// database, class, object — would be cased as the keyword). A table name counts only when the
+// parenthesis is followed by AS (INSERT INTO t (a, b) and CREATE TABLE t (…) are handled elsewhere).
+func resolveAliasColumns(tokens []rawToken, pos *astPositions) {
+	for i := 0; i+1 < len(tokens); i++ {
+		if tokens[i+1].text != "(" {
+			continue
+		}
+		isAlias := pos.aliases[tokens[i].start]
+		isTable := pos.tables[tokens[i].start]
+		if !isAlias && !isTable {
+			continue
+		}
+		depth := 0
+		closeIdx := -1
+		for k := i + 1; k < len(tokens); k++ {
+			switch tokens[k].text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+			}
+			if depth == 0 {
+				closeIdx = k
+				break
+			}
+		}
+		if closeIdx < 0 || !isAlias && (closeIdx+1 >= len(tokens) || !strings.EqualFold(tokens[closeIdx+1].text, "as")) {
+			continue
+		}
+		depth = 0
+		expectCol := true
+		for k := i + 1; k <= closeIdx; k++ {
+			switch t := tokens[k].text; {
+			case t == "(":
+				depth++
+			case t == ")":
+				depth--
+			case t == "," && depth == 1:
+				expectCol = true
+			default:
+				if depth == 1 && expectCol {
+					pos.columns[tokens[k].start] = true
+					expectCol = false
+				}
+			}
+		}
+	}
+}
+
 // resolveOnConflictCols registers the conflict-target column positions from
 // ON CONFLICT (col1, col2, …) clauses. InferClause.IndexElem has no Location
 // field, so we scan the token stream for the ON CONFLICT ( … ) pattern.
@@ -1051,6 +1104,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	resolveSubselectAliases(tokens, pos)
 	resolveFunctionAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
+	resolveAliasColumns(tokens, pos)
 	resolveIndexCols(tokens, pos)
 	resolveFunctionParams(tokens, pos)
 	resolveDDLColumns(tokens, pos)
@@ -1785,9 +1839,13 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		many(ix.IndexParams)
 
 	case *pg_query.Node_CreateTableAsStmt:
+		if into := n.CreateTableAsStmt.Into; into != nil {
+			addTableRangeVar(into.Rel, pos) // CREATE TABLE t (a, b) AS …: lets resolveAliasColumns see the list
+		}
 		walkNode(n.CreateTableAsStmt.Query, pos)
 
 	case *pg_query.Node_ViewStmt:
+		addTableRangeVar(n.ViewStmt.View, pos) // CREATE VIEW v (a, b) AS …
 		walkNode(n.ViewStmt.Query, pos)
 
 	// ── DML ──────────────────────────────────────────────────────────────────
@@ -2710,6 +2768,17 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 			sqlText = preFormatted
 		}
 
+		// A statement that follows another one on the same line (`PERFORM f(1); PERFORM f(2);`) has no
+		// line of its own to take an indent from: broken up, its lines would land at the margin and
+		// move on every run. It keeps its place; only the token rules above apply to it.
+		before := body[:lastEnd+len(prefix)] // (prefix is body[lastEnd:start of the statement])
+		if lastLine := before[strings.LastIndexByte(before, '\n')+1:]; strings.HasSuffix(strings.TrimRight(lastLine, " \t"), ";") {
+			if !preChanged {
+				return "", false, 0
+			}
+			return reindentLines(sqlText, baseIndent), true, 0
+		}
+
 		// Phase 2: apply layout (clause breaking, indentation normalization).
 		formatted, fmtErr := layout.Apply(sqlText, lc)
 		layoutChanged := fmtErr == nil && formatted != sqlText
@@ -3132,9 +3201,11 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			return seg
 		}
 		lines := strings.Split(seg, "\n")
-		minInd := findMinIndent(lines)
+		// A segment starts right after an opener keyword: its first line is the rest of the keyword's
+		// line (IF a THEN RETURN 1; ELSE …), not a line of its own, and keeps its place.
+		minInd := findMinIndent(lines[1:])
 		for i, line := range lines {
-			if strings.TrimSpace(line) == "" {
+			if i == 0 || strings.TrimSpace(line) == "" {
 				continue
 			}
 			stripped := strings.TrimPrefix(line, minInd)
@@ -3456,7 +3527,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			// preserve or no-newline case: leave as-is
 		} else {
 			kwDepth := kwDepthForEvent(ev)
-			if kwDepth > 0 {
+			if kwDepth > 0 && lastNL >= 0 { // (a keyword in the middle of a line has no indent to set)
 				rest := strings.TrimLeft(kwIndentStr, " \t")
 				kwIndentStr = strings.Repeat(indentUnit, kwDepth) + rest
 			}

@@ -175,14 +175,25 @@ func breakSameLineStatements(text string) string {
 	for i, ch := range chunks {
 		s := ch.text
 		if i > 0 && !chunks[i-1].meta && strings.HasSuffix(strings.TrimRight(chunks[i-1].text, " \t\r\n"), ";") {
-			s = breakLead(s)
+			s = breakLead(s, currentLineIndent(b.String()))
 		}
 		b.WriteString(s)
 	}
 	return b.String()
 }
 
-func breakLead(s string) string {
+// currentLineIndent is the leading whitespace of the last line of text (the line the next
+// statement would be broken off from): a statement broken inside a PL/pgSQL body keeps it.
+func currentLineIndent(text string) string {
+	line := text[strings.LastIndexByte(text, '\n')+1:]
+	n := 0
+	for n < len(line) && (line[n] == ' ' || line[n] == '\t') {
+		n++
+	}
+	return line[:n]
+}
+
+func breakLead(s, indent string) string {
 	if strings.TrimSpace(s) == "" {
 		return s
 	}
@@ -205,7 +216,7 @@ func breakLead(s string) string {
 		q++
 	}
 	if q < len(s) && s[q] != '\n' && s[q] != '\r' {
-		return keep + "\n" + s[q:]
+		return keep + "\n" + indent + s[q:]
 	}
 	return keep + s
 }

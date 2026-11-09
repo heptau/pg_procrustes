@@ -202,6 +202,7 @@ const (
 	clauseLimit
 	clauseOffset
 	clauseFetch
+	clauseLocking // FOR UPDATE | NO KEY UPDATE | SHARE | KEY SHARE of a query
 	clauseValues
 	clauseOnConflict
 	clauseSet
@@ -424,6 +425,19 @@ func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 		return clauseOffset, 1
 	case "fetch":
 		return clauseFetch, 1
+	case "for":
+		switch n2 := next(); n2 {
+		case "update", "share":
+			return clauseLocking, 2
+		case "no":
+			if i+3 < n && strings.EqualFold(tokens[i+2].text, "key") && strings.EqualFold(tokens[i+3].text, "update") {
+				return clauseLocking, 4
+			}
+		case "key":
+			if i+2 < n && strings.EqualFold(tokens[i+2].text, "share") {
+				return clauseLocking, 3
+			}
+		}
 	case "values":
 		return clauseValues, 1
 	case "on":
@@ -1097,6 +1111,19 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				}
 				return strings.Join(parts, "\n")
 			}
+			// `PERFORM f(` + arguments on the lines below: the call opens a parenthesis that closes on
+			// the last argument line, and its arguments stand one level deeper than the call; when they
+			// stand at the indent of the item itself (the item was moved right under its keyword),
+			// they are shifted one level.
+			if shift := openParenBodyShift(item, contentIndent, indentUnit); shift != "" {
+				parts := strings.Split(item, "\n")
+				for j := 1; j < len(parts); j++ {
+					if strings.TrimSpace(parts[j]) != "" {
+						parts[j] = shift + parts[j]
+					}
+				}
+				return strings.Join(parts, "\n")
+			}
 			// Judge by the first non-blank continuation line; a blank line right after
 			// the first newline must not make every pass add another level of indent.
 			// Lone parentheses say little about the item's indent (paren_indent.open: own_line
@@ -1247,6 +1274,79 @@ func closingParenShift(item, indent string) string {
 		}
 	}
 	return ""
+}
+
+// openParenBodyShift returns indentUnit when the first line of a multi-line item leaves a
+// parenthesis open, no later line starts with the `)` that closes it (the call ends on its last
+// argument: `f(` / `a,` / `b);`; the parenthesis stays open up to the last line), and the first line below stands exactly at indent: the arguments
+// of such a call belong one level deeper. Otherwise "".
+func openParenBodyShift(item, indent, unit string) string {
+	lines := strings.Split(item, "\n")
+	depth, _ := parenScanLine(lines[0])
+	if depth <= 0 || !endsWithCallOpen(lines[0]) {
+		return ""
+	}
+	first := ""
+	for _, ln := range lines[1:] {
+		t := strings.TrimLeft(ln, " \t")
+		if strings.TrimSpace(ln) == "" || isCommentLine(ln) {
+			continue
+		}
+		if depth <= 0 || depth == 1 && strings.HasPrefix(t, ")") {
+			return "" // the parenthesis closed before this line: what follows is not its body
+		}
+		if first == "" {
+			first = ln[:len(ln)-len(t)]
+		}
+		d, _ := parenScanLine(ln)
+		depth += d
+	}
+	if first != indent {
+		return ""
+	}
+	return unit
+}
+
+// endsWithCallOpen reports whether the last parenthesis of line that is still open follows a
+// function name (`f(`, `schema.f(`, `PERFORM f(`), not a keyword: `JOIN (`, `IN (`, `AS (` open a
+// subquery or a list that lays itself out.
+func endsWithCallOpen(line string) bool {
+	var opens []int
+	inStr := false
+	for i := 0; i < len(line); i++ {
+		switch c := line[i]; {
+		case c == '\'':
+			inStr = !inStr
+		case inStr:
+		case c == '(':
+			opens = append(opens, i)
+		case c == ')' && len(opens) > 0:
+			opens = opens[:len(opens)-1]
+		}
+	}
+	if len(opens) == 0 {
+		return false
+	}
+	end := opens[len(opens)-1]
+	start := end
+	for start > 0 {
+		c := line[start-1]
+		if c == '_' || c == '.' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' {
+			start--
+			continue
+		}
+		break
+	}
+	if start == end {
+		return false
+	}
+	switch strings.ToLower(line[start:end]) {
+	case "join", "from", "in", "as", "on", "and", "or", "not", "exists", "any", "all", "some", "using",
+		"values", "where", "when", "then", "else", "case", "between", "lateral", "select", "set", "by",
+		"over", "filter", "returning", "into", "union", "intersect", "except":
+		return false
+	}
+	return true
 }
 
 // wrapLimit is the line length items are wrapped at (0 when they are not wrapped).
@@ -2416,6 +2516,15 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		}
 	}
 	switch kind {
+	case clauseLocking:
+		// The locking clause of a query (SELECT … FOR UPDATE), not FOR UPDATE of CREATE POLICY or a
+		// trigger: a SELECT stands before it.
+		for _, c := range stmt.clauses {
+			if c.kind == clauseSelect && c.kwEnd <= i {
+				return true
+			}
+		}
+		return false
 	case clauseWindow:
 		// WINDOW definitions of a query; the word can only follow its FROM/WHERE/HAVING.
 		return has(clauseSelect, clauseFrom)

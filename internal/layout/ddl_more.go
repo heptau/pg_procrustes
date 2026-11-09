@@ -17,10 +17,10 @@ func rebuildSegments(sql string, tokens []rawTok, stmt statement, starts []int, 
 	if mode == "" || mode == config.BreakPreserve || len(starts) == 0 {
 		return "", false
 	}
-	if hasLineComment(tokens, stmt.startTok, stmt.endTok) {
+	if hasLineComment(tokens, codeStart(tokens, stmt), stmt.endTok) {
 		return "", false
 	}
-	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
+	flat := flatLength(sql, tokens, codeStart(tokens, stmt), stmt.endTok)
 	parenMode := cfg.ParenSpacing
 	var sb strings.Builder
 	if !shouldBreak(flat, mode, cfg.LineLength) {
@@ -453,7 +453,7 @@ func rebuildPartition(sql string, tokens []rawTok, stmt statement, nameEnd int, 
 // RESTRICT on a line of its own; always and auto need more than one object.
 func rebuildDrop(sql string, tokens []rawTok, stmt statement, first int, cfg *config.LayoutConfig, indentUnit string, depth int) (string, bool) {
 	mode := cfg.DDL.Drop.Break
-	if mode == "" || mode == config.BreakPreserve || hasLineComment(tokens, stmt.startTok, stmt.endTok) {
+	if mode == "" || mode == config.BreakPreserve || hasLineComment(tokens, codeStart(tokens, stmt), stmt.endTok) {
 		return "", false
 	}
 	w := func(i int) string { return lowerAt(tokens, i, stmt.endTok) }
@@ -498,7 +498,7 @@ func rebuildDrop(sql string, tokens []rawTok, stmt statement, first int, cfg *co
 	if len(items) == 0 {
 		return "", false
 	}
-	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
+	flat := flatLength(sql, tokens, codeStart(tokens, stmt), stmt.endTok)
 	var sb strings.Builder
 	sb.WriteString(ddlHead(sql, tokens, stmt, listStart-1))
 	if len(items) < 2 && mode != config.BreakNever || !shouldBreak(flat, mode, cfg.LineLength) && mode != config.BreakNever {

@@ -1,0 +1,11 @@
+reserved_keywords:
+  case: upper
+keywords:
+  case: upper
+data_types:
+  case: upper
+columns:
+  case: lower
+aliases:
+  case: lower
+  as: add

@@ -162,6 +162,16 @@ func alterTableActionsStart(tokens []rawTok, stmt statement, first int) int {
 	return i
 }
 
+// codeStart is the index of the first token of the statement that is not a comment: comment
+// lines in front of CREATE … are not part of the statement's header, so they neither count
+// for its length nor switch its layout off (the header text still starts with them: ddlHead).
+func codeStart(tokens []rawTok, stmt statement) int {
+	if f := firstCodeTok(tokens, stmt.startTok, stmt.endTok); f >= 0 {
+		return f
+	}
+	return stmt.startTok
+}
+
 // ddlHead returns the text from the start of the statement (leading comments included)
 // through the end of token last.
 func ddlHead(sql string, tokens []rawTok, stmt statement, last int) string {
@@ -253,7 +263,7 @@ func rebuildParenList(sql string, tokens []rawTok, stmt statement, open int, mod
 	if len(items) == 0 {
 		return "", false
 	}
-	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
+	flat := flatLength(sql, tokens, codeStart(tokens, stmt), stmt.endTok)
 	tail := strings.TrimSpace(originalText(sql, tokens, closeIdx+1, stmt.endTok))
 
 	var sb strings.Builder
@@ -306,7 +316,7 @@ func rebuildAlterTable(sql string, tokens []rawTok, stmt statement, start int, c
 	if len(items) == 0 {
 		return "", false
 	}
-	flat := flatLength(sql, tokens, stmt.startTok, stmt.endTok)
+	flat := flatLength(sql, tokens, codeStart(tokens, stmt), stmt.endTok)
 	doBreak := false
 	if modeSet {
 		switch mode {
@@ -583,7 +593,7 @@ func rebuildCreateIndex(sql string, tokens []rawTok, stmt statement, idx int, cf
 	if mode == "" || mode == config.BreakPreserve {
 		return "", false
 	}
-	if hasLineComment(tokens, stmt.startTok, stmt.endTok) {
+	if hasLineComment(tokens, codeStart(tokens, stmt), stmt.endTok) {
 		return "", false
 	}
 	// Segment starts: the first ON after INDEX, then USING / INCLUDE / TABLESPACE / WHERE /
@@ -657,6 +667,14 @@ func createFunctionOpenParen(tokens []rawTok, stmt statement, first int) int {
 	return -1
 }
 
+// lowerAtTok returns the lower-cased token text at i, or "" outside [0, end).
+func lowerAtTok(tokens []rawTok, i, end int) string {
+	if i < 0 || i >= end || i >= len(tokens) {
+		return ""
+	}
+	return strings.ToLower(tokens[i].text)
+}
+
 // functionOptionStarts returns the indexes of the tokens in (from, end) that begin a
 // function option (RETURNS, LANGUAGE, IMMUTABLE, SECURITY DEFINER, SET …, AS body, …).
 func functionOptionStarts(tokens []rawTok, from, end int) []int {
@@ -709,7 +727,7 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 	if closeIdx < 0 {
 		return "", false
 	}
-	for i := stmt.startTok; i < stmt.endTok; i++ {
+	for i := codeStart(tokens, stmt); i < stmt.endTok; i++ {
 		// BEGIN ATOMIC bodies and comments in the header are left to the generic code.
 		if strings.HasPrefix(tokens[i].text, "--") || strings.EqualFold(tokens[i].text, "begin") {
 			return "", false
@@ -727,7 +745,7 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 			break
 		}
 	}
-	flat := flatLength(sql, tokens, stmt.startTok, headEnd)
+	flat := flatLength(sql, tokens, codeStart(tokens, stmt), headEnd)
 	baseIndent := strings.Repeat(indentUnit, depth)
 
 	var sb strings.Builder
@@ -773,7 +791,24 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 				} else {
 					sb.WriteByte(' ')
 				}
-				sb.WriteString(inlineContent(sql, tokens, s, end, cfg.ParenSpacing))
+				text := inlineContent(sql, tokens, s, end, cfg.ParenSpacing)
+				// RETURNS TABLE (columns) follows the params rule, measured on its own line: a column
+				// list longer than line_length (or always) goes one column per line.
+				if isSet(pm) && lowerAtTok(tokens, s, end) == "returns" && lowerAtTok(tokens, s+1, end) == "table" &&
+					lowerAtTok(tokens, s+2, end) == "(" && matchParenTok(tokens, s+2, end) == end-1 &&
+					!hasLineComment(tokens, s, end) && end-1 > s+3 &&
+					shouldBreak(runeLen(baseIndent)+runeLen(text), pm, cfg.LineLength) {
+					cols := splitAtComma(sql, tokens, s+3, end-1)
+					var rt strings.Builder
+					rt.WriteString(inlineContent(sql, tokens, s, s+2, cfg.ParenSpacing))
+					rt.WriteByte('(')
+					emitDDLItems(&rt, cols, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, s+3, end-1), baseIndent+indentUnit)
+					rt.WriteByte('\n')
+					rt.WriteString(baseIndent)
+					rt.WriteByte(')')
+					text = rt.String()
+				}
+				sb.WriteString(text)
 			}
 		}
 	}

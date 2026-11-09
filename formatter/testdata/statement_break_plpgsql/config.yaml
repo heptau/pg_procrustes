@@ -1,0 +1,3 @@
+statement_break: always
+reserved_keywords:
+  case: upper
