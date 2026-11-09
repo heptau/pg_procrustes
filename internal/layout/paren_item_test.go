@@ -84,3 +84,20 @@ func TestCallArgumentsWithSubqueryNotShifted(t *testing.T) {
 	in := "SELECT COALESCE(\n    (SELECT 1 FROM t),\n    0) AS x;"
 	applyIdem(t, in, cfg)
 }
+
+// A comment line between two list items — the comma stands before it, the next item below it at
+// the same indent — is read back the same by the next run (the comma used to land in front of the
+// comment, `)` / `, -- note`, and the item below lost its indent).
+func TestCommentLineBetweenListItems(t *testing.T) {
+	cfg := parenItemCfg()
+	cfg.Content.CommaPosition = config.CommaEnd
+	for _, in := range []string{
+		"WITH a AS\n(\n  SELECT 1\n)\n-- note\n    ,\nb AS\n(\n  SELECT 2\n)\nSELECT * FROM a, b;",
+		"WITH a AS\n(\n  SELECT 1\n),\n-- note\nb AS\n(\n  SELECT 2\n)\nSELECT * FROM a, b;",
+	} {
+		got := applyIdem(t, in, cfg)
+		if !strings.Contains(got, "    ),\n    -- note\n    b AS\n") {
+			t.Errorf("unexpected layout of\n%s\n=>\n%s", in, got)
+		}
+	}
+}

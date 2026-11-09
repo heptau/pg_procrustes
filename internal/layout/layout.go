@@ -1089,7 +1089,14 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if lead == "" || strings.TrimSpace(body) == "" {
 				return reindentBody(item)
 			}
-			return lead + reindentBody(body)
+			rest := reindentBody(body)
+			if !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") && (rest != body || !strings.Contains(body, "\n")) {
+				// The comment lines took the item's indent off its other lines
+				// (trimLeadingCommentIndent), so the first line of the body has none either: it starts
+				// a line after the comments and moves in together with the lines below it.
+				rest = contentIndent + rest
+			}
+			return lead + rest
 		}
 		reindentBody = func(item string) string {
 			if !strings.ContainsRune(item, '\n') {
@@ -2285,8 +2292,13 @@ func appendBeforeComment(item, suffix string) string {
 		last := res.Tokens[len(res.Tokens)-1]
 		start, end := int(last.Start), int(last.End)
 		if start >= 0 && end <= len(item) && strings.HasPrefix(item[start:end], "--") {
-			before := strings.TrimRight(item[:start], " \t")
-			return before + suffix + " " + item[start:]
+			code := strings.TrimRight(item[:start], " \t\r\n")
+			if gap := item[len(code):start]; strings.Contains(gap, "\n") {
+				// the comment has a line of its own: the suffix ends the line of the code above it
+				// (`)` / `, -- note` read back as a comma and a trailing comment, and moved on every run)
+				return code + suffix + gap + item[start:]
+			}
+			return strings.TrimRight(item[:start], " \t") + suffix + " " + item[start:]
 		}
 	}
 	return item + suffix
