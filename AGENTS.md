@@ -263,6 +263,8 @@ Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.m
 
 `go run scripts/body_diff.go <config.yaml> <dir>` is a differential check for PL/pgSQL bodies: it formats every single statement of the `.sql` files below `<dir>` at the top level and again wrapped in `DO $$ BEGIN … END $$;`, and reports statements that read differently (whitespace aside). A body is no SQL text as a whole, so anything that depends on the parse tree (aliases, column names spelled like keywords, `AS`) must be recovered by `collectBodyPositions` (formatter.go); this check finds what it misses.
 
+`go run scripts/stmt_matrix.go <dir> <max-reports> <config.yaml>...` runs every single statement of a corpus through the given configs (bare and wrapped in `DO $$ … $$`) and reports output that does not parse or is not idempotent; single statements make small test cases.
+
 ## Running tests
 
 ```bash

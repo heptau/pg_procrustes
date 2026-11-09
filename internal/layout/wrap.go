@@ -16,6 +16,11 @@ func wrapLongItem(item, indent, unit string, lineLen int) string {
 	if lineLen <= 0 || strings.ContainsRune(item, '\n') || runeLen(indent)+runeLen(item) <= lineLen {
 		return item
 	}
+	if runeLen(indent)+runeLen(unpadded(item)) <= lineLen {
+		// it only is too long for the blanks of a hand-aligned list (`'a'   , f(x)`); a wrapped item
+		// loses them, so the next run would find it short enough and join it again
+		return item
+	}
 	if strings.Contains(item, "--") || strings.Contains(item, "/*") {
 		return item
 	}
@@ -159,4 +164,31 @@ func windowSegments(item string, toks []*pg_query.ScanToken) []string {
 		segs = append(segs, strings.TrimSpace(item[toks[st].Start:end]))
 	}
 	return segs
+}
+
+// unpadded returns item with each run of blanks outside strings and comments reduced to one, and
+// none before a comma: the length it has once a wrap has taken the alignment padding away.
+func unpadded(item string) string {
+	res, err := pg_query.Scan(item)
+	if err != nil {
+		return item
+	}
+	var sb strings.Builder
+	prev := 0
+	for i, t := range res.Tokens {
+		gap := item[prev:t.Start]
+		text := item[t.Start:t.End]
+		if i > 0 && strings.TrimLeft(gap, " \t") == "" && gap != "" {
+			if text == "," {
+				gap = ""
+			} else {
+				gap = " "
+			}
+		}
+		sb.WriteString(gap)
+		sb.WriteString(text)
+		prev = int(t.End)
+	}
+	sb.WriteString(item[prev:])
+	return sb.String()
 }

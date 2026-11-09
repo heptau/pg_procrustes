@@ -705,6 +705,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if blankLine == "" {
 				blankLine = config.UnionBlankLinePreserve
 			}
+			startLen := sb.Len()
 			switch blankLine {
 			case config.UnionBlankLineNone:
 				sb.WriteByte('\n')
@@ -757,6 +758,14 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteString(gap)
 				}
 				sb.WriteString(originalText(sql, tokens, kwStart, conEnd))
+			}
+			if startLen == 0 {
+				// nothing precedes the operator (a statement that opens with a parenthesis, `(…) INTERSECT …`,
+				// has the set operation as its first clause): the line breaks "around" it would start the
+				// statement, and the next run would add them again
+				rest := strings.TrimLeft(sb.String(), "\n")
+				sb.Reset()
+				sb.WriteString(rest)
 			}
 			continue
 		}

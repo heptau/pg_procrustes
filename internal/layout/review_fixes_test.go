@@ -98,3 +98,26 @@ func TestCommentAfterKeywordHangsContent(t *testing.T) {
 		}
 	}
 }
+
+func TestSetOperationAfterParenthesisStartsNoBlankLines(t *testing.T) {
+	cfg := parenItemCfg()
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Subquery.Break = config.BreakAlways
+	for _, bl := range []config.UnionBlankLine{config.UnionBlankLineNone, config.UnionBlankLineBefore, config.UnionBlankLineAfter, config.UnionBlankLineBoth} {
+		cfg.Union.BlankLine = bl
+		got := applyIdem(t, "(SELECT 1 UNION SELECT 4) INTERSECT SELECT 4;", cfg)
+		if strings.HasPrefix(got, "\n") {
+			t.Errorf("union.blank_line %s: output starts with a line break: %q", bl, got)
+		}
+	}
+}
+
+func TestWrapDecidesOnTheUnpaddedLength(t *testing.T) {
+	cfg := parenItemCfg()
+	cfg.LineLength = 60
+	cfg.Content.WrapExpressions = config.WrapWrap
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	sql := "SELECT a FROM (VALUES (1, 'bbbbbbbbbbbbbbbbbbb'      , 'cccccccccccccccccc'      , 'dd')) v;"
+	applyIdem(t, sql, cfg)
+}

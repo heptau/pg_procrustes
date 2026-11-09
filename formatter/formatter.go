@@ -1176,7 +1176,9 @@ func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) 
 	// Operator spacing — single space or no space around symbolic binary ops.
 	if !hasNL && cfg.OperatorSpacing == config.OperatorSpacingNormalize {
 		if (isSymbolicOp(prevText) || isSymbolicOp(nextText)) &&
-			prevText != "(" && nextText != ")" {
+			prevText != "(" && nextText != ")" && nextText != "," && nextText != ";" && prevText != "." && nextText != "." {
+			// (an operator that is a name — ORDER BY a USING <, OPERATOR(pg_catalog.<) — keeps what
+			// the punctuation beside it says)
 			return " "
 		}
 	}
