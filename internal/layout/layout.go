@@ -1925,7 +1925,7 @@ func reformatCaseExprs(item string, baseIndent string, cfg config.SQLCaseCfg, in
 			// comment: the CASE is left as it is.
 			sb.WriteString(item[tok.start:toks[endIdx].end])
 		} else if doExpand {
-			sb.WriteString(expandCaseExpr(item, toks, i, endIdx, baseIndent, indentUnit, cfg.Indent))
+			sb.WriteString(expandCaseExpr(item, toks, i, endIdx, baseIndent, indentUnit, cfg.Indent, cfg.ParenSpacing))
 		} else {
 			sb.WriteString(flattenCaseExpr(toks, i, endIdx))
 		}
@@ -1966,7 +1966,7 @@ func flattenCaseExpr(toks []rawTok, caseIdx, endIdx int) string {
 // expandCaseExpr returns a multi-line representation of CASE toks[caseIdx..endIdx].
 // The WHEN/ELSE lines are indented by one indentUnit relative to the CASE line.
 // END is placed at baseIndent level.
-func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent, indentUnit string, indentMode config.BodyIndentMode) string {
+func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent, indentUnit string, indentMode config.BodyIndentMode, caseParen config.ParenSpacingMode) string {
 	// Compute the indent unit to use for WHEN/ELSE.
 	whenIndent := baseIndent + indentUnit
 	if indentMode == config.BodyIndentNone {
@@ -2005,7 +2005,9 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 
 	// Simple CASE: there is content between CASE and first WHEN.
 	if firstWhen > caseIdx+1 {
-		expr := strings.TrimSpace(originalText(item, toks, caseIdx+1, firstWhen))
+		// (on one line: lines of a parenthesised operand kept their old indent while the rest
+		// moved, and the next run moved them again)
+		expr := strings.TrimSpace(inlineContent(item, toks, caseIdx+1, firstWhen, caseParen))
 		if expr != "" {
 			sb.WriteByte(' ')
 			sb.WriteString(expr)

@@ -4264,6 +4264,7 @@ func layoutConfig(cfg *config.Config) *config.LayoutConfig {
 	lc := cfg.Layout
 	lc.ParenSpacing = cfg.ParenSpacing
 	lc.CommaSpacing = cfg.CommaSpacing
+	lc.Case.ParenSpacing = cfg.ParenSpacing
 	lc.KeepStatementIndent = !cfg.Nested
 	return &lc
 }

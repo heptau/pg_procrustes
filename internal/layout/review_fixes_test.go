@@ -222,3 +222,17 @@ func TestSubqueryBodyInRiverWithTabsIsStable(t *testing.T) {
 		t.Errorf("unexpected indent: %q", got)
 	}
 }
+
+// The operand of a simple CASE that is a multi-line parenthesised CASE is joined onto one line,
+// so the lines of it do not keep an indent the rest of the expression has left.
+func TestSimpleCaseOperandIsJoinedOntoOneLine(t *testing.T) {
+	cfg := caseCfg(config.BreakAlways, config.BodyIndentPreserve, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Clauses.Align = config.AlignRight
+	cfg.Content.Break = config.BreakAlways
+	cfg.ParenIndent.Open = config.ParenOpenOwnLine
+	got := applyIdem(t, "SELECT CASE\n  (CASE v('b')\n    WHEN 'f' THEN 'x' END\n  )\n  WHEN 'x' THEN 'y'\n  ELSE 'z' END;\n", cfg)
+	if !strings.Contains(got, "CASE (CASE v('b') WHEN 'f' THEN 'x' END )") {
+		t.Errorf("operand not on one line: %q", got)
+	}
+}

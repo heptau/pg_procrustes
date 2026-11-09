@@ -701,6 +701,10 @@ type DollarQuoteCfg struct {
 type SQLCaseCfg struct {
 	Break  BreakMode      `yaml:"break"`  // preserve | never | always | auto
 	Indent BodyIndentMode `yaml:"indent"` // preserve | none | indent  (depth of WHEN/ELSE relative to CASE)
+
+	// ParenSpacing mirrors paren_spacing (filled in by the formatter): the operand of a simple
+	// CASE is joined onto one line the way the token pass would leave it.
+	ParenSpacing ParenSpacingMode `yaml:"-"`
 }
 
 // ParenIndentMode controls indentation of content inside multi-line parenthesised blocks.
