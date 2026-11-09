@@ -261,6 +261,8 @@ Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.m
 
 `go run scripts/corpus_check.go [-fp] [-t postgresql,ai,modern,none | -t some.yaml,…] [-o report.txt] <dir>` formats every `.sql` file below `<dir>` with the given templates (or config files) and reports output that does not parse (including the SQL inside PL/pgSQL function bodies, which the SQL parser sees only as a string), changes the text of a string constant (`string-changed`; a fingerprint ignores constant values), is not idempotent (`-fp`: or changes the parse tree) or — for `none`, the empty config — differs from the input. Nothing is written to `<dir>`. Run it on a large real schema before a release.
 
+`go run scripts/body_diff.go <config.yaml> <dir>` is a differential check for PL/pgSQL bodies: it formats every single statement of the `.sql` files below `<dir>` at the top level and again wrapped in `DO $$ BEGIN … END $$;`, and reports statements that read differently (whitespace aside). A body is no SQL text as a whole, so anything that depends on the parse tree (aliases, column names spelled like keywords, `AS`) must be recovered by `collectBodyPositions` (formatter.go); this check finds what it misses.
+
 ## Running tests
 
 ```bash

@@ -684,7 +684,7 @@ func collectPLpgSQLVars(tokens []rawToken, params map[string]bool) map[string]bo
 		case w == ";":
 			itemStart = declaring
 			continue
-		case (w == "for" || w == "foreach") && lw(i-1) != "loop" && lw(i+1) != "update" && lw(i+1) != "share":
+		case (w == "for" || w == "foreach") && lw(i-1) != "loop" && lw(i+1) != "update" && lw(i+1) != "share" && lw(i+1) != "values":
 			// FOR a, b IN …  /  FOREACH a IN ARRAY …  (FOR EACH ROW and FOR TABLE x have no IN
 			// right after the names)
 			var loopVars []string
@@ -702,6 +702,9 @@ func collectPLpgSQLVars(tokens []rawToken, params map[string]bool) map[string]bo
 					break
 				}
 				if tokens[k].text != "," {
+					if len(loopVars) > 0 && lw(k-1) != "," {
+						break // two names in a row (FOR ROLE x IN SCHEMA): no loop variables
+					}
 					loopVars = append(loopVars, lw(k))
 				}
 			}
@@ -1375,6 +1378,10 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 	}
 
 	pos := collectASTPositions(sql, parsed)
+	if cfg.Nested && parsed == nil && len(pos.pendingAliases)+len(pos.tables)+len(pos.columns)+len(pos.functions)+len(pos.schemas) == 0 {
+		// a PL/pgSQL body is no SQL text as a whole: its statements are parsed one by one
+		pos = collectBodyPositions(sql, tokens)
+	}
 	pos.resolveAliases(tokens)
 	resolveSubselectAliases(tokens, pos)
 	resolveFunctionAliases(tokens, pos)
@@ -2089,6 +2096,127 @@ func collectASTPositions(sql string, result *pg_query.ParseResult) *astPositions
 	return pos
 }
 
+// bodyStatementStarters are the words that open an SQL statement of a PL/pgSQL body.
+var bodyStatementStarters = map[string]bool{
+	"select": true, "insert": true, "update": true, "delete": true, "with": true, "merge": true,
+	"create": true, "alter": true, "drop": true, "grant": true, "revoke": true, "truncate": true,
+	"comment": true, "lock": true, "refresh": true, "reindex": true, "explain": true, "copy": true, "prepare": true,
+}
+
+// collectBodyPositions is collectASTPositions for the text of a PL/pgSQL body, which PostgreSQL
+// does not parse as a whole: every SQL statement in it (from its first word to the ';', or to the
+// LOOP of a FOR … IN query) is parsed on its own, and what the trees say is shifted to the
+// statement's place in the body. A statement that does not parse (it holds PL/pgSQL syntax) says nothing.
+func collectBodyPositions(sql string, tokens []rawToken) *astPositions {
+	pos := newASTPositions()
+	pos.sql = sql
+	lw := func(i int) string {
+		if i < 0 || i >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	prevCode := func(i int) string {
+		for i--; i >= 0; i-- {
+			if t := tokens[i].text; !strings.HasPrefix(t, "--") && !strings.HasPrefix(t, "/*") {
+				return strings.ToLower(t)
+			}
+		}
+		return ""
+	}
+	depth := 0
+	for i := 0; i < len(tokens); i++ {
+		switch tokens[i].text {
+		case "(", "[":
+			depth++
+			continue
+		case ")", "]":
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth > 0 || !bodyStatementStarters[lw(i)] {
+			continue
+		}
+		prev := prevCode(i)
+		switch prev {
+		case "", ";", "begin", "then", "else", "loop", "in", "query", "for", "exception":
+		default:
+			continue
+		}
+		// the end: the next ';' (or the LOOP after FOR … IN query) outside parentheses
+		first, end, last, d := i, -1, len(tokens)-1, 0
+	scan:
+		for k := i; k < len(tokens); k++ {
+			switch t := tokens[k].text; {
+			case t == "(" || t == "[":
+				d++
+			case t == ")" || t == "]":
+				if d > 0 {
+					d--
+				}
+			case d == 0 && t == ";":
+				end, last = tokens[k].start, k
+				break scan
+			case d == 0 && prev == "in" && strings.EqualFold(t, "loop"):
+				end, last = tokens[k].start, k
+				break scan
+			}
+		}
+		if end < 0 {
+			end = len(sql)
+		}
+		i = last
+		off := tokens[first].start
+		chunk := sql[off:end]
+		if _, err := pg_query.Parse(chunk); err != nil {
+			continue
+		}
+		pos.mergeShifted(collectASTPositions(chunk, nil), off)
+	}
+	return pos
+}
+
+// mergeShifted adds what src (the positions in a part of the text) says, shifted by off.
+func (p *astPositions) mergeShifted(src *astPositions, off int) {
+	shift := func(dst, from map[int]bool) {
+		for k, v := range from {
+			dst[k+off] = v
+		}
+	}
+	shift(p.schemas, src.schemas)
+	shift(p.tables, src.tables)
+	shift(p.functions, src.functions)
+	shift(p.conditionalFunctions, src.conditionalFunctions)
+	shift(p.systemFunctions, src.systemFunctions)
+	shift(p.aliases, src.aliases)
+	shift(p.columns, src.columns)
+	for _, pa := range src.pendingAliases {
+		p.pendingAliases = append(p.pendingAliases, pendingAlias{exprStart: pa.exprStart + off, name: pa.name})
+	}
+	for _, l := range src.sortByDefaultLocs {
+		p.sortByDefaultLocs = append(p.sortByDefaultLocs, l+off)
+	}
+	for _, l := range src.castFuncLocs {
+		p.castFuncLocs = append(p.castFuncLocs, l+off)
+	}
+	for n := range src.subselectAliases {
+		p.subselectAliases[n] = true
+	}
+	for n := range src.functionAliases {
+		p.functionAliases[n] = true
+	}
+	if len(src.funcParams) > 0 {
+		if p.funcParams == nil {
+			p.funcParams = map[string]bool{}
+		}
+		for n := range src.funcParams {
+			p.funcParams[n] = true
+		}
+	}
+}
+
 func walkNode(node *pg_query.Node, pos *astPositions) {
 	if node == nil {
 		return
@@ -2173,6 +2301,13 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		walkNode(ss.HavingClause, pos)
 		many(ss.SortClause)
 		many(ss.WindowClause)
+		for _, row := range ss.ValuesLists { // VALUES (now(), …)
+			if l := row.GetList(); l != nil {
+				many(l.Items)
+			}
+		}
+		walkNode(ss.LimitCount, pos)
+		walkNode(ss.LimitOffset, pos)
 		if ss.Larg != nil {
 			walkNode(&pg_query.Node{Node: &pg_query.Node_SelectStmt{SelectStmt: ss.Larg}}, pos)
 		}
@@ -3029,6 +3164,17 @@ var sqlClauseStarters = map[string]bool{
 	"with": true, "perform": true, "merge": true,
 }
 
+// withStartsQuery reports whether a WITH that follows the word prev opens a query (a CTE list)
+// rather than being the WITH of CREATE VIEW v WITH (security_barrier), CREATE TABLE … WITH (…),
+// … WITH NO DATA, WITH CHECK OPTION, WITH ORDINALITY: those follow a name or a keyword of the statement.
+func withStartsQuery(prev string) bool {
+	switch prev {
+	case "", ";", "begin", "then", "else", "loop", "in", "as", "query", "for", "exception", "return":
+		return true
+	}
+	return false
+}
+
 // applyLayoutPerStatement applies layout to individual SQL statements inside a
 // PL/pgSQL body. It scans for SQL clause starters (SELECT, INSERT, UPDATE, DELETE,
 // WITH, PERFORM) at paren depth 0 and applies layout.Apply() to each one, while
@@ -3188,7 +3334,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		if sqlStart < 0 && (lower == "grant" || lower == "revoke") {
 			inPrivilege = true // GRANT SELECT, UPDATE ON …: the privileges are no statements
 		}
-		if sqlStart < 0 && !inPrivilege && sqlClauseStarters[lower] {
+		if sqlStart < 0 && !inPrivilege && sqlClauseStarters[lower] && (lower != "with" || withStartsQuery(prevLower)) {
 			// Found the start of a SQL statement; remember position.
 			// If SELECT follows IN (FOR r IN SELECT...LOOP), mark it as a cursor query
 			// so we terminate at LOOP rather than the first unrelated ';'.

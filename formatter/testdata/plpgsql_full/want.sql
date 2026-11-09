@@ -79,7 +79,7 @@ LANGUAGE plpgsql AS $$
    v_balance := v_balance + p_amount;
    END CASE;
 
-       UPDATE ledger.accounts SET balance = v_balance, updated_at = NOW() WHERE id = p_account_id;
+       UPDATE ledger.accounts SET balance = v_balance, updated_at = now() WHERE id = p_account_id;
 
        -- Log with searched CASE for priority
        CASE
@@ -97,7 +97,7 @@ LANGUAGE plpgsql AS $$
 
        -- FOR loop: write audit entries for each related account
        FOR v_i IN 1..3 LOOP
-   INSERT INTO ledger.audit (tx_id, pass, recorded_at) VALUES (v_tx_id, v_i, NOW());
+   INSERT INTO ledger.audit (tx_id, pass, recorded_at) VALUES (v_tx_id, v_i, now());
 
    END LOOP;
 
