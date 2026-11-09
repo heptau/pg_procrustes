@@ -1106,6 +1106,19 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if firstNewline < 0 {
 				return item
 			}
+			// The arguments of a call (`f(` / `a,` / `b);`) that stand left of the item's indent are
+			// first moved to it, so that the shift below puts them one level deeper (the same place
+			// they have when they already stood at the indent: the second run must not move them).
+			if first, ok := openParenBodyIndent(item); ok && len(first) < len(contentIndent) && strings.HasPrefix(contentIndent, first) {
+				pad := contentIndent[len(first):]
+				parts := strings.Split(item, "\n")
+				for j := 1; j < len(parts); j++ {
+					if strings.TrimSpace(parts[j]) != "" {
+						parts[j] = pad + parts[j]
+					}
+				}
+				item = strings.Join(parts, "\n")
+			}
 			// A parenthesis the item opens (a VALUES row, a CTE body: `v AS (` / `v AS` + `(`) closes on
 			// a line of its own, and that `)` belongs at the indent of the item. When it stands further
 			// left, the whole item is shifted right by the difference, body and parentheses together
@@ -1303,6 +1316,17 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 			minInd, have2 = ind, true
 		}
 	}
+	allTabs := have2
+	for j := bodyFrom; j < closeAt; j++ {
+		if strings.TrimSpace(lines[j]) != "" && !strings.HasPrefix(lines[j], "\t") {
+			allTabs = false
+		}
+	}
+	if allTabs && strings.Trim(have, " ") == "" {
+		// tabs on one side and blanks on the other say nothing about which is deeper: measured by
+		// bytes, the shift put a blank in front of every tab and grew on the next run
+		return item, false
+	}
 	want := indent + unit
 	// A body that already stands deeper than the parentheses stays where it is: the lines a run is
 	// given may have it at the indent of an earlier run and the `)` at the margin, and moving it by
@@ -1314,6 +1338,12 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 			continue
 		}
 		lines[j] = closeShift + lines[j]
+		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && strings.TrimSpace(lines[j]) != "" && !isCommentLine(lines[j]) {
+			// what follows the closing parenthesis (`) AS f` / `USING (id)`) belongs to the item
+			// and stands at its indent at least; a line left of it would be what the next run
+			// judges the whole item by, and move the item once more
+			lines[j] = indent + strings.TrimLeft(lines[j], " \t")
+		}
 	}
 	if !bodyDeep && have2 {
 		// (the body, moved with the rest, must stand deeper than the parentheses)
@@ -1335,33 +1365,40 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 // argument: `f(` / `a,` / `b);`; the parenthesis stays open up to the last line), and the first line below stands exactly at indent: the arguments
 // of such a call belong one level deeper. Otherwise "".
 func openParenBodyShift(item, indent, unit string) string {
+	if first, ok := openParenBodyIndent(item); ok && first == indent {
+		return unit
+	}
+	return ""
+}
+
+// openParenBodyIndent returns the indent of the first argument line of a multi-line call item
+// (see openParenBodyShift for the shape) and whether the item has that shape.
+func openParenBodyIndent(item string) (string, bool) {
 	lines := strings.Split(item, "\n")
 	depth, _ := parenScanLine(lines[0])
 	if depth <= 0 || !strings.HasSuffix(strings.TrimRight(lines[0], " \t"), "(") || !endsWithCallOpen(lines[0]) {
-		return ""
+		return "", false
 	}
 	if subqueryOpen.MatchString(item) {
-		return "" // a subquery in the arguments lays itself out (expandSubqueries) and is not moved
+		return "", false // a subquery in the arguments lays itself out (expandSubqueries) and is not moved
 	}
 	first := ""
+	seen := false
 	for _, ln := range lines[1:] {
 		t := strings.TrimLeft(ln, " \t")
 		if strings.TrimSpace(ln) == "" || isCommentLine(ln) {
 			continue
 		}
 		if depth <= 0 || depth == 1 && strings.HasPrefix(t, ")") {
-			return "" // the parenthesis closed before this line: what follows is not its body
+			return "", false // the parenthesis closed before this line: what follows is not its body
 		}
-		if first == "" {
-			first = ln[:len(ln)-len(t)]
+		if !seen {
+			first, seen = ln[:len(ln)-len(t)], true
 		}
 		d, _ := parenScanLine(ln)
 		depth += d
 	}
-	if first != indent {
-		return ""
-	}
-	return unit
+	return first, seen
 }
 
 var subqueryOpen = regexp.MustCompile(`(?i)\(\s*(select|with|values)\b`)

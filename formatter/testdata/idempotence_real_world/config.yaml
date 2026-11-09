@@ -1,0 +1,8 @@
+quoted_identifiers: remove_safe
+aliases:
+  as: add
+layout:
+  clauses:
+    break: always
+  content:
+    first_item: inline

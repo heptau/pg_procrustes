@@ -1757,9 +1757,9 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			inner := tokenText[1 : len(tokenText)-1]
 			located := pos.aliases[tok.start] || pos.columns[tok.start] || pos.tables[tok.start] || pos.schemas[tok.start]
 			// A keyword-spelled name ("year", "name") the AST did not place (inside a PL/pgSQL
-			// expression, say) would be read — and cased — as the keyword on the next run:
-			// its quotes stay.
-			if safeToUnquote(inner) && (located || !isKeywordName(inner)) {
+			// expression, say), or spelled like a type or a literal ("date", "text"), would be read — and
+			// cased — as that on the next run: its quotes stay.
+			if safeToUnquote(inner) && (located || !isKeywordName(inner) && !dataTypeNames[inner] && !literalNames[inner]) {
 				// select"a" → SELECT a, not SELECTa: keep a separator after a word.
 				// An unquoted alias still follows aliases.as / aliases.case; other
 				// identifiers follow their own section's case rule when the AST located them.
@@ -1862,6 +1862,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		// ── AS insertion (add mode) ───────────────────────────────────────────
 		if class == classAlias && cfg.Aliases.As == config.AliasAsAdd {
 			if strings.ToLower(prevTokenText) != "as" {
+				collapsePaddingBeforeAS(&buf)
 				ensureSeparator(&buf)
 				buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
 				buf.WriteByte(' ')
@@ -4007,6 +4008,23 @@ func layoutConfig(cfg *config.Config) *config.LayoutConfig {
 
 // ensureSeparator writes a space when buf ends in a word character, so a keyword or
 // identifier written next cannot fuse with the previous token (SELECTa, !aAS).
+// collapsePaddingBeforeAS reduces the blanks (hand-aligned column padding) that stand before an
+// inserted AS to one, as the next run does to the AS that is written then. Blanks that open a line
+// are indentation and stay.
+func collapsePaddingBeforeAS(buf *strings.Builder) {
+	out := buf.String()
+	i := len(out)
+	for i > 0 && (out[i-1] == ' ' || out[i-1] == '\t') {
+		i--
+	}
+	if len(out)-i < 2 || i == 0 || out[i-1] == '\n' {
+		return
+	}
+	buf.Reset()
+	buf.WriteString(out[:i])
+	buf.WriteByte(' ')
+}
+
 func ensureSeparator(buf *strings.Builder) {
 	out := buf.String()
 	if out == "" {
