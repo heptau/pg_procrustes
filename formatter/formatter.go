@@ -153,6 +153,9 @@ var plpgsqlKeywordNames = map[string]bool{
 	"exception": true,
 }
 
+// raiseLevelNames are the severity words of RAISE, which are ordinary names elsewhere.
+var raiseLevelNames = map[string]bool{"debug": true, "info": true, "notice": true, "warning": true}
+
 // literalNames are boolean/null literals. They are RESERVED_KEYWORD in the
 // scanner but should follow literals.case, not keywords.case.
 var literalNames = map[string]bool{
@@ -375,6 +378,38 @@ func findAliasToken(tokens []rawToken, exprStart int, aliasName string) int {
 		}
 	}
 	return -1
+}
+
+// resolveRoutineNames registers the name in CREATE | DROP | ALTER | COMMENT ON | GRANT … ON | EXECUTE
+// FUNCTION | PROCEDURE [IF EXISTS] [schema.]name as a function when it is spelled like a PL/pgSQL
+// keyword (pg_temp.assert, s.raise, s.loop): the statement has no function-call node, and the name
+// would be written as the keyword (CREATE FUNCTION pg_temp.ASSERT while its calls stay assert).
+func resolveRoutineNames(tokens []rawToken, pos *astPositions) {
+	lw := func(i int) string {
+		if i < 0 || i >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	for i := range tokens {
+		if w := lw(i); w != "function" && w != "procedure" && w != "routine" {
+			continue
+		}
+		k := i + 1
+		if lw(k) == "if" && lw(k+1) == "exists" {
+			k += 2
+		}
+		for k < len(tokens) {
+			name := k
+			if plpgsqlKeywordNames[lw(name)] {
+				pos.functions[tokens[name].start] = true
+			}
+			if lw(k+1) != "." {
+				break
+			}
+			k += 2
+		}
+	}
 }
 
 // resolveAliasColumns registers the column names that follow a table alias or a CTE name:
@@ -960,7 +995,7 @@ func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) 
 	// Inline spacing — collapse 2+ horizontal spaces to a single space.
 	// Only fires when no other rule returned early, and only on pure-whitespace gaps.
 	if !hasNL && cfg.InlineSpacing == config.InlineSpacingNormalize {
-		if isOnlyHorizontalWS(gap) && len(gap) > 1 {
+		if isOnlyHorizontalWS(gap) && gap != "" && gap != " " { // (a single tab between tokens too)
 			gap = " "
 		}
 	}
@@ -1105,6 +1140,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	resolveFunctionAliases(tokens, pos)
 	resolveOnConflictCols(tokens, pos)
 	resolveAliasColumns(tokens, pos)
+	resolveRoutineNames(tokens, pos)
 	resolveIndexCols(tokens, pos)
 	resolveFunctionParams(tokens, pos)
 	resolveDDLColumns(tokens, pos)
@@ -1602,8 +1638,11 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		// PL/pgSQL-only statement keywords (RAISE, PERFORM, ELSIF, LOOP, …) that the
 		// scanner classifies as NO_KEYWORD. Functions are excluded from the override
 		// because some names (reverse, notice, …) coincide with real PostgreSQL functions.
+		// The RAISE levels (debug, info, notice, warning) are keywords only right after RAISE: anywhere
+		// else they are names (a record variable `info`, `info.client_id`).
 		if cfg.PLpgSQLKeywords.Case != "" && plpgsqlKeywordNames[lower] &&
-			class != classSchema && class != classTable && class != classAlias && class != classFunction {
+			class != classSchema && class != classTable && class != classAlias && class != classFunction &&
+			(!raiseLevelNames[lower] || strings.EqualFold(prevTokenText, "raise")) {
 			class = classPlpgSQLKeyword
 		}
 

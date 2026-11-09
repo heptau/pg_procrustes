@@ -141,7 +141,7 @@ schema_qualification: preserve  # preserve | remove_public
                                  #   remove_public: strip "public." prefix from all names
 
 inline_spacing: preserve         # preserve | normalize
-                                 #   normalize: collapse 2+ spaces between tokens on the same line
+                                 #   normalize: collapse 2+ spaces (or a tab) between tokens on the same line
                                  #              to a single space. Only pure-whitespace gaps are
                                  #              affected; newlines, indentation, and inline comments
                                  #              are never touched.
