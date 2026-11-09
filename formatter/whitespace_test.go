@@ -490,14 +490,14 @@ func TestQuotedKeywordNameInPLpgSQLExpressionIsStable(t *testing.T) {
 func TestKeywordParenSpacing(t *testing.T) {
 	const in = "SELECT count(*), coalesce(a, 0), x::varchar(10) FROM t WHERE(a = 1)AND(b IN(1, 2))OR EXISTS(SELECT 1);\n" +
 		"INSERT INTO t(a, b) VALUES(1, 2) ON CONFLICT(a) DO NOTHING;\n" +
-		"CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  IF(a = 1)THEN RETURN(a); END IF;\nEND; $$;\n"
+		"CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  IF(a = 1)THEN RETURN(a); END IF;\n  x = left(y, 1) || format('a') || json_object('a': 1);\nEND; $$;\n"
 	cases := []struct {
 		mode      config.ParenSpacingMode
 		has, lack []string
 	}{
 		{config.ParenSpacingAdd,
 			[]string{"count(*)", "coalesce(a, 0)", "varchar(10)", "WHERE (a = 1) AND (b IN (1, 2)) OR EXISTS (SELECT 1)",
-				"INSERT INTO t(a, b) VALUES (1, 2)", "ON CONFLICT (a)", "IF (a = 1) THEN RETURN (a)"},
+				"INSERT INTO t(a, b) VALUES (1, 2)", "ON CONFLICT (a)", "IF (a = 1) THEN RETURN (a)", "left(y, 1)", "format('a')", "json_object('a': 1)"},
 			[]string{"WHERE(", "IN(", "IF("}},
 		{config.ParenSpacingRemove,
 			[]string{"count(*)", "WHERE(a = 1)", "IN(1, 2)", "EXISTS(SELECT 1)", "VALUES(1, 2)", "ON CONFLICT(a)", "IF(a = 1)", "RETURN(a)"},

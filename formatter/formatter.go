@@ -167,6 +167,17 @@ var parenAfterKeywordIsCall = map[string]bool{
 	"xmlparse": true, "xmlpi": true, "xmlroot": true, "xmlserialize": true, "xmltable": true,
 }
 
+// callOnlyKeywords are words spelled like (non-reserved) keywords that are only ever followed by
+// "(" as a function call — in PL/pgSQL expressions, which the parser does not see, nothing else
+// says so: LEFT(s, 1), REPLACE(s, a, b), FORMAT('x'), JSON_OBJECT('a': 1). Unlike
+// parenAfterKeywordIsCall they still count as keywords for casing.
+var callOnlyKeywords = map[string]bool{
+	"left": true, "right": true, "replace": true, "format": true, "reverse": true, "json": true,
+	"json_array": true, "json_arrayagg": true, "json_exists": true, "json_object": true,
+	"json_objectagg": true, "json_query": true, "json_scalar": true, "json_serialize": true,
+	"json_table": true, "json_value": true, "system_user": true, "xmlcomment": true,
+}
+
 // isKeywordClass reports whether c is the class of a keyword or operator word.
 func isKeywordClass(c tokenClass) bool {
 	return c == classReservedKeyword || c == classKeyword || c == classOperator || c == classPlpgSQLKeyword
@@ -603,6 +614,133 @@ func resolveFunctionParams(tokens []rawToken, pos *astPositions) {
 			list(k + 2)
 		}
 	}
+}
+
+// resolvePLpgSQLVars registers the variables of a PL/pgSQL body as columns when they are spelled
+// like keywords (sql, name, type, key, data, …): the parameters of the function (params), the
+// variables of DECLARE sections and the loop variables of FOR x IN / FOREACH x IN. A body's
+// expressions (status = sql || name) have no parse tree, so the word would be written as the
+// keyword (KEY = SQL || NAME). Only words the scanner knows as non-reserved keywords are
+// affected, and nothing the tree has already placed.
+func resolvePLpgSQLVars(tokens []rawToken, pos *astPositions, params map[string]bool) {
+	if params == nil {
+		return // not a PL/pgSQL body (FOR EACH ROW of a trigger is no loop)
+	}
+	names := collectPLpgSQLVars(tokens, params)
+	lw := func(i int) string {
+		if i < 0 || i >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	if len(names) == 0 {
+		return
+	}
+	markPLpgSQLVars(tokens, pos, names, lw)
+}
+
+// plpgsqlVarNames is collectPLpgSQLVars for a body's text.
+func plpgsqlVarNames(body string, params map[string]bool) map[string]bool {
+	sc, err := pg_query.Scan(body)
+	if err != nil {
+		return params
+	}
+	tokens := make([]rawToken, len(sc.Tokens))
+	for i, t := range sc.Tokens {
+		tokens[i] = rawToken{start: int(t.Start), end: int(t.End), text: body[t.Start:t.End], kind: t.KeywordKind}
+	}
+	return collectPLpgSQLVars(tokens, params)
+}
+
+// collectPLpgSQLVars returns params plus the names declared in the body's DECLARE sections and
+// FOR / FOREACH loops.
+func collectPLpgSQLVars(tokens []rawToken, params map[string]bool) map[string]bool {
+	names := map[string]bool{}
+	for n := range params {
+		names[n] = true
+	}
+	lw := func(i int) string {
+		if i < 0 || i >= len(tokens) {
+			return ""
+		}
+		return strings.ToLower(tokens[i].text)
+	}
+	isComment := func(i int) bool {
+		t := tokens[i].text
+		return strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*")
+	}
+	declaring := false
+	itemStart := false
+	for i := range tokens {
+		if isComment(i) {
+			continue
+		}
+		switch w := lw(i); {
+		case w == "declare":
+			declaring, itemStart = true, true
+			continue
+		case w == "begin":
+			declaring = false
+		case w == ";":
+			itemStart = declaring
+			continue
+		case (w == "for" || w == "foreach") && lw(i-1) != "loop" && lw(i+1) != "update" && lw(i+1) != "share":
+			// FOR a, b IN …  /  FOREACH a IN ARRAY …
+			for k := i + 1; k < len(tokens) && k < i+8; k++ {
+				if isComment(k) {
+					continue
+				}
+				if lw(k) == "in" || lw(k) == "slice" {
+					break
+				}
+				if tokens[k].text != "," {
+					names[lw(k)] = true
+				}
+			}
+		}
+		if declaring && itemStart {
+			itemStart = false
+			if w := lw(i); w != "begin" && w != "declare" && w != "end" && lw(i+1) != "." && lw(i+1) != "(" {
+				names[w] = true
+			}
+		}
+	}
+	return names
+}
+
+func markPLpgSQLVars(tokens []rawToken, pos *astPositions, names map[string]bool, lw func(int) string) {
+	for i, t := range tokens {
+		if t.kind == pg_query.KeywordKind_NO_KEYWORD || t.kind == pg_query.KeywordKind_RESERVED_KEYWORD || !names[strings.ToLower(t.text)] {
+			continue
+		}
+		if i > 0 && tokens[i-1].text == "." {
+			continue
+		}
+		if i > 1 && tokens[i-1].text == "(" && strings.HasPrefix(lw(i-2), "xml") {
+			continue // xmlelement(name x): the keyword
+		}
+		at := t.start
+		if pos.tables[at] && i > 0 && lw(i-1) == "into" && !isInsertTarget(tokens, i) {
+			// SELECT … INTO var: the tree sees a new table
+			delete(pos.tables, at)
+		}
+		if pos.columns[at] || pos.aliases[at] || pos.tables[at] || pos.schemas[at] || pos.functions[at] ||
+			pos.conditionalFunctions[at] || pos.systemFunctions[at] {
+			continue
+		}
+		pos.columns[at] = true
+	}
+}
+
+// isInsertTarget reports whether the INTO before tokens[i] belongs to an INSERT (or MERGE … INSERT)
+// of the same statement rather than to a SELECT … INTO.
+func isInsertTarget(tokens []rawToken, i int) bool {
+	for k := i - 1; k >= 0 && tokens[k].text != ";"; k-- {
+		if w := strings.ToLower(tokens[k].text); w == "insert" || w == "merge" {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveIndexCols registers the plain column names of CREATE [UNIQUE] INDEX … (col,
@@ -1146,9 +1284,19 @@ func formatTolerant(sql string, cfg *config.Config) (string, error) {
 	return formatParsed(sql, cfg, nil)
 }
 
+// formatBody is formatTolerant for a PL/pgSQL body: vars are the names of the function's parameters,
+// which the body's expressions use (see resolvePLpgSQLVars).
+func formatBody(sql string, cfg *config.Config, vars map[string]bool) (string, error) {
+	return formatParsedVars(sql, cfg, nil, vars)
+}
+
 // formatParsed is formatTolerant with an optional parse result for sql, so callers that
 // already parsed the input (to check its syntax) do not make PostgreSQL parse it again.
 func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) (string, error) {
+	return formatParsedVars(sql, cfg, parsed, nil)
+}
+
+func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResult, vars map[string]bool) (string, error) {
 	if strings.TrimSpace(sql) == "" {
 		return sql, nil
 	}
@@ -1179,6 +1327,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	resolveIndexCols(tokens, pos)
 	resolveFunctionParams(tokens, pos)
 	resolveDDLColumns(tokens, pos)
+	resolvePLpgSQLVars(tokens, pos, vars)
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
 	//
@@ -1795,7 +1944,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 				// content is arbitrary text and must not be re-cased or reformatted.
 				prevLower := strings.ToLower(prevTokenText)
 				if (prevLower == "as" || prevLower == "do") && bodyIsSQLOrPLpgSQL(tokens, i) {
-					out, err := formatDollarQuoted(tokenText, cfg)
+					out, err := formatDollarQuoted(tokenText, cfg, pos.funcParams)
 					if err != nil {
 						buf.WriteString(tokenText)
 					} else {
@@ -1813,7 +1962,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 
 		prevTokenText = tokenText
 		prevIsCall = pos.functions[tok.start] || pos.conditionalFunctions[tok.start]
-		prevIsKeyword = !prevIsCall && isKeywordClass(class) && !parenAfterKeywordIsCall[lower]
+		prevIsKeyword = !prevIsCall && isKeywordClass(class) && !parenAfterKeywordIsCall[lower] && !callOnlyKeywords[lower]
 		cur = tok.end
 	}
 
@@ -2378,7 +2527,7 @@ func indentUnitFromCfg(cfg *config.Config) string {
 }
 
 // formatDollarQuoted formats the SQL/PL/pgSQL body inside a dollar-quoted literal.
-func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
+func formatDollarQuoted(s string, cfg *config.Config, vars map[string]bool) (string, error) {
 	delimEnd := strings.Index(s[1:], "$")
 	if delimEnd < 0 {
 		return s, nil
@@ -2407,7 +2556,8 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 		body = normalizeAssignments(body, cfg.PLpgSQLAssignment)
 	}
 	cfgInner.Nested = true
-	formatted, err := formatTolerant(body, &cfgInner)
+	vars = plpgsqlVarNames(body, vars)
+	formatted, err := formatBody(body, &cfgInner, vars)
 	if err != nil {
 		formatted = body
 	}
@@ -2417,14 +2567,14 @@ func formatDollarQuoted(s string, cfg *config.Config) (string, error) {
 		resultBody = formatted
 	} else if isPLpgSQLBody(formatted) {
 		// PL/pgSQL body: apply layout per-statement, then apply dollar_quote.plpgsql config.
-		resultBody, err = applyLayoutPerStatement(formatted, cfg)
+		resultBody, err = applyLayoutPerStatement(formatted, cfg, vars)
 		if err != nil {
 			resultBody = formatted
 		}
 		resultBody = applyPLpgSQLDollarQuoteConfig(resultBody, cfg)
 	} else {
 		// Plain SQL body: apply layout per-statement, then apply dollar_quote.sql config.
-		resultBody, err = applyLayoutPerStatement(formatted, cfg)
+		resultBody, err = applyLayoutPerStatement(formatted, cfg, vars)
 		if err != nil {
 			resultBody = formatted
 		}
@@ -2792,7 +2942,7 @@ var sqlClauseStarters = map[string]bool{
 //
 // RETURN QUERY SELECT: "RETURN QUERY" is output as prefix verbatim; layout is
 // applied to the "SELECT …" portion and subsequent lines are re-indented.
-func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
+func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bool) (string, error) {
 	if layout.IsNoop(&cfg.Layout) {
 		return body, nil
 	}
@@ -2858,7 +3008,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config) (string, error) {
 
 		// Phase 1: apply full formatter rules (alias detection, casing) now that we have
 		// a valid SQL statement that pg_query.Parse can handle.
-		preFormatted, preErr := formatTolerant(sqlText, &cfgNoLayout)
+		preFormatted, preErr := formatBody(sqlText, &cfgNoLayout, vars)
 		preChanged := preErr == nil && preFormatted != sqlText
 		if preChanged {
 			sqlText = preFormatted

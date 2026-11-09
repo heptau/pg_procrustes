@@ -2568,6 +2568,10 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		if prev == "for" {
 			return false // CREATE TABLE … PARTITION OF p FOR VALUES …
 		}
+	case clauseOrderBy:
+		if prev == "for" {
+			return false // CREATE OPERATOR CLASS … OPERATOR 1 < FOR ORDER BY float_ops
+		}
 	case clauseFrom:
 		if prev == "distinct" || prev == "values" {
 			return false // IS DISTINCT FROM; FOR VALUES FROM (…) TO (…)

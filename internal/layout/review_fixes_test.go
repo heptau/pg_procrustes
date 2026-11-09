@@ -76,3 +76,11 @@ func TestCallArgumentsStayBelowTheCall(t *testing.T) {
 		t.Errorf("\nin:   %q\ngot:  %q\nwant: %q", in, got, want)
 	}
 }
+
+func TestForOrderByIsNotAClause(t *testing.T) {
+	cfg := parenItemCfg()
+	sql := "CREATE OPERATOR CLASS c FOR TYPE g USING gist AS\n    OPERATOR 13 <-> FOR ORDER BY pg_catalog.float_ops,\n    OPERATOR 14 <#> FOR ORDER BY pg_catalog.float_ops;"
+	if got := applyIdem(t, sql, cfg); strings.Contains(got, "\nORDER BY") {
+		t.Errorf("FOR ORDER BY treated as a clause: %q", got)
+	}
+}
