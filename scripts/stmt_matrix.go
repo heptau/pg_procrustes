@@ -26,8 +26,13 @@ func main() {
 	dir := os.Args[1]
 	max, _ := strconv.Atoi(os.Args[2])
 	cfgs := map[string]*config.Config{}
+	fpCfg := map[string]bool{} // "fp:file.yaml": the output must keep the parse tree (configs that rewrite no tokens)
 	var names []string
 	for _, p := range os.Args[3:] {
+		if strings.HasPrefix(p, "fp:") {
+			p = strings.TrimPrefix(p, "fp:")
+			fpCfg[p] = true
+		}
 		c, err := config.Load(p)
 		if err != nil {
 			panic(err)
@@ -95,6 +100,12 @@ func main() {
 						kind = "unparseable"
 					} else if out2, err := formatter.Format(out, cfgs[n]); err != nil || out2 != out {
 						kind = "not-idempotent"
+					} else if fpCfg[n] && !wrap {
+						a, e1 := pg_query.Fingerprint(in)
+						b, e2 := pg_query.Fingerprint(out)
+						if e1 == nil && e2 == nil && a != b {
+							kind = "tree-changed"
+						}
 					}
 					if kind == "" {
 						continue

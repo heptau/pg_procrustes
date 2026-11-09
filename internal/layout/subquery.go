@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"regexp"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -131,16 +132,18 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 
 	var sb strings.Builder
 	pos := 0
+	lastIndent, expanded := "", false
 	for _, sq := range subs {
 		openEnd := tokens[sq.open].end
-		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength) {
+		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength, cfg.ParenIndent.Open == config.ParenOpenOwnLine, indentUnit) {
 			continue
 		}
 		inner := strings.TrimSpace(sql[openEnd:tokens[sq.close].start])
 		if inner == "" {
 			continue
 		}
-		sb.WriteString(sql[pos:openEnd])
+		sb.WriteString(afterExpanded(sql[pos:openEnd], lastIndent, expanded && cfg.Clauses.Align != config.AlignRight))
+		expanded = false
 		indent := holderIndent(sb.String())
 		bodyIndent := indent + indentUnit
 		if strings.Contains(inner, "\n") {
@@ -161,22 +164,97 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 		sb.WriteByte('\n')
 		sb.WriteString(indent)
 		pos = tokens[sq.close].start
+		lastIndent, expanded = indent, true
 	}
-	sb.WriteString(sql[pos:])
+	sb.WriteString(afterExpanded(sql[pos:], lastIndent, expanded && cfg.Clauses.Align != config.AlignRight))
 	return sb.String()
 }
 
-// subqueryLineTooLong reports whether the line holding the subquery at [start, end) is
-// longer than lineLength.
-func subqueryLineTooLong(sql string, start, end, lineLength int) bool {
-	ls := strings.LastIndexByte(sql[:start], '\n') + 1
-	var le int
-	if i := strings.IndexByte(sql[end:], '\n'); i >= 0 {
-		le = end + i
-	} else {
-		le = len(sql)
+// afterExpanded is the text that follows an expanded subquery (`) _(x) union select …`, up to the
+// next subquery): a set operation on the line of the closing parenthesis goes to a line of its own
+// at once, where the clause layout puts it on the next run (it keeps it inline only while it cannot
+// see that the line before has been broken; not with clauses.align: right, which indents it by the
+// width of its river).
+func afterExpanded(seg, indent string, expanded bool) string {
+	if !expanded {
+		return seg
 	}
-	return len(sql[ls:le]) > lineLength
+	nl := strings.IndexByte(seg, '\n')
+	if nl < 0 {
+		nl = len(seg)
+	}
+	if loc := setOpWord.FindStringIndex(seg[:nl]); loc != nil {
+		return seg[:loc[0]] + "\n" + indent + seg[loc[0]+1:]
+	}
+	return seg
+}
+
+// subqueryLineTooLong reports whether the line holding the subquery at [start, end) is
+// longer than lineLength. A set operation (UNION, INTERSECT, EXCEPT) is a line break of its own
+// (the clause layout puts it there), so the line is measured between the neighbouring ones; and a
+// `(` that paren_indent.open: own_line has put on a line of its own stands where the line before
+// it ends (`FROM` + `(`) — the decision must not depend on which of these the text happens to be
+// in, or the next run would take the opposite one.
+func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bool, indentUnit string) bool {
+	ls := strings.LastIndexByte(sql[:start], '\n') + 1
+	front := sql[ls:start]
+	if ownLineParen && strings.TrimSpace(front) == "" && ls > 0 {
+		pl := strings.LastIndexByte(sql[:ls-1], '\n') + 1
+		if prev := strings.TrimRight(sql[pl:ls-1], " \t"); strings.TrimSpace(prev) != "" && !strings.Contains(prev, "--") && !strings.HasSuffix(prev, "(") {
+			front = prev + " " + strings.TrimLeft(front, " \t")
+			front = strings.TrimRight(front, " \t") + " "
+		}
+	}
+	if loc := setOpWord.FindAllStringIndex(front, -1); len(loc) > 0 {
+		front = front[loc[len(loc)-1][0]+1:] // from the operator on
+	}
+	rest := restOfLine(sql, end)
+	// what hangs on the subquery is its alias (`) AS t (a, b)`) and a `,` / `;`: the rest of the line
+	// (the next join, WHERE …) goes to lines of its own, or stays, depending on the clause layout;
+	// and what stands before it is measured after the last `)` (an earlier subquery that was
+	// expanded, ending a line the other run put in front of this one)
+	if m := aliasTail.FindString(rest); m != "" || strings.TrimSpace(rest) == "" {
+		rest = m
+	} else {
+		rest = ""
+	}
+	if i := strings.LastIndexByte(front, ')'); i >= 0 {
+		front = front[i+1:]
+	}
+	front = collapseBlanks(front)
+	rest = collapseBlanks(rest)
+	// (a tab counts as the indent unit it is converted to: indent.normalize: change turns the
+	// tabs of the lines into blanks after this decision was taken, which made the next run see
+	// longer lines)
+	tab := len(indentUnit)
+	if tab == 0 || strings.Contains(indentUnit, "\t") {
+		tab = 4
+	}
+	front = strings.ReplaceAll(front, "\t", strings.Repeat(" ", tab))
+	return len(front)+len(sql[start:end])+len(rest) > lineLength
+}
+
+var aliasTail = regexp.MustCompile(`(?i)^\s*(?:as\s+)?(?:"[^"]+"|[a-z_][a-z0-9_$]*)?\s*(?:\([^()]*\))?\s*[,;]?`)
+
+// collapseBlanks reduces the runs of blanks inside s (not those that open it) to one.
+func collapseBlanks(s string) string {
+	t := strings.TrimLeft(s, " \t")
+	return s[:len(s)-len(t)] + strings.Join(strings.Fields(t), " ") + func() string {
+		if strings.HasSuffix(t, " ") {
+			return " "
+		}
+		return ""
+	}()
+}
+
+var setOpWord = regexp.MustCompile(`(?i)[ \t](union|intersect|except)\b`)
+
+// restOfLine is the text of sql after end up to the end of its line.
+func restOfLine(sql string, end int) string {
+	if i := strings.IndexByte(sql[end:], '\n'); i >= 0 {
+		return sql[end : end+i]
+	}
+	return sql[end:]
 }
 
 // holderIndent is the indent of the last line of text; a line that starts with ", " (leading

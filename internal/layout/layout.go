@@ -1208,7 +1208,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				judge = judgeOf(false, false)
 			}
 			if judge != "" && strings.HasPrefix(judge, contentIndent) {
-				return item
+				return indentAfterComments(item, contentIndent)
 			}
 			if cfg.ParenIndent.Open == config.ParenOpenOwnLine && strings.HasPrefix(strings.TrimSpace(judge), "(") {
 				// own_line puts such a "(" at the indent of the line it came from, not of the items
@@ -1381,6 +1381,44 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 		}
 	}
 	return strings.Join(lines, "\n"), true
+}
+
+// indentAfterComments brings a line that follows a line ending in a `--` comment up to indent when
+// it stands left of it: such a line starts after the line break a flattened item got behind the
+// comment, with no indent of its own. The lines of the item are judged by the others, which are in
+// place, so it would stay at the margin — while a run that finds them out of place gives it the
+// indent of the item with the rest.
+func indentAfterComments(item, indent string) string {
+	if !strings.Contains(item, "--") {
+		return item
+	}
+	lines := strings.Split(item, "\n")
+	changed := false
+	for j := 1; j < len(lines); j++ {
+		if strings.TrimSpace(lines[j]) == "" || isCommentLine(lines[j]) || strings.HasPrefix(lines[j], indent) || !endsInLineComment(lines[j-1]) {
+			continue
+		}
+		lines[j] = indent + strings.TrimLeft(lines[j], " \t")
+		changed = true
+	}
+	if !changed {
+		return item
+	}
+	return strings.Join(lines, "\n")
+}
+
+// endsInLineComment reports whether line has a `--` comment outside strings that runs to its end.
+func endsInLineComment(line string) bool {
+	inStr := false
+	for i := 0; i+1 < len(line); i++ {
+		switch {
+		case line[i] == '\'':
+			inStr = !inStr
+		case !inStr && line[i] == '-' && line[i+1] == '-':
+			return true
+		}
+	}
+	return false
 }
 
 // openParenBodyShift returns indentUnit when the first line of a multi-line item leaves a
