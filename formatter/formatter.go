@@ -732,6 +732,33 @@ func markPLpgSQLVars(tokens []rawToken, pos *astPositions, names map[string]bool
 	}
 }
 
+// resolveBodyAliases registers the names after AS in a PL/pgSQL body's statements the parser does
+// not see (PERFORM f((SELECT … AS type …)): `expr AS name` followed by `,` or `)`, where name is a
+// keyword that is no type (AS type, AS data, AS source). Only a word the tree has not placed.
+func resolveBodyAliases(tokens []rawToken, pos *astPositions) {
+	for i := 0; i+2 < len(tokens); i++ {
+		if !strings.EqualFold(tokens[i].text, "as") {
+			continue
+		}
+		n := tokens[i+1]
+		low := strings.ToLower(n.text)
+		if n.kind == pg_query.KeywordKind_NO_KEYWORD || n.kind == pg_query.KeywordKind_RESERVED_KEYWORD ||
+			dataTypeNames[low] || literalNames[low] || (tokens[i+2].text != "," && tokens[i+2].text != ")") {
+			continue
+		}
+		switch low {
+		case "materialized", "not", "enum", "range", "implicit", "assignment", "identity", "restrictive", "permissive", "stored", "operator", "of":
+			continue
+		}
+		at := n.start
+		if pos.columns[at] || pos.aliases[at] || pos.tables[at] || pos.schemas[at] || pos.functions[at] ||
+			pos.conditionalFunctions[at] || pos.systemFunctions[at] {
+			continue
+		}
+		pos.columns[at] = true
+	}
+}
+
 // resolveXMLNames registers the names after AS in the arguments of XMLFOREST / XMLATTRIBUTES
 // (xmlforest(a AS costs)) as names (AS is required there, so not aliases): they name elements and attributes, and a name that is also a
 // keyword (costs, number, type) would be written as the keyword.
@@ -1351,6 +1378,9 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 	resolveDDLColumns(tokens, pos)
 	resolvePLpgSQLVars(tokens, pos, vars)
 	resolveXMLNames(tokens, pos)
+	if cfg.Nested {
+		resolveBodyAliases(tokens, pos)
+	}
 
 	// ── Pre-processing: compute skip and skipGapBefore maps ──────────────────
 	//
@@ -1866,7 +1896,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		// because some names (reverse, notice, …) coincide with real PostgreSQL functions.
 		// The RAISE levels (debug, info, notice, warning) are keywords only right after RAISE: anywhere
 		// else they are names (a record variable `info`, `info.client_id`).
-		if cfg.PLpgSQLKeywords.Case != "" && plpgsqlKeywordNames[lower] &&
+		if cfg.PLpgSQLKeywords.Case != "" && plpgsqlKeywordNames[lower] && prevTokenText != "." &&
 			class != classSchema && class != classTable && class != classAlias && class != classFunction &&
 			(!raiseLevelNames[lower] || strings.EqualFold(prevTokenText, "raise")) {
 			class = classPlpgSQLKeyword
@@ -2193,6 +2223,37 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		walkNode(ds.WhereClause, pos)
 		many(ds.UsingClause)
 		many(ds.ReturningList)
+
+	// ── Statements that wrap or combine queries ──────────────────────────────
+
+	case *pg_query.Node_ExplainStmt:
+		walkNode(n.ExplainStmt.Query, pos)
+	case *pg_query.Node_PrepareStmt:
+		walkNode(n.PrepareStmt.Query, pos)
+	case *pg_query.Node_DeclareCursorStmt:
+		walkNode(n.DeclareCursorStmt.Query, pos)
+	case *pg_query.Node_CopyStmt:
+		walkNode(n.CopyStmt.Query, pos)
+	case *pg_query.Node_MergeStmt:
+		ms := n.MergeStmt
+		if ms.WithClause != nil {
+			for _, cte := range ms.WithClause.Ctes {
+				walkNode(cte, pos)
+			}
+		}
+		if ms.Relation != nil {
+			addTableRangeVar(ms.Relation, pos)
+		}
+		walkNode(ms.SourceRelation, pos)
+		walkNode(ms.JoinCondition, pos)
+		for _, w := range ms.MergeWhenClauses {
+			if wc := w.GetMergeWhenClause(); wc != nil {
+				walkNode(wc.Condition, pos)
+				walkSetTargetList(wc.TargetList, pos)
+				many(wc.Values)
+			}
+		}
+		many(ms.ReturningList)
 
 	// ── Expressions ──────────────────────────────────────────────────────────
 
@@ -2992,6 +3053,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	// casing, and other formatter rules that require a successful parse.
 	cfgNoLayout := *cfg
 	cfgNoLayout.Layout = config.LayoutConfig{}
+	cfgNoLayout.Nested = true // (a statement of a body: resolveBodyAliases)
 	cfgNoLayout.Semicolons = config.SemicolonPreserve
 	cfgNoLayout.TrailingNewline = config.TrailingNewlinePreserve // a statement inside a body is not a file
 
@@ -3911,7 +3973,7 @@ func resolveSubselectAliases(tokens []rawToken, pos *astPositions) {
 				p--
 			}
 			switch strings.ToLower(tokens[p].text) {
-			case "from", "join", "lateral", ",":
+			case "from", "join", "lateral", ",", "using":
 			default:
 				continue
 			}
