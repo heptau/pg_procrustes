@@ -153,3 +153,72 @@ func TestLineAfterCommentInFlattenedItemIsIndented(t *testing.T) {
 	sql := "SELECT\n\tloader_macro_replace(\n\t\treplace(\n\t\t\tf(a\n\t\t\t\t, ARRAY['x'],\n\t\t\t\tARRAY[v]\n\t\t\t), '/', p) || '\n'  ||\n\tarray_to_string( ARRAY(SELECT lmr('cd ' || replace(v,'/', p) || '\n' || p.wget || '/'\n-- hardcoding zcta5 path since doesn't follow convention\n|| upper(t) || '/tl_'\n|| upper(t) || 'z'\n\t\t|| c(E'\\n' || lu.post , '') , ARRAY['loader'], ARRAY[p]\n\t\t\t)\n\t\t\t\tORDER BY a, b), E'\\n') ::text\n\t, ARRAY['psql'])\nFROM t;"
 	applyIdem(t, sql, cfg)
 }
+
+// A DDL statement joined onto one line by `break: never` takes paren_spacing: remove
+// into account, so no space is left inside the parentheses it had on separate lines.
+func TestDDLFlattenHonoursParenSpacingRemove(t *testing.T) {
+	cfg := &config.LayoutConfig{ParenSpacing: config.ParenSpacingRemove}
+	cfg.DDL.AlterTable.Break = config.BreakNever
+	got := applyIdem(t, "ALTER TABLE t ALTER COLUMN c ADD GENERATED ALWAYS AS IDENTITY (\n  START WITH 1\n  INCREMENT BY 1\n);\n", cfg)
+	want := "ALTER TABLE t ALTER COLUMN c ADD GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1);\n"
+	if got != want && got != strings.TrimSuffix(want, "\n") {
+		t.Errorf("got %q want %q", got, want)
+	}
+}
+
+// Call arguments with tabs for the indent unit and the keyword-aligned (river) margin of
+// `clauses.align: right`: the second run finds the first one's indent where it is.
+func TestCallArgumentsWithTabsAndRiverAlignAreStable(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 80)
+	cfg.Indent.Type = config.IndentTypeTab
+	cfg.Clauses.Break = config.BreakAuto
+	cfg.Clauses.Align = config.AlignRight
+	cfg.Content.Break = config.BreakAlways
+	got := applyIdem(t, "SELECT hmac(\n'" + strings.Repeat("a", 90) + "'::bytea,\n'md5');\n", cfg)
+	if !strings.Contains(got, "\n       \t'aaaa") {
+		t.Errorf("unexpected indent of the arguments: %q", got)
+	}
+}
+
+// A comment line above a leading comma belongs to the item after it, so the columns of a
+// comma_position: start table stay aligned on the second run.
+func TestCommentAboveLeadingCommaBelongsToNextItem(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 128)
+	cfg.Content.CommaPosition = config.CommaStart
+	cfg.DDL.CreateTable.Break = config.BreakAlways
+	cfg.DDL.CreateTable.Align = config.ColumnAlignAll
+	got := applyIdem(t, "CREATE TABLE node (\n    nid serial,\n    created integer NOT NULL,\n    -- snip\n    PRIMARY KEY (nid)\n);\n", cfg)
+	if !strings.Contains(got, "nid     serial") {
+		t.Errorf("columns not aligned: %q", got)
+	}
+}
+
+// A statement standing at an indent of blanks, with tabs for the indent unit: the body of a
+// parenthesis it opens moves behind the blanks of the statement ("<blanks><tab>"), which the
+// second run finds in place.
+func TestIndentedStatementWithTabsKeepsItsBlanksFirst(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 128)
+	cfg.Indent.Type = config.IndentTypeTab
+	cfg.Clauses.Break = config.BreakAuto
+	cfg.Content.Break = config.BreakAlways
+	cfg.Content.FirstItem = config.FirstItemInline
+	name := "f.g_" + strings.Repeat("a", 130)
+	got := applyIdem(t, "-- c\n    SELECT "+name+"\n    (\n        _a => 1\n    );\n", cfg)
+	if !strings.Contains(got, "\n    \t(\n    \t    _a => 1\n    \t);") {
+		t.Errorf("unexpected indent: %q", got)
+	}
+}
+
+// With tabs for the indent unit and the river margin of `clauses.align: right` (blanks), the body of
+// a subquery in a condition stands at "<river blanks><tab>", the order the second run finds again.
+func TestSubqueryBodyInRiverWithTabsIsStable(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 30)
+	cfg.Indent.Type = config.IndentTypeTab
+	cfg.Clauses.Break = config.BreakAuto
+	cfg.Clauses.Align = config.AlignRight
+	cfg.Content.Break = config.BreakAlways
+	got := applyIdem(t, "UPDATE t\nSET a = 4\nWHERE b = 3\n    AND id IN (\n        SELECT id\n        FROM e\n        )\nRETURNING a;\n", cfg)
+	if !strings.Contains(got, "\n          \tSELECT id\n") {
+		t.Errorf("unexpected indent: %q", got)
+	}
+}

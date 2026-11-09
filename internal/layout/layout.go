@@ -1157,7 +1157,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				parts := strings.Split(item, "\n")
 				for j := 1; j < len(parts); j++ {
 					if strings.TrimSpace(parts[j]) != "" {
-						parts[j] = shift + parts[j]
+						// after the blanks it has (not before them): with tabs for the indent unit
+						// and spaces right-aligned under the keyword, "<spaces><tab>" is the order
+						// a second pass finds again.
+						t := strings.TrimLeft(parts[j], " \t")
+						parts[j] = parts[j][:len(parts[j])-len(t)] + shift + t
 					}
 				}
 				return strings.Join(parts, "\n")
@@ -1360,7 +1364,13 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 		if strings.TrimSpace(lines[j]) == "" || bodyDeep && j >= bodyFrom && j < closeAt {
 			continue
 		}
-		lines[j] = closeShift + lines[j]
+		if strings.HasPrefix(lines[j], have) {
+			// after the blanks the line has in common with the `)` (with tabs for the unit and
+			// blanks in front of them, "<blanks><tab>" is the order a second run finds again)
+			lines[j] = have + closeShift + lines[j][len(have):]
+		} else {
+			lines[j] = closeShift + lines[j]
+		}
 		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && strings.TrimSpace(lines[j]) != "" && !isCommentLine(lines[j]) {
 			// what follows the closing parenthesis (`) AS f` / `USING (id)`) belongs to the item
 			// and stands at its indent at least; a line left of it would be what the next run
@@ -1375,7 +1385,12 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 			extra := want[len(min2):]
 			for j := bodyFrom; j < closeAt; j++ {
 				if strings.TrimSpace(lines[j]) != "" {
-					lines[j] = extra + lines[j]
+					if strings.HasPrefix(lines[j], min2) {
+						// (behind the blanks the body already has, not in front of them)
+						lines[j] = min2 + extra + lines[j][len(min2):]
+					} else {
+						lines[j] = extra + lines[j]
+					}
 				}
 			}
 		}
@@ -1620,6 +1635,7 @@ func splitAtComma(sql string, tokens []rawTok, from, to int) []string {
 	var items []string
 	depth := 0
 	itemStart := from
+	carry := "" // comment lines above a leading comma, for the item after it
 	for i := from; i < to; i++ {
 		t := tokens[i].text
 		if t == "(" || t == "[" {
@@ -1638,18 +1654,43 @@ func splitAtComma(sql string, tokens []rawTok, from, to int) []string {
 				itemEnd = i + 2
 				next = i + 2
 			}
+			// Comment lines standing above a leading comma ("-- note" / ", b") belong to the
+			// item after it, as they do when the comma stands at the end of the line above them.
+			cut := i
+			if itemEnd == i {
+				for cut-1 > itemStart && strings.HasPrefix(tokens[cut-1].text, "--") &&
+					strings.Contains(sql[tokens[cut-2].end:tokens[cut-1].start], "\n") {
+					cut--
+				}
+				if cut == i || !strings.Contains(sql[tokens[i-1].end:tokens[i].start], "\n") {
+					cut = i
+				} else {
+					itemEnd = cut
+				}
+			}
 			item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, itemEnd)))
-			if strings.HasPrefix(tokens[itemEnd-1].text, "--") && itemEnd != i {
+			if strings.HasPrefix(tokens[itemEnd-1].text, "--") && itemEnd != i && cut == i {
 				// originalText included the comma token; drop it from the item text
 				item = trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, i))) + " " + tokens[itemEnd-1].text
+			}
+			if carry != "" {
+				item = carry + "\n" + item
+				carry = ""
 			}
 			if item != "" {
 				items = append(items, item)
 			}
 			itemStart = next
+			if cut != i {
+				carry = trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, cut, i)))
+			}
 		}
 	}
 	item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, to)))
+	if carry != "" {
+		item = carry + "\n" + item
+		carry = ""
+	}
 	if item != "" {
 		items = append(items, item)
 	}

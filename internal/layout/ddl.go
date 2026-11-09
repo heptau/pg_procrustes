@@ -277,7 +277,7 @@ func rebuildParenList(sql string, tokens []rawTok, stmt statement, open int, mod
 			if i > 0 {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(collapseGaps(it, 0, len(it)))
+			sb.WriteString(collapseGaps(it, 0, len(it), cfg.ParenSpacing))
 		}
 		sb.WriteByte(')')
 		if tail != "" {
@@ -353,7 +353,7 @@ func rebuildAlterTable(sql string, tokens []rawTok, stmt statement, start int, c
 			} else {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(collapseGaps(it, 0, len(it)))
+			sb.WriteString(collapseGaps(it, 0, len(it), cfg.ParenSpacing))
 		}
 		finishDDL(&sb, tokens, stmt)
 		return sb.String(), true
@@ -481,9 +481,9 @@ func splitColumn(item string) (columnParts, bool) {
 	if restAt >= 0 {
 		typeEnd = restAt
 	}
-	cp.typ = collapseGaps(item, body[1].start, body[typeEnd-1].end)
+	cp.typ = collapseGaps(item, body[1].start, body[typeEnd-1].end, config.ParenSpacingPreserve)
 	if restAt >= 0 {
-		cp.rest = collapseGaps(item, body[restAt].start, body[len(body)-1].end)
+		cp.rest = collapseGaps(item, body[restAt].start, body[len(body)-1].end, config.ParenSpacingPreserve)
 	}
 	if cp.typ == "" {
 		return cp, false
@@ -493,7 +493,7 @@ func splitColumn(item string) (columnParts, bool) {
 
 // collapseGaps returns item[from:to] with every run of whitespace replaced by one space,
 // except inside string literals and quoted identifiers.
-func collapseGaps(item string, from, to int) string {
+func collapseGaps(item string, from, to int, parenMode config.ParenSpacingMode) string {
 	res, err := pg_query.Scan(item[from:to])
 	if err != nil {
 		return strings.TrimSpace(item[from:to])
@@ -503,7 +503,8 @@ func collapseGaps(item string, from, to int) string {
 	cur := 0
 	for _, t := range res.Tokens {
 		gap := text[cur:t.Start]
-		if gap != "" {
+		afterOpen := cur > 0 && text[cur-1] == '('
+		if gap != "" && !(parenMode == config.ParenSpacingRemove && (afterOpen || text[t.Start] == ')')) {
 			b.WriteByte(' ')
 		}
 		b.WriteString(text[t.Start:t.End])
@@ -769,7 +770,7 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 				if i > 0 {
 					sb.WriteString(", ")
 				}
-				sb.WriteString(collapseGaps(it, 0, len(it)))
+				sb.WriteString(collapseGaps(it, 0, len(it), cfg.ParenSpacing))
 			}
 		}
 	}

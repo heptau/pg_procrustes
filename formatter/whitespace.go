@@ -130,6 +130,14 @@ func alignTrailingComments(text string) string {
 			tabs = tabs || f.hasTab
 		}
 		if tabs {
+			// The columns of lines indented with tabs cannot be told, so nothing is aligned; the
+			// padding an earlier stage gave the comments (while the lines still had blanks) goes, or
+			// the next run, which collapses it before aligning, would find a different text.
+			for _, f := range run {
+				b.WriteString(text[cur:f.codeEnd])
+				b.WriteByte(' ')
+				cur = f.cmtStart
+			}
 			continue
 		}
 		target++ // one space between the longest code and its comment

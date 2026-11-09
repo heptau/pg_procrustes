@@ -1940,9 +1940,14 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		}
 
 		// ── JOIN form: long — insert INNER/OUTER before JOIN ──────────────────
-		if lower == "join" && cfg.JoinForm == config.JoinFormLong {
+		if lower == "join" && cfg.JoinForm == config.JoinFormLong && !joinIsOptionName(tokens, i) {
 			prevLower := strings.ToLower(prevTokenText)
-			kw := cfg.ReservedKeywords.Case
+			// INNER / OUTER are ordinary keywords, not reserved ones: take the case
+			// of the neighbouring JOIN token, or the next pass recases them.
+			kw := cfg.Keywords.Case
+			if tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD {
+				kw = cfg.ReservedKeywords.Case
+			}
 			switch {
 			case isDirectionJoinKeyword(prevLower):
 				// LEFT/RIGHT/FULL → insert OUTER
@@ -4237,8 +4242,16 @@ func canOmitAs(tok rawToken) bool {
 	if v, ok := bareLabelCache.Load(key); ok {
 		return v.(bool)
 	}
-	_, err := pg_query.Parse("SELECT 1 " + tok.text)
-	ok := err == nil
+	// (`SELECT 1 isnull` parses too, but as the postfix operator: the word must come back as the
+	// name of the column, or dropping the AS would change the query)
+	ok := false
+	if res, err := pg_query.Parse("SELECT 1 " + tok.text); err == nil && len(res.Stmts) == 1 {
+		if sel := res.Stmts[0].Stmt.GetSelectStmt(); sel != nil && len(sel.TargetList) == 1 {
+			if rt := sel.TargetList[0].GetResTarget(); rt != nil && strings.EqualFold(rt.Name, tok.text) {
+				ok = true
+			}
+		}
+	}
 	bareLabelCache.Store(key, ok)
 	return ok
 }
@@ -4250,6 +4263,7 @@ var bareLabelCache sync.Map
 func layoutConfig(cfg *config.Config) *config.LayoutConfig {
 	lc := cfg.Layout
 	lc.ParenSpacing = cfg.ParenSpacing
+	lc.CommaSpacing = cfg.CommaSpacing
 	lc.KeepStatementIndent = !cfg.Nested
 	return &lc
 }
@@ -4495,3 +4509,15 @@ func bodyIsSQLOrPLpgSQL(tokens []rawToken, i int) bool {
 func isCommentText(t string) bool { return strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*") }
 
 func isOnlyWhitespace(s string) bool { return strings.TrimSpace(s) == "" }
+
+// joinIsOptionName reports whether the JOIN at tokens[i] is a name, not a join
+// (CREATE OPERATOR (… JOIN = f), ALTER OPERATOR … SET (JOIN = f)).
+func joinIsOptionName(tokens []rawToken, i int) bool {
+	for j := i + 1; j < len(tokens); j++ {
+		if strings.TrimSpace(tokens[j].text) == "" {
+			continue
+		}
+		return tokens[j].text == "="
+	}
+	return false
+}

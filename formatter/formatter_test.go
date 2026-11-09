@@ -695,6 +695,31 @@ func TestJoinFormLongLeftJoin(t *testing.T) {
 	assertFormat(t, got, "SELECT * FROM a LEFT OUTER JOIN b ON a.id = b.id", err)
 }
 
+// The INNER / OUTER inserted by join_form: long follow the case of keywords
+// (they are not reserved words), so a second pass leaves them alone.
+func TestJoinFormLongInsertedWordsUseKeywordCase(t *testing.T) {
+	cfg := p3cfg(config.SemicolonPreserve, config.InequalityPreserve, config.JoinFormLong,
+		config.OperatorSpacingPreserve, config.BlankLinesPreserve,
+		config.ParenSpacingPreserve, config.QuotedIdentPreserve)
+	cfg.ReservedKeywords.Case = upper
+	cfg.Keywords.Case = lower
+	in := "SELECT * FROM a JOIN b ON a.id = b.id LEFT JOIN c ON c.id = b.id"
+	got, err := formatter.Format(in, cfg)
+	assertFormat(t, got, "SELECT * FROM a inner join b ON a.id = b.id left outer join c ON c.id = b.id", err)
+	again, err := formatter.Format(got, cfg)
+	assertFormat(t, again, got, err)
+}
+
+// JOIN as an option name (CREATE / ALTER OPERATOR) is no join: no INNER in front of it.
+func TestJoinFormLongLeavesJoinOptionName(t *testing.T) {
+	cfg := p3cfg(config.SemicolonPreserve, config.InequalityPreserve, config.JoinFormLong,
+		config.OperatorSpacingPreserve, config.BlankLinesPreserve,
+		config.ParenSpacingPreserve, config.QuotedIdentPreserve)
+	in := "ALTER OPERATOR === (boolean, boolean) SET (JOIN = contjoinsel);"
+	got, err := formatter.Format(in, cfg)
+	assertFormat(t, got, in, err)
+}
+
 // ── Operator spacing ──────────────────────────────────────────────────────────
 
 func TestOperatorSpacingNormalize(t *testing.T) {
@@ -1148,6 +1173,21 @@ func TestAliasesAsRemoveKeepsAsForNonBareLabels(t *testing.T) {
 	}
 }
 
+// ISNULL / NOTNULL parse after a bare expression, but as the postfix operators: AS stays.
+func TestAliasesAsRemoveKeepsAsBeforeIsnullAndNotnull(t *testing.T) {
+	c, err := loadStyled("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Aliases.As = config.AliasAsRemove
+	got := fmtOnce(t, "select r is null as isnull, r is not null as notnull, r as foo from t;", c)
+	for _, want := range []string{"AS isnull", "AS notnull", "r foo"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
 func TestNotInConversionsProduceValidSQL(t *testing.T) {
 	src := "select 1 from t where a not in ('x','y') and b not in (select id from u) and c <> all (array['p','q']) and d != all (array_col) and e <> all (select 1);"
 	for _, tc := range []struct {
@@ -1172,5 +1212,55 @@ func TestNotInConversionsProduceValidSQL(t *testing.T) {
 		if _, err := formatter.Format(got, c); err != nil {
 			t.Errorf("%s: output does not parse: %v\n%s", tc.mode, err, got)
 		}
+	}
+}
+
+// subquery.break: auto measures a line as the token pass leaves it: a blank after a comma that
+// comma_spacing: compact takes off is not counted, so a second run decides like the first.
+func TestSubqueryAutoBreakWithCompactCommasIsStable(t *testing.T) {
+	cfg := p3cfg(config.SemicolonPreserve, config.InequalityPreserve, config.JoinFormPreserve,
+		config.OperatorSpacingPreserve, config.BlankLinesPreserve,
+		config.ParenSpacingPreserve, config.QuotedIdentPreserve)
+	cfg.CommaSpacing = config.CommaSpacingCompact
+	cfg.Layout = config.DefaultLayout()
+	cfg.Layout.LineLength = 100
+	cfg.Layout.Subquery.Break = config.BreakAuto
+	in := "select * from t1 left join\n    (select coalesce(t2.q1 + x, 0) from int8_tbl t2,\n       lateral (select t3.q1 x from int8_tbl t3,\n                  lateral (select t2.q1, t3.q1 offset 0) s))\n  on true;\n"
+	first, err := formatter.Format(in, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := formatter.Format(first, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Errorf("not idempotent:\n%s\n---\n%s", first, second)
+	}
+}
+
+// Trailing comments cannot be aligned in lines indented with tabs; the padding an earlier stage
+// gave them (inside a DO body, before the tabs came) goes, so a second run finds the same text.
+func TestAlignTrailingCommentsWithTabsIsStable(t *testing.T) {
+	cfg := p3cfg(config.SemicolonPreserve, config.InequalityPreserve, config.JoinFormPreserve,
+		config.OperatorSpacingPreserve, config.BlankLinesPreserve,
+		config.ParenSpacingPreserve, config.QuotedIdentPreserve)
+	cfg.Comments.AlignTrailing = config.CommentAlignAlign
+	cfg.InlineSpacing = config.InlineSpacingNormalize
+	cfg.Layout = config.DefaultLayout()
+	cfg.Layout.Indent.Type = config.IndentTypeTab
+	cfg.Layout.Clauses.Break = config.BreakAlways
+	cfg.Layout.Content.Break = config.BreakAlways
+	in := "DO $$\nBEGIN\nSELECT * FROM api.get_tips\n( 'pl' --_id_language character varying\n, 6000001 -- _id_oppty_type integer\n);\nEND\n$$;\n"
+	first, err := formatter.Format(in, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := formatter.Format(first, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Errorf("not idempotent:\n%s\n---\n%s", first, second)
 	}
 }

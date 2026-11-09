@@ -135,7 +135,7 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 	lastIndent, expanded := "", false
 	for _, sq := range subs {
 		openEnd := tokens[sq.open].end
-		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength, cfg.ParenIndent.Open == config.ParenOpenOwnLine, indentUnit) {
+		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength, cfg.ParenIndent.Open == config.ParenOpenOwnLine, indentUnit, cfg.CommaSpacing == config.CommaSpacingCompact) {
 			continue
 		}
 		inner := strings.TrimSpace(sql[openEnd:tokens[sq.close].start])
@@ -195,7 +195,7 @@ func afterExpanded(seg, indent string, expanded bool) string {
 // `(` that paren_indent.open: own_line has put on a line of its own stands where the line before
 // it ends (`FROM` + `(`) — the decision must not depend on which of these the text happens to be
 // in, or the next run would take the opposite one.
-func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bool, indentUnit string) bool {
+func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bool, indentUnit string, commaCompact bool) bool {
 	ls := strings.LastIndexByte(sql[:start], '\n') + 1
 	front := sql[ls:start]
 	if ownLineParen && strings.TrimSpace(front) == "" && ls > 0 {
@@ -231,7 +231,35 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 		tab = 4
 	}
 	front = strings.ReplaceAll(front, "\t", strings.Repeat(" ", tab))
-	return len(front)+len(sql[start:end])+len(rest) > lineLength
+	sub := sql[start:end]
+	if commaCompact {
+		// comma_spacing: compact takes the blank after a comma off in the token pass; a text that
+		// has it (lines joined behind a comma) and one that has not are the same line to measure
+		front, sub, rest = unspaceCommas(front), unspaceCommas(sub), unspaceCommas(rest)
+	}
+	return len(front)+len(sub)+len(rest) > lineLength
+}
+
+// unspaceCommas removes the blanks after the commas of s outside string constants.
+func unspaceCommas(s string) string {
+	if !strings.Contains(s, ", ") {
+		return s
+	}
+	var b strings.Builder
+	inStr := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		b.WriteByte(c)
+		switch {
+		case c == '\'':
+			inStr = !inStr
+		case c == ',' && !inStr:
+			for i+1 < len(s) && s[i+1] == ' ' {
+				i++
+			}
+		}
+	}
+	return b.String()
 }
 
 var aliasTail = regexp.MustCompile(`(?i)^\s*(?:as\s+)?(?:"[^"]+"|[a-z_][a-z0-9_$]*)?\s*(?:\([^()]*\))?\s*[,;]?`)

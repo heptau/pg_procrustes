@@ -308,7 +308,7 @@ func viewHeader(sql string, tokens []rawTok, from, to int, cfg *config.LayoutCon
 			if k > 0 {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(collapseGaps(it, 0, len(it)))
+			sb.WriteString(collapseGaps(it, 0, len(it), cfg.ParenSpacing))
 		}
 	} else {
 		baseIndent := strings.Repeat(indentUnit, depth)
@@ -511,7 +511,7 @@ func rebuildDrop(sql string, tokens []rawTok, stmt statement, first int, cfg *co
 			} else {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(collapseGaps(it, 0, len(it)))
+			sb.WriteString(collapseGaps(it, 0, len(it), cfg.ParenSpacing))
 		}
 		if tail >= 0 {
 			sb.WriteByte(' ')

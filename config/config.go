@@ -766,6 +766,10 @@ type LayoutConfig struct {
 	// way the token pass would (keeps the output idempotent).
 	ParenSpacing ParenSpacingMode `yaml:"-"`
 
+	// CommaSpacing mirrors the top-level comma_spacing option (filled in by the formatter):
+	// layout measures a line the way the token pass leaves it (no blank after a comma with compact).
+	CommaSpacing CommaSpacingMode `yaml:"-"`
+
 	// KeepStatementIndent is set by the formatter for statements of a file: a statement that
 	// starts indented (inside BEGIN; … COMMIT;) is laid out relative to that indentation. It is
 	// off for function bodies, whose indentation the dollar-quote settings take care of.
