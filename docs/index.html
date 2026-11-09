@@ -1146,6 +1146,7 @@ comma_spacing:        normalize  <span class="cm"># preserve | normalize | compa
 blank_lines:          preserve   <span class="cm"># preserve | max_3 | max_2 | max_1</span>
 paren_spacing:        remove     <span class="cm"># preserve | add | remove</span>
 call_paren_spacing:   preserve   <span class="cm"># preserve | add | remove  (count (*) vs count(*))</span>
+keyword_paren_spacing: preserve  <span class="cm"># preserve | add | remove  (IF (a) THEN, AND (b), IN (1, 2) vs IF(a)THEN)</span>
 quoted_identifiers:   remove_safe
 schema_qualification: preserve   <span class="cm"># preserve | remove_public</span>
 cast_style:           preserve   <span class="cm"># preserve | operator  (CAST(x AS t) → x::t)</span>

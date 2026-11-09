@@ -915,12 +915,15 @@ type Config struct {
 	BlankLines         BlankLinesMode      `yaml:"blank_lines"`
 	ParenSpacing       ParenSpacingMode    `yaml:"paren_spacing"`
 	// CallParenSpacing controls the space between a function name and its "(".
-	CallParenSpacing ParenSpacingMode    `yaml:"call_paren_spacing"`
-	QuotedIdents     QuotedIdentMode     `yaml:"quoted_identifiers"`
-	TrailingNewline  TrailingNewlineMode `yaml:"trailing_newline"`
-	SyntaxErrors     SyntaxErrorMode     `yaml:"syntax_errors"`
-	LineEndings      LineEndingMode      `yaml:"line_endings"`
-	Comments         CommentsCfg         `yaml:"comments"`
+	CallParenSpacing ParenSpacingMode `yaml:"call_paren_spacing"`
+	// KeywordParenSpacing controls the space between a keyword or operator word (IF, AND, IN,
+	// VALUES, USING, EXISTS, …) and its "(", and between a ")" and the keyword that follows it.
+	KeywordParenSpacing ParenSpacingMode    `yaml:"keyword_paren_spacing"`
+	QuotedIdents        QuotedIdentMode     `yaml:"quoted_identifiers"`
+	TrailingNewline     TrailingNewlineMode `yaml:"trailing_newline"`
+	SyntaxErrors        SyntaxErrorMode     `yaml:"syntax_errors"`
+	LineEndings         LineEndingMode      `yaml:"line_endings"`
+	Comments            CommentsCfg         `yaml:"comments"`
 	// BlankLinesBetweenStatements is "preserve" (default) or the exact number of blank
 	// lines (0-10) to put between statements.
 	BlankLinesBetweenStatements string `yaml:"blank_lines_between_statements"`
@@ -1106,6 +1109,11 @@ func validate(cfg *Config) error {
 	case ParenSpacingPreserve, ParenSpacingAdd, ParenSpacingRemove, "":
 	default:
 		return fmt.Errorf("call_paren_spacing must be preserve|add|remove, got %q", cfg.CallParenSpacing)
+	}
+	switch cfg.KeywordParenSpacing {
+	case ParenSpacingPreserve, ParenSpacingAdd, ParenSpacingRemove, "":
+	default:
+		return fmt.Errorf("keyword_paren_spacing must be preserve|add|remove, got %q", cfg.KeywordParenSpacing)
 	}
 	if c := cfg.BuiltinFunctions.Case; c != "" && c != CaseUpper && c != CaseLower && c != CaseCapitalize && c != CasePreserve {
 		return fmt.Errorf("builtin_functions.case must be upper|lower|capitalize|preserve, got %q", c)

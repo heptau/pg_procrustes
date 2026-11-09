@@ -47,6 +47,7 @@ comma_spacing: normalize
 arithmetic_spacing: normalize
 paren_spacing: remove
 call_paren_spacing: remove
+keyword_paren_spacing: add
 quoted_identifiers: remove_safe
 trailing_whitespace: strip
 trailing_newline: add

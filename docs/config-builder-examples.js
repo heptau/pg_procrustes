@@ -287,6 +287,20 @@ window.CB_EXAMPLES = {
    "t": "select 1 from a join b on b.id = a.id left join c on c.id = a.id join d on d.id = a.id left join e on e.id = a.id;"
   }
  },
+ "keyword_paren_spacing": {
+  "": {
+   "t": "select count(*) from t where(a = 1)and(b in(1, 2));"
+  },
+  "add": {
+   "t": "select count(*) from t where (a = 1) and (b in (1, 2));"
+  },
+  "preserve": {
+   "t": "select count(*) from t where(a = 1)and(b in(1, 2));"
+  },
+  "remove": {
+   "t": "select count(*) from t where(a = 1)and(b in(1, 2));"
+  }
+ },
  "keywords.case": {
   "": {
    "t": "begin;\nlock table t in share mode;\nCOMMIT;\nVacuum verbose t;\nVACUUM VERBOSE t;"

@@ -101,3 +101,15 @@ func TestCommentLineBetweenListItems(t *testing.T) {
 		}
 	}
 }
+
+// A CTE whose body stands deeper than its parentheses in the input (the lines a second run is
+// given) is not moved further on every run.
+func TestParenItemBodyDeeperThanClosingParen(t *testing.T) {
+	cfg := parenItemCfg()
+	for _, in := range []string{
+		"WITH t AS\n          (select 1 -- c\n)\nSELECT 1 FROM t;",
+		"WITH\n      t AS\n          (\n            select 1 -- c\n          )\nSELECT 1 FROM t;",
+	} {
+		applyIdem(t, in, cfg)
+	}
+}

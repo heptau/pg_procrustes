@@ -509,6 +509,9 @@ comments:
 paren_spacing: remove        # preserve | add | remove
 call_paren_spacing: preserve # preserve | add | remove  (space between a function name and "(":
                              #                           count (*) vs count(*); only function calls, not IN (…) or VALUES (…))
+keyword_paren_spacing: preserve # preserve | add | remove  (space between a keyword or operator word and its "(":
+                             #                           IF (a), AND (b), IN (1, 2), VALUES (1, 2), EXISTS (SELECT …); add also puts
+                             #                           a space between ")" and the keyword after it: IF (a) THEN, (a) AND (b))
 
 quoted_identifiers: remove_safe  # preserve | remove_safe
 

@@ -52,6 +52,7 @@ arithmetic_spacing: compact
 comma_spacing: compact
 paren_spacing: remove
 call_paren_spacing: remove
+keyword_paren_spacing: add
 inline_spacing: normalize
 trailing_whitespace: strip
 trailing_newline: strip

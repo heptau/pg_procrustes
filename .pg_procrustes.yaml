@@ -132,6 +132,11 @@ comments:
 paren_spacing: remove        # preserve | add | remove
 call_paren_spacing: preserve # preserve | add | remove  (space between a function name and "(": count (*) vs count(*);
                              #                           only function calls, not IN (...) or VALUES (...))
+keyword_paren_spacing: preserve # preserve | add | remove  (space between a keyword or operator word and its "(":
+                             #                           IF (a), AND (b), IN (1, 2), VALUES (1, 2), EXISTS (SELECT …), ON CONFLICT (id);
+                             #                           add also puts a space between ")" and the keyword after it: IF (a) THEN, (a) AND (b);
+                             #                           function calls (call_paren_spacing), names and types — varchar(10),
+                             #                           INSERT INTO t (a) — are left to their own rules)
                              #   add:     space after '(' and before ')'
                              #   remove:  no space after '(' or before ')'
 

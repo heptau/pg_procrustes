@@ -725,6 +725,30 @@ window.CB_OPTIONS = {
      }
     },
     {
+     "key": "keyword_paren_spacing",
+     "label": "Space before keyword paren",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Controls the space between a keyword or operator word (IF, AND, IN, VALUES, EXISTS, ON CONFLICT, …) and its opening parenthesis; add also puts a space between a closing parenthesis and the keyword after it. Function calls (call_paren_spacing), names and types such as varchar(10) are not affected.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "add",
+       "IF (a) THEN"
+      ],
+      [
+       "remove",
+       "IF(a)THEN"
+      ]
+     ],
+     "sample": {
+      "in": "select count(*) from t where(a = 1)and(b in(1, 2));",
+      "with": {}
+     }
+    },
+    {
      "key": "paren_spacing",
      "label": "Paren spacing",
      "type": "select",

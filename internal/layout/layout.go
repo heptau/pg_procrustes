@@ -1280,36 +1280,50 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 	if closeAt < 0 {
 		return item, false
 	}
-	have := lines[closeAt][:len(lines[closeAt])-len(strings.TrimLeft(lines[closeAt], " \t"))]
-	shift := indent[len(have):]
-	for j := 1; j < len(lines); j++ {
-		if strings.TrimSpace(lines[j]) != "" {
-			lines[j] = shift + lines[j]
-		}
-	}
-	// The body (below a lone "(" line when there is one) must stand deeper than the parentheses; a
-	// body that was less indented than its `)` in the input would otherwise be moved again by the
-	// next run.
+	lead := func(ln string) string { return ln[:len(ln)-len(strings.TrimLeft(ln, " \t"))] }
+	have := lead(lines[closeAt])
+	closeShift := indent[len(have):]
+	// Only the shapes of a CTE or a VALUES row: the parenthesis opens on the first line (`v AS (`,
+	// `(`) or stands alone on the second (`v AS` / `(`). A parenthesis opened further down
+	// (`x` / `IN (`) is left to the generic indentation.
 	bodyFrom := 1
-	if strings.TrimSpace(lines[1]) == "(" {
+	switch d, _ := parenScanLine(lines[0]); {
+	case d > 0:
+	case d == 0 && strings.TrimSpace(lines[1]) == "(":
 		bodyFrom = 2
+	default:
+		return item, false
 	}
-	minInd := ""
-	have2 := false
+	minInd, have2 := "", false
 	for j := bodyFrom; j < closeAt; j++ {
 		if strings.TrimSpace(lines[j]) == "" {
 			continue
 		}
-		ind := lines[j][:len(lines[j])-len(strings.TrimLeft(lines[j], " \t"))]
-		if !have2 || len(ind) < len(minInd) {
+		if ind := lead(lines[j]); !have2 || len(ind) < len(minInd) {
 			minInd, have2 = ind, true
 		}
 	}
-	if want := indent + unit; have2 && len(minInd) < len(want) && strings.HasPrefix(want, minInd) {
-		extra := want[len(minInd):]
-		for j := bodyFrom; j < closeAt; j++ {
-			if strings.TrimSpace(lines[j]) != "" {
-				lines[j] = extra + lines[j]
+	want := indent + unit
+	// A body that already stands deeper than the parentheses stays where it is: the lines a run is
+	// given may have it at the indent of an earlier run and the `)` at the margin, and moving it by
+	// the distance of the `)` would push it further on every run. Otherwise the lines below the
+	// first move together.
+	bodyDeep := have2 && strings.HasPrefix(minInd, want)
+	for j := 1; j < len(lines); j++ {
+		if strings.TrimSpace(lines[j]) == "" || bodyDeep && j >= bodyFrom && j < closeAt {
+			continue
+		}
+		lines[j] = closeShift + lines[j]
+	}
+	if !bodyDeep && have2 {
+		// (the body, moved with the rest, must stand deeper than the parentheses)
+		min2 := closeShift + minInd
+		if len(min2) < len(want) && strings.HasPrefix(want, min2) {
+			extra := want[len(min2):]
+			for j := bodyFrom; j < closeAt; j++ {
+				if strings.TrimSpace(lines[j]) != "" {
+					lines[j] = extra + lines[j]
+				}
 			}
 		}
 	}

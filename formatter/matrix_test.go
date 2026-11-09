@@ -33,6 +33,17 @@ var matrixVariants = []matrixVariant{
 		c.CallParenSpacing = config.ParenSpacingRemove
 		c.BuiltinFunctions.Case = config.CaseCapitalize
 	}},
+	{"keyword_paren_add", func(c *config.Config) {
+		c.KeywordParenSpacing = config.ParenSpacingAdd
+		c.CallParenSpacing = config.ParenSpacingRemove
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.ParenIndent.Open = config.ParenOpenOwnLine
+	}},
+	{"keyword_paren_remove", func(c *config.Config) {
+		c.KeywordParenSpacing = config.ParenSpacingRemove
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAuto
+	}},
 	{"subquery_always", func(c *config.Config) {
 		c.Layout.Clauses.Break = config.BreakAlways
 		c.Layout.Content.Break = config.BreakAuto

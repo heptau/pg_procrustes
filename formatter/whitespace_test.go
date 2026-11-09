@@ -484,3 +484,53 @@ func TestQuotedKeywordNameInPLpgSQLExpressionIsStable(t *testing.T) {
 		t.Errorf("not idempotent:\n%s\n---\n%s", once, again)
 	}
 }
+
+// keyword_paren_spacing: the space between a keyword / operator word and its "(" (and between a
+// ")" and the keyword after it) is set apart from function calls and names (call_paren_spacing).
+func TestKeywordParenSpacing(t *testing.T) {
+	const in = "SELECT count(*), coalesce(a, 0), x::varchar(10) FROM t WHERE(a = 1)AND(b IN(1, 2))OR EXISTS(SELECT 1);\n" +
+		"INSERT INTO t(a, b) VALUES(1, 2) ON CONFLICT(a) DO NOTHING;\n" +
+		"CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  IF(a = 1)THEN RETURN(a); END IF;\nEND; $$;\n"
+	cases := []struct {
+		mode      config.ParenSpacingMode
+		has, lack []string
+	}{
+		{config.ParenSpacingAdd,
+			[]string{"count(*)", "coalesce(a, 0)", "varchar(10)", "WHERE (a = 1) AND (b IN (1, 2)) OR EXISTS (SELECT 1)",
+				"INSERT INTO t(a, b) VALUES (1, 2)", "ON CONFLICT (a)", "IF (a = 1) THEN RETURN (a)"},
+			[]string{"WHERE(", "IN(", "IF("}},
+		{config.ParenSpacingRemove,
+			[]string{"count(*)", "WHERE(a = 1)", "IN(1, 2)", "EXISTS(SELECT 1)", "VALUES(1, 2)", "ON CONFLICT(a)", "IF(a = 1)", "RETURN(a)"},
+			[]string{"WHERE (", "IN (", "IF ("}},
+		{config.ParenSpacingPreserve,
+			[]string{"WHERE(a = 1)AND(b IN(1, 2))", "IF(a = 1)THEN"},
+			nil},
+	}
+	for _, c := range cases {
+		t.Run(string(c.mode), func(t *testing.T) {
+			cfg, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.CallParenSpacing = config.ParenSpacingRemove
+			cfg.KeywordParenSpacing = c.mode
+			got, err := formatter.Format(in, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, s := range c.has {
+				if !strings.Contains(got, s) {
+					t.Errorf("missing %q in\n%s", s, got)
+				}
+			}
+			for _, s := range c.lack {
+				if strings.Contains(got, s) {
+					t.Errorf("unexpected %q in\n%s", s, got)
+				}
+			}
+			if again, _ := formatter.Format(got, cfg); again != got {
+				t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+			}
+		})
+	}
+}

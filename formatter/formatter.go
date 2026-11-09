@@ -156,6 +156,41 @@ var plpgsqlKeywordNames = map[string]bool{
 // raiseLevelNames are the severity words of RAISE, which are ordinary names elsewhere.
 var raiseLevelNames = map[string]bool{"debug": true, "info": true, "notice": true, "warning": true}
 
+// parenAfterKeywordIsCall lists keyword-spelled words whose "(" belongs to a call or a type, not
+// to the keyword: ARRAY(SELECT …), ROW(1, 2), VARCHAR / CHARACTER VARYING(10).
+var parenAfterKeywordIsCall = map[string]bool{
+	"array": true, "row": true, "varying": true, "precision": true,
+	// keyword-spelled functions: their "(" is a call's
+	"coalesce": true, "greatest": true, "least": true, "nullif": true, "extract": true, "trim": true,
+	"substring": true, "position": true, "overlay": true, "cast": true, "grouping": true, "normalize": true,
+	"xmlattributes": true, "xmlconcat": true, "xmlelement": true, "xmlexists": true, "xmlforest": true,
+	"xmlparse": true, "xmlpi": true, "xmlroot": true, "xmlserialize": true, "xmltable": true,
+}
+
+// isKeywordClass reports whether c is the class of a keyword or operator word.
+func isKeywordClass(c tokenClass) bool {
+	return c == classReservedKeyword || c == classKeyword || c == classOperator || c == classPlpgSQLKeyword
+}
+
+// startsKeywordWord reports whether tokens[i] is a keyword or operator word (THEN, AND, LOOP, AS, …)
+// rather than a name, a function or a type: the AST has not placed it anywhere.
+func startsKeywordWord(tokens []rawToken, i int, pos *astPositions) bool {
+	t := tokens[i]
+	if t.text == "" || !(t.text[0] == '_' || t.text[0] >= 'a' && t.text[0] <= 'z' || t.text[0] >= 'A' && t.text[0] <= 'Z') {
+		return false
+	}
+	lower := strings.ToLower(t.text)
+	if literalNames[lower] || dataTypeNames[lower] || parenAfterKeywordIsCall[lower] {
+		return false
+	}
+	at := t.start
+	if pos.columns[at] || pos.aliases[at] || pos.tables[at] || pos.schemas[at] || pos.functions[at] ||
+		pos.conditionalFunctions[at] || pos.systemFunctions[at] {
+		return false
+	}
+	return t.kind != pg_query.KeywordKind_NO_KEYWORD || plpgsqlKeywordNames[lower] || operatorKeywords[lower]
+}
+
 // literalNames are boolean/null literals. They are RESERVED_KEYWORD in the
 // scanner but should follow literals.case, not keywords.case.
 var literalNames = map[string]bool{
@@ -1496,8 +1531,9 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 	buf.Grow(len(sql) + len(sql)/4)
 
 	cur := 0
-	prevTokenText := "" // raw text of previous written token
-	prevIsCall := false // previous token is a function name (for call_paren_spacing)
+	prevTokenText := ""    // raw text of previous written token
+	prevIsCall := false    // previous token is a function name (for call_paren_spacing)
+	prevIsKeyword := false // previous token is a keyword / operator word (for keyword_paren_spacing)
 	arithStart, arithEnd := map[int]bool{}, map[int]bool{}
 	if cfg.ArithmeticSpacing == config.ArithmeticSpacingNormalize || cfg.ArithmeticSpacing == config.ArithmeticSpacingCompact {
 		arithStart, arithEnd = binaryArithmetic(tokens)
@@ -1524,6 +1560,23 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 						g = " "
 					case config.ParenSpacingRemove:
 						g = ""
+					}
+				}
+				if cfg.KeywordParenSpacing != config.ParenSpacingPreserve && cfg.KeywordParenSpacing != "" &&
+					!strings.Contains(g, "/*") && !strings.Contains(g, "--") {
+					switch {
+					case prevIsKeyword && tok.text == "(": // IF (a), AND (b), IN (1, 2), VALUES (…)
+						// (add keeps a line break: the keyword and its "(" are already apart)
+						if cfg.KeywordParenSpacing == config.ParenSpacingAdd {
+							if !strings.Contains(g, "\n") {
+								g = " "
+							}
+						} else {
+							g = ""
+						}
+					case cfg.KeywordParenSpacing == config.ParenSpacingAdd && prevTokenText == ")" && !strings.Contains(g, "\n") &&
+						startsKeywordWord(tokens, i, pos):
+						g = " " // (a) AND (b), IF (a) THEN
 					}
 				}
 				buf.WriteString(g)
@@ -1579,6 +1632,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 				ensureSeparator(&buf)
 				buf.WriteString(inner)
 				prevTokenText = tokenText
+				prevIsCall, prevIsKeyword = false, false
 				cur = tok.end
 				continue
 			}
@@ -1650,6 +1704,8 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 		if s, ok := replaceWith[i]; ok {
 			buf.WriteString(s)
 			prevTokenText = tokenText
+			// (a replacement that is a keyword phrase, `NOT IN` for `<> ALL`, is the keyword before its "(")
+			prevIsCall, prevIsKeyword = false, s != "" && strings.Trim(s, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ") == ""
 			cur = tok.end
 			continue
 		}
@@ -1757,6 +1813,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 
 		prevTokenText = tokenText
 		prevIsCall = pos.functions[tok.start] || pos.conditionalFunctions[tok.start]
+		prevIsKeyword = !prevIsCall && isKeywordClass(class) && !parenAfterKeywordIsCall[lower]
 		cur = tok.end
 	}
 
