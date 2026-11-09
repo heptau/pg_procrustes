@@ -2,6 +2,7 @@
 package layout
 
 import (
+	"regexp"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -1102,14 +1103,8 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// a line of its own, and that `)` belongs at the indent of the item. When it stands further
 			// left, the whole item is shifted right by the difference, body and parentheses together
 			// (judging by the body alone left `(` at the item's indent and the `)` at the margin).
-			if shift := closingParenShift(item, contentIndent); shift != "" {
-				parts := strings.Split(item, "\n")
-				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" {
-						parts[j] = shift + parts[j]
-					}
-				}
-				return strings.Join(parts, "\n")
+			if fixed, ok := shiftClosedParenItem(item, contentIndent, indentUnit); ok {
+				return fixed
 			}
 			// `PERFORM f(` + arguments on the lines below: the call opens a parenthesis that closes on
 			// the last argument line, and its arguments stand one level deeper than the call; when they
@@ -1252,28 +1247,66 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	return sb.String()
 }
 
-// closingParenShift returns the text to add in front of the continuation lines of a multi-line
-// item so that the first line starting with ")" that closes a parenthesis opened on an earlier
-// line of the item (at nesting level one) stands at indent. It is "" when there is no such line
-// or it already stands at indent or further right.
-func closingParenShift(item, indent string) string {
+// shiftClosedParenItem moves a multi-line item that opens a parenthesis (CTE body, VALUES row) so
+// that the `)` that closes it — the first line starting with ")" at nesting level one — stands at
+// indent, and the lines between the opening and the closing parenthesis stand deeper than that.
+// ok is false when there is no such `)` line or it already stands at indent or further right.
+func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 	lines := strings.Split(item, "\n")
 	depth := 0
+	closeAt := -1
 	for j, ln := range lines {
 		t := strings.TrimLeft(ln, " \t")
 		if j > 0 && depth == 1 && strings.HasPrefix(t, ")") {
 			have := ln[:len(ln)-len(t)]
 			if strings.HasPrefix(have, indent) || !strings.HasPrefix(indent, have) {
-				return ""
+				return item, false
 			}
-			return indent[len(have):]
+			closeAt = j
+			break
 		}
 		d, _ := parenScanLine(ln)
 		if depth += d; depth < 0 {
 			depth = 0
 		}
 	}
-	return ""
+	if closeAt < 0 {
+		return item, false
+	}
+	have := lines[closeAt][:len(lines[closeAt])-len(strings.TrimLeft(lines[closeAt], " \t"))]
+	shift := indent[len(have):]
+	for j := 1; j < len(lines); j++ {
+		if strings.TrimSpace(lines[j]) != "" {
+			lines[j] = shift + lines[j]
+		}
+	}
+	// The body (below a lone "(" line when there is one) must stand deeper than the parentheses; a
+	// body that was less indented than its `)` in the input would otherwise be moved again by the
+	// next run.
+	bodyFrom := 1
+	if strings.TrimSpace(lines[1]) == "(" {
+		bodyFrom = 2
+	}
+	minInd := ""
+	have2 := false
+	for j := bodyFrom; j < closeAt; j++ {
+		if strings.TrimSpace(lines[j]) == "" {
+			continue
+		}
+		ind := lines[j][:len(lines[j])-len(strings.TrimLeft(lines[j], " \t"))]
+		if !have2 || len(ind) < len(minInd) {
+			minInd, have2 = ind, true
+		}
+	}
+	if want := indent + unit; have2 && len(minInd) < len(want) && strings.HasPrefix(want, minInd) {
+		extra := want[len(minInd):]
+		for j := bodyFrom; j < closeAt; j++ {
+			if strings.TrimSpace(lines[j]) != "" {
+				lines[j] = extra + lines[j]
+			}
+		}
+	}
+	return strings.Join(lines, "\n"), true
 }
 
 // openParenBodyShift returns indentUnit when the first line of a multi-line item leaves a
@@ -1283,8 +1316,11 @@ func closingParenShift(item, indent string) string {
 func openParenBodyShift(item, indent, unit string) string {
 	lines := strings.Split(item, "\n")
 	depth, _ := parenScanLine(lines[0])
-	if depth <= 0 || !endsWithCallOpen(lines[0]) {
+	if depth <= 0 || !strings.HasSuffix(strings.TrimRight(lines[0], " \t"), "(") || !endsWithCallOpen(lines[0]) {
 		return ""
+	}
+	if subqueryOpen.MatchString(item) {
+		return "" // a subquery in the arguments lays itself out (expandSubqueries) and is not moved
 	}
 	first := ""
 	for _, ln := range lines[1:] {
@@ -1306,6 +1342,8 @@ func openParenBodyShift(item, indent, unit string) string {
 	}
 	return unit
 }
+
+var subqueryOpen = regexp.MustCompile(`(?i)\(\s*(select|with|values)\b`)
 
 // endsWithCallOpen reports whether the last parenthesis of line that is still open follows a
 // function name (`f(`, `schema.f(`, `PERFORM f(`), not a keyword: `JOIN (`, `IN (`, `AS (` open a

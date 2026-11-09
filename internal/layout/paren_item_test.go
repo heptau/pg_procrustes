@@ -1,6 +1,7 @@
 package layout_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/heptau/pg_procrustes/config"
@@ -54,4 +55,32 @@ func TestParenItemClosingParenAtItemIndent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A body that stands further left than its closing parenthesis in the input still ends up deeper
+// than the parentheses, and a second run changes nothing.
+func TestParenItemBodyLeftOfClosingParen(t *testing.T) {
+	cfg := parenItemCfg()
+	in := "SELECT 1\nFROM t\nWHERE a = 1\n  AND NOT ( /* c */\nx = 1\nAND y = 2\n  );"
+	got := applyIdem(t, in, cfg)
+	lines := strings.Split(got, "\n")
+	var body, closing string
+	for _, ln := range lines {
+		switch {
+		case strings.HasPrefix(strings.TrimSpace(ln), "x = 1"):
+			body = ln[:len(ln)-len(strings.TrimLeft(ln, " "))]
+		case strings.HasPrefix(strings.TrimSpace(ln), ")"):
+			closing = ln[:len(ln)-len(strings.TrimLeft(ln, " "))]
+		}
+	}
+	if len(body) <= len(closing) {
+		t.Errorf("body not deeper than the closing parenthesis:\n%s", got)
+	}
+}
+
+// A subquery among the arguments is left to the subquery layout: no extra shift.
+func TestCallArgumentsWithSubqueryNotShifted(t *testing.T) {
+	cfg := parenItemCfg()
+	in := "SELECT COALESCE(\n    (SELECT 1 FROM t),\n    0) AS x;"
+	applyIdem(t, in, cfg)
 }
