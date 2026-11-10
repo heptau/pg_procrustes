@@ -273,3 +273,14 @@ func TestAlignAliasesMeasuresCompactedCommas(t *testing.T) {
 		t.Errorf("aliases not aligned on the compacted width: %q", got)
 	}
 }
+
+// A subquery inside the subquery that is measured is joined without the blank after its `(`, so
+// subquery.break: auto measures it that way (the second run found the outer one short enough).
+func TestSubqueryAutoMeasuresInnerSubqueryJoined(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 128)
+	cfg.Subquery.Break = config.BreakAuto
+	sql := "SELECT json_build_object('d', json_build_object('e', 1,\n           'f', (select row_to_json(r) from ( select relkind, oid::regclass as name from pg_class where relname = 'pg_class') as r)));"
+	applyIdem(t, sql, cfg)
+	cfg.CommaSpacing = config.CommaSpacingCompact
+	applyIdem(t, sql, cfg)
+}

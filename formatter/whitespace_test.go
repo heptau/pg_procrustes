@@ -556,3 +556,27 @@ func TestTrailingCommentsInBodyAlignedAfterLayout(t *testing.T) {
 		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
 	}
 }
+
+// The expressions of CHECK / DEFAULT constraints and of CREATE INDEX … WHERE and of index
+// expressions are read like any other: a column named like a keyword (value) keeps its case
+// and functions follow functions.case.
+func TestConstraintAndIndexExpressionsReadLikeQueries(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Keywords.Case = config.CaseUpper
+		c.ReservedKeywords.Case = config.CaseUpper
+		c.Functions.Case = config.CaseUpper
+	})
+	in := "create table t (value int, x int default abs(1), check (value > 0));\ncreate index i on t (value, (lower(x::text))) where value > 0;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"CHECK (value > 0)", "DEFAULT ABS(1)", "(LOWER(x::text))", "WHERE value > 0"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}

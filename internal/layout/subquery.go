@@ -231,7 +231,8 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 		tab = 4
 	}
 	front = strings.ReplaceAll(front, "\t", strings.Repeat(" ", tab))
-	sub := sql[start:end]
+	// (a subquery inside is joined to one line on its own, without the blank after its `(`)
+	sub := innerSubqueryOpen.ReplaceAllString(sql[start:end], "(${1}")
 	if commaCompact {
 		// comma_spacing: compact takes the blank after a comma off in the token pass; a text that
 		// has it (lines joined behind a comma) and one that has not are the same line to measure
@@ -278,6 +279,8 @@ func aliasIsKeyword(m string) bool {
 	}
 	return false
 }
+
+var innerSubqueryOpen = regexp.MustCompile(`(?i)\(\s+(select\b|with\b|values\b)`)
 
 var aliasTail = regexp.MustCompile(`(?i)^\s*(?:as\s+)?(?:"[^"]+"|[a-z_][a-z0-9_$]*)?\s*(?:\([^()]*\))?\s*[,;]?`)
 

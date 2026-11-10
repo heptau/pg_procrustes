@@ -2255,6 +2255,10 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 	case *pg_query.Node_AlterTableCmd:
 		walkNode(n.AlterTableCmd.Def, pos)
 
+	case *pg_query.Node_Constraint:
+		// CHECK (value > 0), DEFAULT f(x): the expression reads like any other
+		walkNode(n.Constraint.RawExpr, pos)
+
 	case *pg_query.Node_ColumnDef:
 		cd := n.ColumnDef
 		if cd.Location >= 0 {
@@ -2281,6 +2285,10 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 			addTableRangeVar(ix.Relation, pos)
 		}
 		many(ix.IndexParams)
+		walkNode(ix.WhereClause, pos)
+
+	case *pg_query.Node_IndexElem:
+		walkNode(n.IndexElem.Expr, pos) // CREATE INDEX … ((lower(name)))
 
 	case *pg_query.Node_CreateTableAsStmt:
 		if into := n.CreateTableAsStmt.Into; into != nil {

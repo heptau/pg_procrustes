@@ -26,7 +26,7 @@ CREATE TABLE public.products (
     unit_price numeric(12, 2) NOT NULL DEFAULT 0,
     stock_qty integer NOT NULL DEFAULT 0,
     is_available boolean NOT NULL DEFAULT TRUE,
-    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT products_pkey PRIMARY KEY (id),
     CONSTRAINT products_sku_key UNIQUE (sku)
 );

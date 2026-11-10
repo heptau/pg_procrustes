@@ -34,7 +34,7 @@ CREATE TABLE account_balances (
    account_id  bigint       NOT NULL,
    currency    character varying(3)   NOT NULL,
    amount      numeric      NOT NULL DEFAULT 0,
-   updated_at  timestamp with time zone  NOT NULL DEFAULT NOW(),
+   updated_at  timestamp with time zone  NOT NULL DEFAULT now(),
    CONSTRAINT pk_account_balances PRIMARY KEY (id),
    CONSTRAINT fk_account FOREIGN KEY (account_id) REFERENCES accounts (id)
 );
