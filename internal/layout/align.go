@@ -10,7 +10,15 @@ import (
 // SELECT aliases, "=" for SET assignments) so the separators line up. Items that
 // span lines, carry comments, contain CASE or have no separator are returned as
 // they are; with fewer than two alignable items nothing changes.
-func alignItems(items []string, sep string, indentLen, limit int) []string {
+func alignItems(items []string, sep string, indentLen, limit int, commaCompact bool) []string {
+	// comma_spacing: compact takes the blank after a comma off in the token pass that follows,
+	// so the width of a head is the one it will have then
+	widthOf := func(head string) int {
+		if commaCompact {
+			head = unspaceCommas(head)
+		}
+		return runeLen(head)
+	}
 	type split struct{ head, tail string }
 	parts := make([]split, len(items))
 	ok := make([]bool, len(items))
@@ -35,7 +43,7 @@ func alignItems(items []string, sep string, indentLen, limit int) []string {
 		}
 		parts[i], ok[i] = split{head, it[at:]}, true
 		n++
-		if w := runeLen(head); w > width {
+		if w := widthOf(head); w > width {
 			width = w
 		}
 	}
@@ -50,7 +58,7 @@ func alignItems(items []string, sep string, indentLen, limit int) []string {
 		}
 		p := parts[i]
 		lead, _, trail := splitCommentLines(it)
-		out[i] = lead + p.head + strings.Repeat(" ", width-runeLen(p.head)+1) + p.tail + trail
+		out[i] = lead + p.head + strings.Repeat(" ", width-widthOf(p.head)+1) + p.tail + trail
 	}
 	return out
 }

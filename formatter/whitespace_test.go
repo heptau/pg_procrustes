@@ -534,3 +534,25 @@ func TestKeywordParenSpacing(t *testing.T) {
 		})
 	}
 }
+
+// Trailing comments in a DO body are aligned after the layout has moved the lines: comments of
+// lines that stood next to each other and are separated now are no run, and the second run
+// finds the text as the first left it.
+func TestTrailingCommentsInBodyAlignedAfterLayout(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Comments = config.CommentsCfg{SpaceAfterMarker: config.CommentSpaceAdd, AlignTrailing: config.CommentAlignAlign}
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+	})
+	in := "DO $$\nBEGIN\nUPDATE t\nSET a = 4 --Stopped\nWHERE bb = 3 --Running\n    AND c = 1;\nEND\n$$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "a = 4 -- Stopped") {
+		t.Errorf("lone comment kept the padding of the lines it stood next to:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}

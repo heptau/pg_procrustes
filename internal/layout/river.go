@@ -47,6 +47,9 @@ func riverKeyword(sql string, tokens []rawTok, stmt statement, ci int) (string, 
 		}
 		kwFrom = cl.kwTok // CREATE VIEW v AS / EXPLAIN …: the query starts after the prefix
 	}
+	if ci == 0 && kwFrom < cl.kwTok {
+		kwFrom = cl.kwTok // comment lines in front of the query are no part of its keyword
+	}
 	text := originalText(sql, tokens, kwFrom, cl.kwEnd)
 	if strings.Contains(text, "--") || strings.Contains(text, "/*") {
 		return "", false

@@ -79,3 +79,20 @@ func TestRiverLeavesUnbrokenClausesAlone(t *testing.T) {
 	sql := "SELECT a FROM t WHERE a > 1"
 	assertLayoutFormat(t, sql, cfg, sql)
 }
+
+// A comment in front of the query stands on a line of its own above the first keyword, which is
+// on the river like those of a query without one (the comment kept it off the river before, and
+// a subquery body that starts with a comment was laid out differently on the next run).
+func TestRiverQueryAfterLeadingComment(t *testing.T) {
+	sql := "-- why\nSELECT a.id, a.name FROM accounts a WHERE a.id > 1"
+	want := "-- why\n" +
+		"SELECT a.id,\n" +
+		"       a.name\n" +
+		"  FROM accounts a\n" +
+		" WHERE a.id > 1"
+	assertLayoutFormat(t, sql, riverCfg(), want)
+	cfg := riverCfg()
+	cfg.Subquery.Break = config.BreakAlways
+	cfg.ParenIndent.Open = config.ParenOpenOwnLine
+	applyIdem(t, "WITH v AS (\n  -- why\n  SELECT a.id, a.name FROM accounts a WHERE a.id > 1\n)\nSELECT * FROM v", cfg)
+}

@@ -251,3 +251,25 @@ func TestMultiLineTableItemKeepsRelativeIndent(t *testing.T) {
 		t.Errorf("relative indentation lost: %q", got)
 	}
 }
+
+// A set operation after a subquery is no alias of it: subquery.break: auto measures the
+// subquery alone, as the second run (where the operator stands on a line of its own) does.
+func TestSubqueryAutoIgnoresFollowingSetOperation(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 60)
+	cfg.Subquery.Break = config.BreakAuto
+	applyIdem(t, "(SELECT 1, 2, 3 UNION SELECT 4, 5, 6 ORDER BY 1, 2) INTERSECT SELECT 4, 5, 6;", cfg)
+}
+
+// With comma_spacing: compact the aliases are aligned on the width the heads have after
+// the blanks behind their commas are gone.
+func TestAlignAliasesMeasuresCompactedCommas(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	cfg.Content.AlignAliases = config.AlignItemsAlign
+	cfg.CommaSpacing = config.CommaSpacingCompact
+	got := applyIdem(t, "SELECT n.nspname AS a, string_agg(x, y) AS b FROM t;", cfg)
+	if !strings.Contains(got, "n.nspname       AS a") {
+		t.Errorf("aliases not aligned on the compacted width: %q", got)
+	}
+}

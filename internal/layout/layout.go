@@ -845,12 +845,23 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		// the query on the next one, instead of gluing "AS SELECT" together.
 		prefixed := ci == 0 && (cl.kind == clauseSelect || cl.kind == clauseWith) && hasCodeTokens(tokens, kwStart, cl.kwTok)
 
+		// comment lines in front of the query stay in front of the keyword on the river
+		leadComment := ""
+		if riverKw != "" && ci == 0 && !prefixed {
+			leadComment = strings.TrimSpace(originalText(sql, tokens, kwStart, cl.kwTok))
+		}
+
 		if ci > 0 {
 			if prevIsUnionBlankAfter {
 				sb.WriteString("\n\n")
 			} else {
 				sb.WriteByte('\n')
 			}
+			sb.WriteString(clauseIndent)
+		} else if leadComment != "" {
+			sb.WriteString(baseIndent)
+			sb.WriteString(leadComment)
+			sb.WriteByte('\n')
 			sb.WriteString(clauseIndent)
 		} else if prefixed {
 			sb.WriteString(baseIndent)
@@ -1079,11 +1090,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if contentFirstItem != config.FirstItemInline {
 			switch {
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsAlign:
-				items = alignItems(items, "as", runeLen(contentIndent), wrapLimit(cfg))
+				items = alignItems(items, "as", runeLen(contentIndent), wrapLimit(cfg), cfg.CommaSpacing == config.CommaSpacingCompact)
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsNone:
 				items = unpadItems(items, "as")
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsAlign:
-				items = alignItems(items, "=", runeLen(contentIndent), wrapLimit(cfg))
+				items = alignItems(items, "=", runeLen(contentIndent), wrapLimit(cfg), cfg.CommaSpacing == config.CommaSpacingCompact)
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsNone:
 				items = unpadItems(items, "=")
 			}

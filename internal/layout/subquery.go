@@ -213,7 +213,7 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 	// (the next join, WHERE …) goes to lines of its own, or stays, depending on the clause layout;
 	// and what stands before it is measured after the last `)` (an earlier subquery that was
 	// expanded, ending a line the other run put in front of this one)
-	if m := aliasTail.FindString(rest); m != "" || strings.TrimSpace(rest) == "" {
+	if m := aliasTail.FindString(rest); (m != "" && !aliasIsKeyword(m)) || strings.TrimSpace(rest) == "" {
 		rest = m
 	} else {
 		rest = ""
@@ -260,6 +260,23 @@ func unspaceCommas(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// aliasIsKeyword reports whether the word the alias pattern matched is a keyword that starts
+// the next clause or set operation (it goes to a line of its own, so it is no part of the line
+// of the subquery).
+func aliasIsKeyword(m string) bool {
+	w := strings.ToLower(strings.TrimRight(strings.TrimSpace(m), ",;"))
+	if i := strings.IndexAny(w, " \t\n("); i >= 0 {
+		w = w[:i]
+	}
+	switch w {
+	case "union", "intersect", "except", "from", "where", "group", "order", "having", "limit",
+		"offset", "window", "join", "inner", "left", "right", "full", "cross", "natural", "on",
+		"using", "for", "fetch", "returning", "values", "select":
+		return true
+	}
+	return false
 }
 
 var aliasTail = regexp.MustCompile(`(?i)^\s*(?:as\s+)?(?:"[^"]+"|[a-z_][a-z0-9_$]*)?\s*(?:\([^()]*\))?\s*[,;]?`)

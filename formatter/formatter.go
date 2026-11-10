@@ -2777,6 +2777,9 @@ func formatDollarQuoted(s string, cfg *config.Config, vars map[string]bool) (str
 	// Apply casing/spacing without layout first.
 	cfgInner := *cfg
 	cfgInner.Layout = config.LayoutConfig{}
+	// Trailing comments are aligned once the layout has moved the lines (below); aligned here
+	// they would carry the padding of lines the layout then separates.
+	cfgInner.Comments.AlignTrailing = config.CommentAlignPreserve
 	// A body is a fragment of the file: whole-file settings must not touch its edges
 	// (trailing_newline: strip would glue the closing delimiter to the last line).
 	cfgInner.TrailingNewline = config.TrailingNewlinePreserve
@@ -3218,6 +3221,8 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	cfgNoLayout := *cfg
 	cfgNoLayout.Layout = config.LayoutConfig{}
 	cfgNoLayout.Nested = true // (a statement of a body: resolveBodyAliases)
+	// (trailing comments are aligned after the layout, on the whole body)
+	cfgNoLayout.Comments.AlignTrailing = config.CommentAlignPreserve
 	cfgNoLayout.Semicolons = config.SemicolonPreserve
 	cfgNoLayout.TrailingNewline = config.TrailingNewlinePreserve // a statement inside a body is not a file
 
