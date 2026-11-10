@@ -144,6 +144,8 @@ var plpgsqlKeywordNames = map[string]bool{
 	"open": true,
 	// diagnostic statement
 	"assert": true,
+	// RETURN QUERY (a keyword only right after RETURN)
+	"query": true,
 	// RAISE severity levels
 	"debug":   true,
 	"info":    true,
@@ -1128,12 +1130,27 @@ func multilineStringRanges(text string, base int) [][2]int {
 		return nil
 	}
 	var out [][2]int
+	var toks []rawToken // (for bodyIsSQLOrPLpgSQL)
 	for _, t := range res.Tokens {
+		toks = append(toks, rawToken{start: int(t.Start), end: int(t.End), text: text[t.Start:t.End]})
+	}
+	for k, t := range res.Tokens {
 		tok := text[t.Start:t.End]
 		if !strings.Contains(tok, "\n") {
 			continue
 		}
 		if strings.HasPrefix(tok, "$") {
+			// A dollar-quoted text that is not the code of a function or DO block (COMMENT ON … IS $$…$$,
+			// a text value) is data as a whole; the body of code holds strings that are data.
+			prev := ""
+			if k > 0 {
+				prev = strings.ToLower(toks[k-1].text)
+			}
+			doLang := k >= 3 && strings.EqualFold(toks[k-2].text, "language") && strings.EqualFold(toks[k-3].text, "do")
+			if !((prev == "as" || prev == "do" || doLang) && bodyIsSQLOrPLpgSQL(toks, k)) {
+				out = append(out, [2]int{base + int(t.Start), base + int(t.End)})
+				continue
+			}
 			// $tag$ body $tag$: the strings inside the body are data as well
 			if i := strings.IndexByte(tok[1:], '$'); i >= 0 {
 				open, closeAt := i+2, len(tok)-(i+2)
@@ -1915,7 +1932,8 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		// else they are names (a record variable `info`, `info.client_id`).
 		if cfg.PLpgSQLKeywords.Case != "" && plpgsqlKeywordNames[lower] && prevTokenText != "." &&
 			class != classSchema && class != classTable && class != classAlias && class != classFunction &&
-			(!raiseLevelNames[lower] || strings.EqualFold(prevTokenText, "raise")) {
+			(!raiseLevelNames[lower] || strings.EqualFold(prevTokenText, "raise")) &&
+			(lower != "query" || (strings.EqualFold(prevTokenText, "return") && i+1 < len(tokens) && tokens[i+1].text != ";")) {
 			class = classPlpgSQLKeyword
 		}
 
@@ -2107,7 +2125,7 @@ func collectASTPositions(sql string, result *pg_query.ParseResult) *astPositions
 var bodyStatementStarters = map[string]bool{
 	"select": true, "insert": true, "update": true, "delete": true, "with": true, "merge": true,
 	"create": true, "alter": true, "drop": true, "grant": true, "revoke": true, "truncate": true,
-	"comment": true, "lock": true, "refresh": true, "reindex": true, "explain": true, "copy": true, "prepare": true,
+	"comment": true, "lock": true, "refresh": true, "reindex": true, "explain": true, "copy": true, "prepare": true, "perform": true,
 }
 
 // collectBodyPositions is collectASTPositions for the text of a PL/pgSQL body, which PostgreSQL
@@ -2132,6 +2150,7 @@ func collectBodyPositions(sql string, tokens []rawToken) *astPositions {
 		return ""
 	}
 	depth := 0
+	var covered [][2]int // the statements whose tree was read
 	for i := 0; i < len(tokens); i++ {
 		switch tokens[i].text {
 		case "(", "[":
@@ -2177,12 +2196,97 @@ func collectBodyPositions(sql string, tokens []rawToken) *astPositions {
 		i = last
 		off := tokens[first].start
 		chunk := sql[off:end]
+		if lw(first) == "perform" {
+			chunk = "select " + chunk[len("perform"):] // PERFORM q reads as SELECT q (same length)
+		}
 		if _, err := pg_query.Parse(chunk); err != nil {
 			continue
 		}
 		pos.mergeShifted(collectASTPositions(chunk, nil), off)
+		covered = append(covered, [2]int{off, end})
 	}
+	resolveBodyCalls(tokens, pos, covered)
 	return pos
+}
+
+// callContextWords are what stands before a function call in a PL/pgSQL expression that the parser
+// did not see (v := abs(x) + f(y), IF lower(s) = 'a' THEN, RETURN round(x)): an operator, an opening
+// parenthesis, a comma or a keyword that is followed by an expression. A name before "(" after
+// anything else may be a table (INSERT INTO t (a, b)), a cursor or a type, so it is left as written.
+var callContextWords = map[string]bool{
+	":=": true, "=": true, "(": true, ",": true, "+": true, "-": true, "*": true, "/": true, "||": true,
+	"<": true, ">": true, "<=": true, ">=": true, "<>": true, "!=": true, "and": true, "or": true,
+	"not": true, "then": true, "return": true, "if": true, "elsif": true, "elseif": true, "while": true,
+	"when": true, "perform": true,
+}
+
+// resolveBodyCalls registers as functions the names followed by "(" in the expressions of a PL/pgSQL
+// body that no statement tree covers, so that functions.case applies to them like to those of the
+// SQL statements around them.
+func resolveBodyCalls(tokens []rawToken, pos *astPositions, covered [][2]int) {
+next:
+	for i := 1; i+1 < len(tokens); i++ {
+		t := tokens[i]
+		for _, c := range covered {
+			if t.start >= c[0] && t.start < c[1] {
+				continue next // a statement the parser read: its tree says what is a call
+			}
+		}
+		if t.kind != pg_query.KeywordKind_NO_KEYWORD || tokens[i+1].text != "(" || tokens[i+1].start != t.end {
+			continue
+		}
+		if t.text == "" || !(t.text[0] == '_' || t.text[0] >= 'a' && t.text[0] <= 'z' || t.text[0] >= 'A' && t.text[0] <= 'Z') {
+			continue
+		}
+		lower := strings.ToLower(t.text)
+		if literalNames[lower] || dataTypeNames[lower] || plpgsqlKeywordNames[lower] || plpgsqlVariableNames[lower] || parenAfterKeywordIsCall[lower] {
+			continue
+		}
+		prev := i - 1
+		for prev > 0 && (strings.HasPrefix(tokens[prev].text, "--") || strings.HasPrefix(tokens[prev].text, "/*")) {
+			prev-- // (a comment between the operator and the call)
+		}
+		if !callContextWords[strings.ToLower(tokens[prev].text)] {
+			continue
+		}
+		at := t.start
+		if pos.columns[at] || pos.aliases[at] || pos.tables[at] || pos.schemas[at] || pos.functions[at] ||
+			pos.conditionalFunctions[at] || pos.systemFunctions[at] {
+			continue
+		}
+		pos.functions[at] = true
+	}
+}
+
+// walkPseudoRefs walks nodes like walkNode, but the names given (pseudo-variables of the
+// statement: VALUE of a domain, OLD and NEW of a trigger) are not taken for tables or columns.
+func walkPseudoRefs(nodes []*pg_query.Node, pos *astPositions, names ...string) {
+	tmp := newASTPositions()
+	tmp.sql = pos.sql
+	for _, n := range nodes {
+		walkNode(n, tmp)
+	}
+	isName := func(at int) bool {
+		for _, nm := range names {
+			if at >= 0 && at+len(nm) <= len(tmp.sql) && strings.EqualFold(tmp.sql[at:at+len(nm)], nm) &&
+				(at+len(nm) == len(tmp.sql) || !isIdentByte(tmp.sql[at+len(nm)])) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, m := range []map[int]bool{tmp.columns, tmp.tables, tmp.schemas} {
+		for at := range m {
+			if isName(at) {
+				delete(m, at)
+			}
+		}
+	}
+	pos.mergeShifted(tmp, 0)
+}
+
+func isIdentByte(c byte) bool {
+	return c == '_' || c == '$' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80
 }
 
 // mergeShifted adds what src (the positions in a part of the text) says, shifted by off.
@@ -2258,6 +2362,7 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 	case *pg_query.Node_Constraint:
 		// CHECK (value > 0), DEFAULT f(x): the expression reads like any other
 		walkNode(n.Constraint.RawExpr, pos)
+		many(n.Constraint.Exclusions) // EXCLUDE USING gist (f(a) WITH =)
 
 	case *pg_query.Node_ColumnDef:
 		cd := n.ColumnDef
@@ -2278,6 +2383,7 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		}
 		many(cf.Parameters)
 		many(cf.Options)
+		walkNode(cf.SqlBody, pos) // RETURN expr / BEGIN ATOMIC … END
 
 	case *pg_query.Node_IndexStmt:
 		ix := n.IndexStmt
@@ -2465,6 +2571,9 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		many(fc.Args)
 		many(fc.AggOrder)
 		walkNode(fc.AggFilter, pos)
+		if fc.Over != nil { // f(…) OVER (ORDER BY g(x) ROWS BETWEEN … AND h(2) FOLLOWING)
+			walkNode(&pg_query.Node{Node: &pg_query.Node_WindowDef{WindowDef: fc.Over}}, pos)
+		}
 
 	case *pg_query.Node_JoinExpr:
 		je := n.JoinExpr
@@ -2495,6 +2604,7 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		}
 
 	case *pg_query.Node_SubLink:
+		walkNode(n.SubLink.Testexpr, pos) // (a, f(x)) = ANY (SELECT …), f(x) IN (SELECT …)
 		walkNode(n.SubLink.Subselect, pos)
 
 	case *pg_query.Node_BoolExpr:
@@ -2518,6 +2628,7 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 
 	case *pg_query.Node_CaseExpr:
 		ce := n.CaseExpr
+		walkNode(ce.Arg, pos)
 		many(ce.Args)
 		walkNode(ce.Defresult, pos)
 
@@ -2570,6 +2681,28 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 
 	case *pg_query.Node_DefElem:
 		walkNode(n.DefElem.Arg, pos)
+
+	case *pg_query.Node_CreateDomainStmt:
+		// VALUE in a domain's CHECK is the keyword, not a column
+		walkPseudoRefs(n.CreateDomainStmt.Constraints, pos, "value")
+
+	case *pg_query.Node_CreateTrigStmt:
+		// OLD / NEW in the WHEN condition are the record variables, written as keywords
+		walkPseudoRefs([]*pg_query.Node{n.CreateTrigStmt.WhenClause}, pos, "old", "new")
+
+	case *pg_query.Node_XmlExpr:
+		// XMLFOREST(a AS x), XMLATTRIBUTES(a AS x): the names are no aliases (the AS stays)
+		for _, na := range n.XmlExpr.NamedArgs {
+			if rt := na.GetResTarget(); rt != nil {
+				walkNode(rt.Val, pos)
+			} else {
+				walkNode(na, pos)
+			}
+		}
+		many(n.XmlExpr.Args)
+
+	default:
+		walkChildren(node, pos)
 	}
 }
 
@@ -3302,7 +3435,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		return reindentLines(formatted, baseIndent), true, drop
 	}
 
-	for _, tok := range scanResult.Tokens {
+	for ti, tok := range scanResult.Tokens {
 		tokStart := int(tok.Start)
 		tokEnd := int(tok.End)
 		text := body[tokStart:tokEnd]
@@ -3354,7 +3487,11 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		if sqlStart < 0 && (lower == "grant" || lower == "revoke") {
 			inPrivilege = true // GRANT SELECT, UPDATE ON …: the privileges are no statements
 		}
-		if sqlStart < 0 && !inPrivilege && sqlClauseStarters[lower] && (lower != "with" || withStartsQuery(prevLower)) {
+		if sqlStart < 0 && bodyOpaqueDDL(body, scanResult.Tokens, ti, prevLower) {
+			inPrivilege = true // CREATE RULE … ON UPDATE TO t DO …, CREATE TRIGGER … BEFORE UPDATE ON t: the words are no statements
+		}
+		if sqlStart < 0 && !inPrivilege && (sqlClauseStarters[lower] && (lower != "with" || withStartsQuery(prevLower)) ||
+			bodyDDLStarts(body, scanResult.Tokens, ti, prevLower)) {
 			// Found the start of a SQL statement; remember position.
 			// If SELECT follows IN (FOR r IN SELECT...LOOP), mark it as a cursor query
 			// so we terminate at LOOP rather than the first unrelated ';'.
@@ -3417,6 +3554,67 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	// Flush any remaining body content.
 	result.WriteString(body[lastEnd:])
 	return result.String(), nil
+}
+
+// bodyOpaqueDDL reports whether the token ti opens a CREATE / ALTER of a rule, trigger, policy or
+// default privileges: statements with SQL words (UPDATE, DELETE, INSERT, SELECT) that do not start
+// a statement of their own.
+func bodyOpaqueDDL(body string, toks []*pg_query.ScanToken, ti int, prevLower string) bool {
+	switch prevLower {
+	case "", ";", "begin", "then", "else", "loop", "exception":
+	default:
+		return false
+	}
+	word := func(k int) string {
+		if k < 0 || k >= len(toks) {
+			return ""
+		}
+		return strings.ToLower(body[toks[k].Start:toks[k].End])
+	}
+	if w := word(ti); w != "create" && w != "alter" {
+		return false
+	}
+	for k := ti + 1; k < len(toks) && k < ti+6; k++ {
+		switch word(k) {
+		case "rule", "trigger", "policy", "privileges":
+			return true
+		}
+	}
+	return false
+}
+
+// bodyDDLStarts reports whether the token ti opens a DDL statement of a PL/pgSQL body that the layout
+// handles like at the top level (CREATE [UNIQUE] INDEX, CREATE [TEMP | UNLOGGED …] TABLE, ALTER TABLE,
+// DROP …); CREATE FUNCTION and the like, which hold bodies of their own, are left as they are.
+func bodyDDLStarts(body string, toks []*pg_query.ScanToken, ti int, prevLower string) bool {
+	switch prevLower {
+	case "", ";", "begin", "then", "else", "loop", "exception":
+	default:
+		return false
+	}
+	word := func(k int) string {
+		if k < 0 || k >= len(toks) {
+			return ""
+		}
+		return strings.ToLower(body[toks[k].Start:toks[k].End])
+	}
+	switch word(ti) {
+	case "drop":
+		return true
+	case "alter":
+		return word(ti+1) == "table"
+	case "create":
+		for k := ti + 1; k < len(toks) && k < ti+6; k++ {
+			switch word(k) {
+			case "table", "index":
+				return true
+			case "unique", "temp", "temporary", "unlogged", "global", "local", "or", "replace", "concurrently":
+			default:
+				return false
+			}
+		}
+	}
+	return false
 }
 
 // lastLineIndent returns the leading whitespace of the last line in s.

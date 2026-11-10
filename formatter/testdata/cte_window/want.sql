@@ -34,10 +34,10 @@ ranked AS (
         dept_name,
         revenue,
         customers,
-        lag(revenue)  OVER (PARTITION BY dept_id ORDER BY MONTH)       AS prev_revenue,
-        rank()        OVER (PARTITION BY MONTH   ORDER BY revenue DESC) AS revenue_rank,
-        sum(revenue)  OVER (PARTITION BY MONTH)                         AS month_total,
-        avg(revenue)  OVER (PARTITION BY dept_id ORDER BY MONTH ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg
+        lag(revenue)  OVER (PARTITION BY dept_id ORDER BY month)       AS prev_revenue,
+        rank()        OVER (PARTITION BY month   ORDER BY revenue DESC) AS revenue_rank,
+        sum(revenue)  OVER (PARTITION BY month)                         AS month_total,
+        avg(revenue)  OVER (PARTITION BY dept_id ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg
     FROM monthly_revenue
 )
 SELECT

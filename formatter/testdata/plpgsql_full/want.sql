@@ -92,7 +92,7 @@ LANGUAGE plpgsql AS $$
    END CASE;
 
        INSERT INTO ledger.transactions (account_id, amount, currency, tx_type, REF, created_at)
-       VALUES (p_account_id, p_amount, p_currency, p_type, p_ref, NOW())
+       VALUES (p_account_id, p_amount, p_currency, p_type, p_ref, now())
        RETURNING id INTO v_tx_id;
 
        -- FOR loop: write audit entries for each related account

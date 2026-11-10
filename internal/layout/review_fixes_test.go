@@ -174,7 +174,7 @@ func TestCallArgumentsWithTabsAndRiverAlignAreStable(t *testing.T) {
 	cfg.Clauses.Break = config.BreakAuto
 	cfg.Clauses.Align = config.AlignRight
 	cfg.Content.Break = config.BreakAlways
-	got := applyIdem(t, "SELECT hmac(\n'" + strings.Repeat("a", 90) + "'::bytea,\n'md5');\n", cfg)
+	got := applyIdem(t, "SELECT hmac(\n'"+strings.Repeat("a", 90)+"'::bytea,\n'md5');\n", cfg)
 	if !strings.Contains(got, "\n       \t'aaaa") {
 		t.Errorf("unexpected indent of the arguments: %q", got)
 	}
@@ -283,4 +283,32 @@ func TestSubqueryAutoMeasuresInnerSubqueryJoined(t *testing.T) {
 	applyIdem(t, sql, cfg)
 	cfg.CommaSpacing = config.CommaSpacingCompact
 	applyIdem(t, sql, cfg)
+}
+
+// A comment on a line of its own between the items of a clause that is not broken stays on its
+// own line, above the item it belongs to; joined to the line before it read as a comment on the
+// previous item.
+func TestOwnLineCommentBetweenItemsOfUnbrokenClause(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAuto
+	got := applyIdem(t, "select a,\n -- the b column\n b\nfrom t\nwhere x = 1\n -- why y\n and y = 2;", cfg)
+	for _, want := range []string{"select a,\n  -- the b column\n  b\n", "where x = 1\n  -- why y\n  and y = 2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+}
+
+// An operator that moves to the end of the line before it (logical_operator_position: end) does
+// not follow the blanks a line had in front of the comment line below it.
+func TestMovedOperatorFollowsNoTrailingBlanks(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	cfg.Content.LogicalOperatorPosition = config.LogicalOperatorEnd
+	got := applyIdem(t, "select a from t where x = y \n  --and z = 0 \n  and w = 1;", cfg)
+	if !strings.Contains(got, "x = y AND\n") && !strings.Contains(got, "x = y and\n") {
+		t.Errorf("operator not directly after the condition: %q", got)
+	}
 }

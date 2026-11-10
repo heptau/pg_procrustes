@@ -615,6 +615,14 @@ func clauseBreakAlign(kind clauseKind, cfg *config.LayoutConfig) (config.BreakMo
 // Unlike originalText, it replaces gaps that contain a newline with a single space,
 // so content originally formatted across multiple lines is collapsed to one line.
 func inlineContent(sql string, tokens []rawTok, from, to int, parenMode config.ParenSpacingMode) string {
+	return inlineContentLines(sql, tokens, from, to, parenMode, false, "")
+}
+
+// inlineContentLines is inlineContent that, with commentLines, keeps a line comment that
+// stands on a line of its own on a line of its own (hang is the indent of the lines after a
+// line break): joined to the end of the line before, it would read as a comment on the item
+// there, not on the one after it.
+func inlineContentLines(sql string, tokens []rawTok, from, to int, parenMode config.ParenSpacingMode, commentLines bool, hang string) string {
 	if from >= to {
 		return ""
 	}
@@ -628,6 +636,10 @@ func inlineContent(sql string, tokens []rawTok, from, to int, parenMode config.P
 				switch {
 				case strings.HasPrefix(tokens[i-1].text, "--"):
 					sb.WriteByte('\n')
+					sb.WriteString(hang)
+				case commentLines && strings.HasPrefix(tokens[i].text, "--"):
+					sb.WriteByte('\n')
+					sb.WriteString(hang)
 				case tokens[i].text == ",":
 					// a line break before a leading comma joins to "a, b", not "a , b".
 				case parenMode == config.ParenSpacingRemove && (tokens[i-1].text == "(" || tokens[i].text == ")"):
@@ -947,7 +959,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// Use inlineContent instead of originalText: the original may span multiple
 			// lines (e.g. ORDER BY items each on their own line), and placing that verbatim
 			// on the same line as the keyword would embed raw newlines in the output.
-			content := inlineContent(sql, tokens, kwEnd, conEnd, cfg.ParenSpacing)
+			lineHang := clauseIndent + indentUnit
+			if riverHang != "" {
+				lineHang = riverHang
+			}
+			content := inlineContentLines(sql, tokens, kwEnd, conEnd, cfg.ParenSpacing, true, lineHang)
 			caseBase := clauseIndent
 			if riverHang != "" {
 				caseBase = riverHang
@@ -2496,6 +2512,7 @@ func moveOperatorsToEnd(items []string) []string {
 		// whole comment lines at the end of the previous item belong to the condition below
 		prev, trail := splitTrailingCommentLines(out[i-1])
 		lead = trail + lead
+		prev = strings.TrimRight(prev, " \t") // (blanks before the comment lines taken off it)
 		out[i-1] = appendBeforeComment(prev, " "+op)
 		// A comment right after the operator on its line ("AND -- why") ends the line the
 		// operator now ends, so it travels with it; one on a line of its own stays with the

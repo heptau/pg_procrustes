@@ -580,3 +580,153 @@ func TestConstraintAndIndexExpressionsReadLikeQueries(t *testing.T) {
 		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
 	}
 }
+
+// PERFORM q is read as the query q: aliases in it get their AS, and RETURN QUERY follows
+// plpgsql_keywords (unless QUERY is a variable that is returned).
+func TestPerformAliasesAndReturnQuery(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Aliases.As = config.AliasAsAdd
+		c.PLpgSQLKeywords.Case = config.CaseUpper
+	})
+	in := "create function f() returns setof int language plpgsql as $$\nbegin\n  return query select 1;\n  perform (select max(x) m from t);\n  perform 1 from (select a b from t) s;\nend $$;\n" +
+		"create function g() returns int language plpgsql as $$ declare query int; begin return query; end $$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"RETURN QUERY SELECT 1", "(SELECT max(x) AS m FROM t)", "(SELECT a AS b FROM t) AS s", "RETURN query;"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// Calls in the expressions of a PL/pgSQL body that no statement tree covers (assignments,
+// IF conditions, RETURN, statements with INTO) follow functions.case like those of SQL statements;
+// a table name before "(" (INSERT INTO t (a)) is no call.
+func TestFunctionCaseInBodyExpressions(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Functions.Case = config.CaseUpper
+	})
+	in := "create function f(p int) returns int language plpgsql as $$\ndeclare v int;\nbegin\n  v := abs(p) + my_func(p);\n  v := v + -- a comment\n    trunc(p);\n  if lower(v::text) = 'x' then\n    insert into t (a) values (round(v));\n  end if;\n  return length(my_other(v));\nend $$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"ABS(p) + MY_FUNC(p)", "LOWER(v::text)", "insert into t (a)", "ROUND(v)", "LENGTH(MY_OTHER(v))", "TRUNC(p)"} {
+		if !strings.Contains(strings.ToLower(got), strings.ToLower(want)) || (want != "insert into t (a)" && !strings.Contains(got, want)) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "INSERT INTO T (") || strings.Contains(got, "T (a)") {
+		t.Errorf("table name taken for a function:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// DDL statements in a PL/pgSQL body (CREATE TABLE / INDEX, ALTER TABLE, DROP) are laid out like
+// those at the top level: a table that does not fit on a line is broken up into one column per line.
+func TestDDLInBodyIsLaidOut(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.LineLength = 60
+		c.Layout.DDL.CreateTable.Break = config.BreakAuto
+	})
+	in := "do $$\nbegin\ncreate table t (colname text, typ text, op text[], value text[], matches int[]);\nend\n$$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "\n   colname text,\n") {
+		t.Errorf("table not broken up:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// Function calls and columns are found wherever an expression stands, not only in the places the
+// walker lists: row constructors, window frames and OVER clauses, CASE operands, IN lists, SQL
+// function bodies, EXCLUDE, domain and trigger conditions, policies. VALUE of a domain and
+// OLD / NEW of a trigger stay keywords.
+func TestExpressionsEverywhereReadLikeQueries(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Functions.Case = config.CaseUpper
+		c.Keywords.Case = config.CaseUpper
+		c.ReservedKeywords.Case = config.CaseUpper
+	})
+	in := "select (a, abs(x)) = any (select 1);\n" +
+		"select row(abs(x), 1), array[abs(x)], case abs(x) when abs(1) then 1 end;\n" +
+		"select sum(x) over (order by abs(x) rows between unbounded preceding and abs(3) following) from t;\n" +
+		"select a from t where abs(y) not in (select abs(z) from u);\n" +
+		"create function g() returns int return abs(1);\n" +
+		"create table t2 (c int, exclude using gist (abs(c) with =));\n" +
+		"create domain d int check (abs(value) > 0);\n" +
+		"create trigger tr before update on t for each row when (abs(new.a) > 0) execute function f();\n" +
+		"create policy p on t using (abs(a) > 0);\n" +
+		"select xmlforest(a as costs);\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "abs(") {
+		t.Errorf("a call was left as written:\n%s", got)
+	}
+	for _, want := range []string{"ABS(VALUE)", "ABS(NEW.a)", "XMLFOREST(a AS costs)"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// CREATE RULE / TRIGGER / POLICY in a PL/pgSQL body are statements of their own: the UPDATE of
+// `ON UPDATE TO t` or `BEFORE UPDATE ON t` does not start a query that is broken up and read
+// without the rest of its statement.
+func TestRuleAndTriggerInBodyAreNotBrokenUp(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAlways
+		c.Keywords.Case = config.CaseUpper
+		c.DataTypes.Case = config.CaseUpper
+	})
+	in := "do $$\nbegin\ncreate rule r as on update to w.s do delete from w.s where oid = 1;\ncreate trigger tr before update on t for each row execute function f();\nend\n$$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"CREATE RULE r AS ON UPDATE TO w.s DO DELETE FROM w.s WHERE oid = 1;\n", "CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION f();\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("statement broken up (missing %q) in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "OID") {
+		t.Errorf("column oid written as a type:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// blank_lines: max_1 collapses blank lines in code, but a dollar-quoted text that is no function
+// or DO body (COMMENT ON … IS $$…$$) is data and keeps its lines as written.
+func TestBlankLinesLeaveDollarQuotedTextAlone(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) { c.BlankLines = config.BlankLinesMax1 })
+	in := "comment on table t is $$one\n\n\n\ntwo$$;\n\n\n\nselect 1;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "$$one\n\n\n\ntwo$$;\n\nSELECT 1;") {
+		t.Errorf("text changed or code not collapsed:\n%q", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
