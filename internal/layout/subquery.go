@@ -143,7 +143,6 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 			continue
 		}
 		sb.WriteString(afterExpanded(sql[pos:openEnd], lastIndent, expanded && cfg.Clauses.Align != config.AlignRight))
-		expanded = false
 		indent := holderIndent(sb.String())
 		bodyIndent := indent + indentUnit
 		if strings.Contains(inner, "\n") {

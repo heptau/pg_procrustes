@@ -1716,7 +1716,6 @@ func splitAtComma(sql string, tokens []rawTok, from, to int) []string {
 	item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, to)))
 	if carry != "" {
 		item = carry + "\n" + item
-		carry = ""
 	}
 	if item != "" {
 		items = append(items, item)
