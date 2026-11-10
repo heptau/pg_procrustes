@@ -236,3 +236,18 @@ func TestSimpleCaseOperandIsJoinedOntoOneLine(t *testing.T) {
 		t.Errorf("operand not on one line: %q", got)
 	}
 }
+
+// A multi-line item of a CREATE TABLE (a CHECK with its body on lines of its own) keeps the
+// relative indentation of its lines when they are moved to the item's indent, and with
+// paren_indent.open: own_line the second run finds it as the first left it.
+func TestMultiLineTableItemKeepsRelativeIndent(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 60)
+	cfg.Content.CommaPosition = config.CommaStart
+	cfg.DDL.CreateTable.Break = config.BreakAuto
+	cfg.Indent.Size = 4
+	cfg.ParenIndent.Open = config.ParenOpenOwnLine
+	got := applyIdem(t, "CREATE TABLE t (\n   a INT,\n   CONSTRAINT chk CHECK (\n      p IS NOT NULL OR\n      (c IS NOT NULL AND d IS NOT NULL)\n   )\n);\n", cfg)
+	if !strings.Contains(got, "\n    (\n       p IS NOT NULL OR\n") {
+		t.Errorf("relative indentation lost: %q", got)
+	}
+}

@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A multi-line item of a `CREATE TABLE` (a `CHECK (…)` with its body on lines of its own) is moved to the item's indent as a whole, keeping the relative indentation of its lines; they were flattened to one column when the first line sat less deep, which with `paren_indent.open: own_line` made the second run differ from the first (found with `scripts/stmt_matrix.go`). Test `TestMultiLineTableItemKeepsRelativeIndent`
 - The operand of a simple `CASE` (`CASE (CASE … END) WHEN …`) is joined onto one line by `case.break`; its lines kept the indent they had while the rest of the expression moved, which the next run moved again (found with `scripts/stmt_matrix.go`).
 - `join_form: long` inserted `INNER` / `OUTER` in the case of the reserved keywords, but they are ordinary keywords (`keywords.case`), so a second run changed them; and `JOIN` used as an option name (`CREATE OPERATOR … (JOIN = f)`, `ALTER OPERATOR … SET (JOIN = f)`) got an `INNER` in front of it, which no longer parsed.
 - `aliases.as: remove` dropped the `AS` before `isnull` / `notnull`, which then parsed as the postfix operators (`r IS NULL AS isnull` became `r IS NULL ISNULL`): whether a keyword can be a bare alias is now decided by the parser returning it as the column name.

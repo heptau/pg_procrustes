@@ -219,26 +219,32 @@ func emitDDLItems(sb *strings.Builder, items []string, commaStart bool, indent s
 	}
 }
 
-// reindentContinuation indents the continuation lines of a multi-line item to indent
-// unless they already are (so repeated runs do not keep adding indentation).
+// reindentContinuation indents the continuation lines of a multi-line item so that none is
+// indented less than indent, shifting all of them by the same amount (their relative
+// indentation survives, and repeated runs do not keep adding indentation).
 func reindentContinuation(item, indent string) string {
 	nl := strings.IndexByte(item, '\n')
 	if nl < 0 {
 		return item
 	}
-	for _, ln := range strings.Split(item[nl+1:], "\n") {
+	parts := strings.Split(item, "\n")
+	least := -1
+	for _, ln := range parts[1:] {
 		if strings.TrimSpace(ln) == "" {
 			continue
 		}
-		if strings.HasPrefix(ln, indent) {
-			return item
+		w := len(ln) - len(strings.TrimLeft(ln, " \t"))
+		if least < 0 || w < least {
+			least = w
 		}
-		break
 	}
-	parts := strings.Split(item, "\n")
+	if least < 0 || least >= len(indent) {
+		return item
+	}
+	shift := indent[:len(indent)-least]
 	for j := 1; j < len(parts); j++ {
 		if strings.TrimSpace(parts[j]) != "" {
-			parts[j] = indent + strings.TrimLeft(parts[j], " \t")
+			parts[j] = shift + parts[j]
 		}
 	}
 	return strings.Join(parts, "\n")
