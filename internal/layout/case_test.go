@@ -323,3 +323,12 @@ func TestSQLCaseExpandKeepsKeywordCase(t *testing.T) {
 	assertLayoutFormat(t, "select case when a then 1 else 2 end from t", cfg,
 		"select case\n  when a then 1\n  else 2\nend from t")
 }
+
+// A CASE that is joined to one line (break: never, or short in auto) keeps the blanks of its
+// text: `a.b`, `f(x, y)`, `x::int`, `a[1]` — they were spread to `a . b`, `f ( x , y )`.
+func TestSQLCaseNeverKeepsGapsOfTokens(t *testing.T) {
+	sql := "SELECT CASE\n  WHEN EXISTS (SELECT 1 FROM s.t WHERE id = f(1, 2) AND x::int > 3 AND a[1] = b)\n  THEN format('x %s', a)\n  ELSE upper(b) END AS m FROM t"
+	want := "SELECT CASE WHEN EXISTS (SELECT 1 FROM s.t WHERE id = f(1, 2) AND x::int > 3 AND a[1] = b) THEN format('x %s', a) ELSE upper(b) END AS m FROM t"
+	cfg := caseCfg(config.BreakNever, config.BodyIndentIndent, 128)
+	assertLayoutFormat(t, sql, cfg, want)
+}

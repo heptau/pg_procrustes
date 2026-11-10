@@ -258,7 +258,7 @@ func TestPLpgSQLCaseSimpleBodyBreakAlways(t *testing.T) {
 	src := wrap("BEGIN\n   CASE x\n      WHEN 1 THEN y := 'a';\n   END CASE;\nEND")
 	got, err := formatter.Format(src, c)
 	// Body stripped of leading whitespace and placed after \n; BodyIndent=preserve skips renormalization.
-	want := wrap("BEGIN\n   CASE x\n   WHEN 1 THEN\ny := 'a';\n   END CASE;\nEND")
+	want := wrap("BEGIN\n   CASE x\n   WHEN 1 THEN\n      y := 'a';\n   END CASE;\nEND")
 	assertFormat(t, got, want, err)
 }
 
@@ -298,7 +298,7 @@ func TestPLpgSQLCaseSimpleMultiStmtBody(t *testing.T) {
 	c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAlways
 	src := wrap("BEGIN\n   CASE x\n      WHEN 1 THEN y := 'a'; z := 'b';\n   END CASE;\nEND")
 	got, err := formatter.Format(src, c)
-	want := wrap("BEGIN\n   CASE x\n   WHEN 1 THEN\ny := 'a'; z := 'b';\n   END CASE;\nEND")
+	want := wrap("BEGIN\n   CASE x\n   WHEN 1 THEN\n      y := 'a'; z := 'b';\n   END CASE;\nEND")
 	assertFormat(t, got, want, err)
 }
 
@@ -426,7 +426,7 @@ func TestPLpgSQLCaseSearchedBodyBreakAlways(t *testing.T) {
 	c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Searched.BodyBreak = config.BreakAlways
 	src := wrap("BEGIN\n   CASE\n      WHEN x = 1 THEN y := 'a';\n   END CASE;\nEND")
 	got, err := formatter.Format(src, c)
-	want := wrap("BEGIN\n   CASE\n   WHEN x = 1 THEN\ny := 'a';\n   END CASE;\nEND")
+	want := wrap("BEGIN\n   CASE\n   WHEN x = 1 THEN\n      y := 'a';\n   END CASE;\nEND")
 	assertFormat(t, got, want, err)
 }
 

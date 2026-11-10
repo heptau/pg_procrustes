@@ -312,3 +312,19 @@ func TestMovedOperatorFollowsNoTrailingBlanks(t *testing.T) {
 		t.Errorf("operator not directly after the condition: %q", got)
 	}
 }
+
+// subquery.break: auto with paren_indent set: the indentation of the line comes later, so the
+// blanks in front of it are no part of what is measured (the second run found the line shorter).
+func TestSubqueryAutoIgnoresIndentThatParenIndentSets(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentPreserve, 40)
+	cfg.Subquery.Break = config.BreakAuto
+	cfg.ParenIndent.Mode = config.ParenIndentNone
+	applyIdem(t, "SELECT * FROM generate_series(1,1000) g\n    WHERE g in (select val1 from sj_narrow);", cfg)
+}
+
+// A CASE measured for case.break: auto is measured as it is written when joined: runs of blanks
+// in it are one blank (the next run measures the text this one wrote).
+func TestCaseAutoMeasuresJoinedText(t *testing.T) {
+	cfg := caseCfg(config.BreakAuto, config.BodyIndentIndent, 60)
+	applyIdem(t, "SELECT CASE\n    WHEN a   IS NOT NULL THEN   format('x %s', b)\n    ELSE   format('y %s', c)   END FROM t", cfg)
+}

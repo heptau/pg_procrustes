@@ -135,7 +135,7 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 	lastIndent, expanded := "", false
 	for _, sq := range subs {
 		openEnd := tokens[sq.open].end
-		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength, cfg.ParenIndent.Open == config.ParenOpenOwnLine, indentUnit, cfg.CommaSpacing == config.CommaSpacingCompact) {
+		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength, cfg.ParenIndent.Open == config.ParenOpenOwnLine, indentUnit, cfg.CommaSpacing == config.CommaSpacingCompact, cfg.IndentSetLater || cfg.ParenIndent.Mode != config.ParenIndentPreserve && cfg.ParenIndent.Mode != "") {
 			continue
 		}
 		inner := strings.TrimSpace(sql[openEnd:tokens[sq.close].start])
@@ -194,7 +194,7 @@ func afterExpanded(seg, indent string, expanded bool) string {
 // `(` that paren_indent.open: own_line has put on a line of its own stands where the line before
 // it ends (`FROM` + `(`) — the decision must not depend on which of these the text happens to be
 // in, or the next run would take the opposite one.
-func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bool, indentUnit string, commaCompact bool) bool {
+func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bool, indentUnit string, commaCompact, setLater bool) bool {
 	ls := strings.LastIndexByte(sql[:start], '\n') + 1
 	front := sql[ls:start]
 	if ownLineParen && strings.TrimSpace(front) == "" && ls > 0 {
@@ -219,6 +219,11 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 	}
 	if i := strings.LastIndexByte(front, ')'); i >= 0 {
 		front = front[i+1:]
+	}
+	if setLater {
+		// paren_indent sets the indentation of the lines afterwards: the blanks in front of this one
+		// are not the ones it ends up with (a second run would measure those)
+		front = strings.TrimLeft(front, " \t")
 	}
 	front = collapseBlanks(front)
 	rest = collapseBlanks(rest)

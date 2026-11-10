@@ -22,7 +22,42 @@ import (
 	"github.com/heptau/pg_procrustes/formatter"
 )
 
+// check mode: stmt_matrix -check <config> <file.sql> prints what is wrong with the file formatted
+// with the config (unparseable, not-idempotent, data-changed, tree-changed) or "ok".
+func check(cfgPath, file string) {
+	c, err := config.Load(cfgPath)
+	if err != nil {
+		fmt.Println("config-error")
+		return
+	}
+	b, _ := os.ReadFile(file)
+	in := string(b)
+	out, err := formatter.Format(in, c)
+	switch {
+	case err != nil:
+		fmt.Println("input-error")
+	case func() bool { _, e := pg_query.Parse(out); return e != nil }():
+		fmt.Println("unparseable")
+	case func() bool { o2, e := formatter.Format(out, c); return e != nil || o2 != out }():
+		fmt.Println("not-idempotent")
+	case !sameConstants(in, out):
+		fmt.Println("data-changed")
+	case !strings.Contains(in, "$") && func() bool {
+		x, e1 := pg_query.Fingerprint(in)
+		y, e2 := pg_query.Fingerprint(out)
+		return e1 == nil && e2 == nil && x != y
+	}():
+		fmt.Println("tree-changed")
+	default:
+		fmt.Println("ok")
+	}
+}
+
 func main() {
+	if os.Args[1] == "-check" {
+		check(os.Args[2], os.Args[3])
+		return
+	}
 	dir := os.Args[1]
 	max, _ := strconv.Atoi(os.Args[2])
 	cfgs := map[string]*config.Config{}
@@ -59,7 +94,7 @@ func main() {
 		}
 		for _, st := range stmts {
 			t := strings.TrimSpace(st)
-			if t == "" || len(t) > 2500 || strings.Contains(t, "$$") || strings.Contains(t, "$_$") {
+			if t == "" || len(t) > 6000 || strings.HasPrefix(strings.ToUpper(t), "DO ") {
 				continue
 			}
 			if _, err := pg_query.Parse(t); err != nil {
@@ -89,7 +124,11 @@ func main() {
 				for _, wrap := range []bool{false, true} {
 					in := j.text + ";\n"
 					if wrap {
-						in = "DO $$\nBEGIN\n" + j.text + ";\nEND\n$$;\n"
+						tag := "$$"
+						if strings.Contains(j.text, "$$") {
+							tag = "$w$" // (the statement has dollar-quoted text of its own)
+						}
+						in = "DO " + tag + "\nBEGIN\n" + j.text + ";\nEND\n" + tag + ";\n"
 					}
 					out, err := formatter.Format(in, cfgs[n])
 					if err != nil {
@@ -100,7 +139,9 @@ func main() {
 						kind = "unparseable"
 					} else if out2, err := formatter.Format(out, cfgs[n]); err != nil || out2 != out {
 						kind = "not-idempotent"
-					} else if fpCfg[n] && !wrap {
+					} else if !sameConstants(in, out) {
+						kind = "data-changed"
+					} else if fpCfg[n] && !wrap && !strings.Contains(in, "$") { // (a body of code is formatted: its text changes)
 						a, e1 := pg_query.Fingerprint(in)
 						b, e2 := pg_query.Fingerprint(out)
 						if e1 == nil && e2 == nil && a != b {
@@ -133,4 +174,71 @@ func main() {
 	if len(keys) == 0 {
 		fmt.Println("no problems")
 	}
+}
+
+// constants lists the string constants of sql as written (single-quoted strings, dollar-quoted
+// texts that are no function body; the strings inside function bodies, which are code).
+func constants(sql string) []string {
+	res, err := pg_query.Scan(sql)
+	if err != nil {
+		return nil
+	}
+	word := func(i int) string {
+		if i < 0 || i >= len(res.Tokens) {
+			return ""
+		}
+		return strings.ToLower(sql[res.Tokens[i].Start:res.Tokens[i].End])
+	}
+	var out []string
+	for k, t := range res.Tokens {
+		text := sql[t.Start:t.End]
+		switch {
+		case strings.HasPrefix(text, "$"):
+			prev := word(k - 1)
+			doLang := k >= 3 && word(k-2) == "language" && word(k-3) == "do"
+			code := prev == "as" || prev == "do" || doLang
+			if code {
+				lo, hi := k, k
+				for lo > 0 && word(lo-1) != ";" {
+					lo--
+				}
+				for hi < len(res.Tokens) && word(hi) != ";" {
+					hi++
+				}
+				for i := lo; i+1 < hi; i++ {
+					if word(i) == "language" {
+						l := strings.Trim(word(i+1), `'"`)
+						code = l == "sql" || l == "plpgsql"
+						break
+					}
+				}
+			}
+			if code {
+				if i := strings.IndexByte(text[1:], '$'); i >= 0 {
+					open := i + 2
+					if end := len(text) - open; end > open {
+						out = append(out, constants(text[open:end])...)
+					}
+				}
+			} else {
+				out = append(out, text)
+			}
+		case strings.HasPrefix(text, "'") || len(text) > 1 && strings.ContainsRune("eEbBxXnN", rune(text[0])) && text[1] == '\'' || strings.HasPrefix(text, "U&'") || strings.HasPrefix(text, "u&'"):
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+func sameConstants(a, b string) bool {
+	x, y := constants(a), constants(b)
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }

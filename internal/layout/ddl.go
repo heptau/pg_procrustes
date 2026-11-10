@@ -804,7 +804,7 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 				if isSet(pm) && lowerAtTok(tokens, s, end) == "returns" && lowerAtTok(tokens, s+1, end) == "table" &&
 					lowerAtTok(tokens, s+2, end) == "(" && matchParenTok(tokens, s+2, end) == end-1 &&
 					!hasLineComment(tokens, s, end) && end-1 > s+3 &&
-					shouldBreak(runeLen(baseIndent)+runeLen(text), pm, cfg.LineLength) {
+					shouldBreak(runeLen(baseIndent)+tableColsWidth(text, cfg), pm, cfg.LineLength) {
 					cols := splitAtComma(sql, tokens, s+3, end-1)
 					var rt strings.Builder
 					rt.WriteString(inlineContent(sql, tokens, s, s+2, cfg.ParenSpacing))
@@ -821,4 +821,13 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 	}
 	finishDDL(&sb, tokens, stmt)
 	return sb.String(), true
+}
+
+// tableColsWidth is the width of a RETURNS TABLE (…) text as the line ends up, with the blanks
+// after the commas that comma_spacing: compact takes off in the token pass that follows.
+func tableColsWidth(text string, cfg *config.LayoutConfig) int {
+	if cfg.CommaSpacing == config.CommaSpacingCompact {
+		text = unspaceCommas(text)
+	}
+	return runeLen(text)
 }

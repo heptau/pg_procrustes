@@ -1085,7 +1085,7 @@ trailing_whitespace: strip   # strip | preserve
 
 semicolons: preserve         # preserve | add | remove
                              #   add:     append ';' if missing
-                             #   remove:  strip all ';'
+                             #   remove:  strip the ';' that ends the text (the ones between statements and in bodies are needed)
 
 inequality_op: c             # preserve | ansi | c
 plpgsql_assignment: preserve # preserve | colon_equals | equals   (PL/pgSQL x := 1 / x = 1 and DECLARE defaults;

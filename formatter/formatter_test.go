@@ -616,7 +616,7 @@ func TestSemicolonRemove(t *testing.T) {
 		p3cfg(config.SemicolonRemove, config.InequalityPreserve, config.JoinFormPreserve,
 			config.OperatorSpacingPreserve, config.BlankLinesPreserve,
 			config.ParenSpacingPreserve, config.QuotedIdentPreserve))
-	assertFormat(t, got, "SELECT 1 SELECT 2", err)
+	assertFormat(t, got, "SELECT 1; SELECT 2", err) // (only the ";" that ends the text goes: the other one separates the statements)
 }
 
 func TestSemicolonAdd(t *testing.T) {

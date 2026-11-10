@@ -1273,6 +1273,50 @@ func isOnlyHorizontalWS(s string) bool {
 // inserted when adding a trailing semicolon. It skips blank lines and
 // comment-only lines (trimmed prefix "--") at the end, and for the first
 // real line it inserts before any inline "-- comment" suffix.
+// tabIndentAfterLayout reports whether the layout turns the indentation of the lines into tabs
+// (indent.type: tab with indent.normalize: change) after the comments were aligned: columns of
+// lines indented with tabs cannot be told, so they are not aligned in the first place.
+func tabIndentAfterLayout(cfg *config.Config) bool {
+	return cfg.Layout.Indent.Type == config.IndentTypeTab && cfg.Layout.Indent.Normalize == config.IndentNormalizeChange
+}
+
+// blankIndentTabWidth is the width of a tab when the layout turns the tabs of the lines into
+// blanks (indent.type: spaces with indent.normalize: change) after the comments were aligned, else 0.
+func blankIndentTabWidth(cfg *config.Config) int {
+	if cfg.Layout.Indent.Type != config.IndentTypeTab && cfg.Layout.Indent.Normalize == config.IndentNormalizeChange {
+		if n := cfg.Layout.Indent.Size; n > 0 {
+			return n
+		}
+		return 4
+	}
+	return 0
+}
+
+// removeFinalSemicolon takes off the ';' that ends the text (the last token that is code), with the
+// blanks before it; a comment after it stays.
+func removeFinalSemicolon(s string) string {
+	res, err := pg_query.Scan(s)
+	if err != nil {
+		return s
+	}
+	for k := len(res.Tokens) - 1; k >= 0; k-- {
+		t := res.Tokens[k]
+		text := s[t.Start:t.End]
+		if strings.HasPrefix(text, "--") || strings.HasPrefix(text, "/*") {
+			continue
+		}
+		if text != ";" {
+			return s
+		}
+		start := int(t.Start)
+		for start > 0 && (s[start-1] == ' ' || s[start-1] == '\t') {
+			start--
+		}
+		return s[:start] + s[t.End:]
+	}
+	return s
+}
+
 func semicolonInsertPos(s string) int {
 	// Trailing comments of either kind (-- and /* … */, also over several lines) are skipped:
 	// the ';' goes right after the last token that is code.
@@ -1440,14 +1484,8 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		return -1
 	}
 
-	// Semicolons: skip ';' tokens (and their preceding gap, which is usually empty).
-	if cfg.Semicolons == config.SemicolonRemove {
-		for i, tok := range tokens {
-			if tok.text == ";" {
-				skip[i] = true
-			}
-		}
-	}
+	// (semicolons: remove takes off the final ';' of the whole text, in finishWholeText: the ones
+	// between statements and inside PL/pgSQL bodies are needed.)
 
 	// JOIN form: short — erase INNER before JOIN; erase OUTER between direction+JOIN.
 	if cfg.JoinForm == config.JoinFormShort {
@@ -1846,7 +1884,9 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			// A keyword-spelled name ("year", "name") the AST did not place (inside a PL/pgSQL
 			// expression, say), or spelled like a type or a literal ("date", "text"), would be read — and
 			// cased — as that on the next run: its quotes stay.
-			if safeToUnquote(inner) && (located || !isKeywordName(inner) && !dataTypeNames[inner] && !literalNames[inner]) {
+			// (a name after AS that no tree located — the name in XMLFOREST(a AS "x") — keeps its quotes: the next run would
+			// read it as a column and case it)
+			if safeToUnquote(inner) && (located || !isKeywordName(inner) && !dataTypeNames[inner] && !literalNames[inner] && !strings.EqualFold(prevTokenText, "as")) {
 				// select"a" → SELECT a, not SELECTa: keep a separator after a word.
 				// An unquoted alias still follows aliases.as / aliases.case; other
 				// identifiers follow their own section's case rule when the AST located them.
@@ -1864,6 +1904,10 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 					inner = applyCaseEx(inner, cfg.Tables.Case, cfg.Tables.Exceptions)
 				case pos.schemas[tok.start]:
 					inner = applyCaseEx(inner, cfg.Schemas.Case, cfg.Schemas.Exceptions)
+				case prevTokenText == "." && !pos.functions[tok.start]:
+					// (a name after a dot that no tree located — COMMENT ON COLUMN t."c" — is read as a
+					// column once it is unquoted)
+					inner = applyCaseEx(inner, cfg.Columns.Case, cfg.Columns.Exceptions)
 				}
 				ensureSeparator(&buf)
 				buf.WriteString(inner)
@@ -2092,7 +2136,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		result = compactGaps(result, cfg.CommaSpacing == config.CommaSpacingCompact, cfg.OperatorSpacing == config.OperatorSpacingCompact)
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
-		result = alignTrailingComments(result)
+		result = alignTrailingComments(result, tabIndentAfterLayout(cfg), blankIndentTabWidth(cfg))
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignNone {
 		result = collapseTrailingCommentGap(result)
@@ -2792,35 +2836,91 @@ func isDollarQuoted(s string) bool {
 }
 
 // applyBodyIndent applies the BodyIndentMode to a multi-line block of content.
+// applySectionIndent is applyBodyIndent for the text after a keyword (DECLARE, BEGIN): what
+// follows the keyword on its own line (`DECLARE x int;`) stays where it is.
+func applySectionIndent(content, indentUnit string, mode config.BodyIndentMode) string {
+	nl := strings.IndexByte(content, '\n')
+	switch {
+	case nl < 0 && strings.TrimSpace(content) != "":
+		return content // all on the line of the keyword
+	case nl > 0 && strings.TrimSpace(content[:nl]) != "":
+		return content[:nl] + applyBodyIndent(content[nl:], indentUnit, mode)
+	}
+	return applyBodyIndent(content, indentUnit, mode)
+}
+
 func applyBodyIndent(content, indentUnit string, mode config.BodyIndentMode) string {
 	if mode == config.BodyIndentPreserve || mode == "" || content == "" {
 		return content
 	}
 	lines := strings.Split(content, "\n")
-	if mode == config.BodyIndentNone {
-		minIndent := findMinIndent(lines)
-		result := make([]string, len(lines))
-		for i, line := range lines {
-			if strings.TrimSpace(line) == "" {
-				result[i] = ""
-			} else {
-				result[i] = strings.TrimPrefix(line, minIndent)
-			}
+	inside := linesInsideTokens(content, len(lines)) // (data: string constants, nested bodies, block comments)
+	var code []string
+	for i, line := range lines {
+		if !inside[i] {
+			code = append(code, line)
 		}
-		return strings.Join(result, "\n")
 	}
-	// mode == BodyIndentIndent: normalise to exactly one indent level —
-	// strip existing indent first, then add indentUnit.
-	minIndent := findMinIndent(lines)
+	minIndent := findMinIndent(code)
 	result := make([]string, len(lines))
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "" {
+		switch {
+		case inside[i]:
+			result[i] = line
+		case strings.TrimSpace(line) == "":
 			result[i] = ""
-		} else {
+		case mode == config.BodyIndentNone:
+			result[i] = strings.TrimPrefix(line, minIndent)
+		default:
+			// mode == BodyIndentIndent: normalise to exactly one indent level —
+			// strip existing indent first, then add indentUnit.
 			result[i] = indentUnit + strings.TrimPrefix(line, minIndent)
 		}
 	}
 	return strings.Join(result, "\n")
+}
+
+// reindentContinuation replaces the indent oldIndent that starts the lines of seg after its first
+// one by newIndent (the lines of a condition that moves with the keyword line it belongs to).
+func reindentContinuation(seg, oldIndent, newIndent string) string {
+	nl := strings.IndexByte(seg, '\n')
+	if nl < 0 {
+		return seg
+	}
+	inside := linesInsideTokens(seg, strings.Count(seg, "\n")+1)
+	lines := strings.Split(seg, "\n")
+	for i := 1; i < len(lines); i++ {
+		last := i == len(lines)-1 // (the indent of the keyword that ends the segment)
+		if !inside[i] && strings.HasPrefix(lines[i], oldIndent) && (last && lines[i] != "" || strings.TrimSpace(lines[i]) != "") {
+			lines[i] = newIndent + lines[i][len(oldIndent):]
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// linesInsideTokens reports, for each of the n lines of text, whether the line starts inside a
+// token that spans lines (a string constant, a nested dollar-quoted body, a block comment): its
+// blanks are data, not indentation.
+func linesInsideTokens(text string, n int) []bool {
+	inside := make([]bool, n)
+	res, err := pg_query.Scan(text)
+	if err != nil {
+		return inside
+	}
+	lineOf := func(off int) int { return strings.Count(text[:off], "\n") }
+	for _, t := range res.Tokens {
+		tok := text[t.Start:t.End]
+		if !strings.Contains(tok, "\n") {
+			continue
+		}
+		first := lineOf(int(t.Start))
+		for k := 1; k <= strings.Count(tok, "\n"); k++ {
+			if first+k < n {
+				inside[first+k] = true
+			}
+		}
+	}
+	return inside
 }
 
 // applyBodySectionBlanks ensures the correct number of leading/trailing newlines
@@ -2924,6 +3024,10 @@ func formatDollarQuoted(s string, cfg *config.Config, vars map[string]bool) (str
 	// A body is a fragment of the file: whole-file settings must not touch its edges
 	// (trailing_newline: strip would glue the closing delimiter to the last line).
 	cfgInner.TrailingNewline = config.TrailingNewlinePreserve
+	// The ';' after the END of a body is end_semicolon when that is set; semicolons gives way to it.
+	if es := cfg.Layout.DollarQuote.PLpgSQL.EndSemicolon; es == config.EndSemicolonAdd || es == config.EndSemicolonRemove {
+		cfgInner.Semicolons = config.SemicolonPreserve
+	}
 	// Nor does the blank line between statements: inside a body it would also separate the last
 	// statement from END (the plpgsql blank-line settings are layout.dollar_quote.plpgsql).
 	cfgInner.BlankLinesBetweenStatements = "preserve"
@@ -2976,7 +3080,7 @@ func formatDollarQuoted(s string, cfg *config.Config, vars map[string]bool) (str
 		resultBody = compactGaps(resultBody, cfg.CommaSpacing == config.CommaSpacingCompact, cfg.OperatorSpacing == config.OperatorSpacingCompact)
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignAlign {
-		resultBody = alignTrailingComments(resultBody)
+		resultBody = alignTrailingComments(resultBody, tabIndentAfterLayout(cfg), blankIndentTabWidth(cfg))
 	}
 	if cfg.Comments.AlignTrailing == config.CommentAlignNone {
 		resultBody = collapseTrailingCommentGap(resultBody)
@@ -3242,7 +3346,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 			trimHWS()
 			sb.WriteString(kwIndent)
 			sb.WriteString(body[declareKwStart:declareKwEnd]) // preserve original casing
-			decl := applyBodyIndent(declBody, indentUnit, plCfg.Declare.Indent)
+			decl := applySectionIndent(declBody, indentUnit, plCfg.Declare.Indent)
 			decl = applyBodySectionBlanks(decl, plCfg.Declare.BlankLineBefore, plCfg.Declare.BlankLineAfter)
 			sb.WriteString(decl)
 		}
@@ -3260,10 +3364,10 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 	} else {
 		beginBody = body[beginBodyStart:endKwStart]
 	}
-	bb := applyBodyIndent(beginBody, indentUnit, plCfg.BeginBody.Indent)
+	bb := applySectionIndent(beginBody, indentUnit, plCfg.BeginBody.Indent)
 	bb = applyBodySectionBlanks(bb, plCfg.BeginBody.BlankLineBefore, plCfg.BeginBody.BlankLineAfter)
 	if !controlFlowIsNoop(plCfg.ControlFlow) {
-		bb = reformatControlFlow(bb, indentUnit, plCfg.ControlFlow, cfg.Layout.LineLength)
+		bb = reformatControlFlow(bb, indentUnit, plCfg.ControlFlow, cfg.Layout.LineLength, plCfg.BeginBody.Indent == config.BodyIndentNone)
 	}
 	sb.WriteString(bb)
 
@@ -3274,7 +3378,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 		sb.WriteString(body[exceptionKwStart:exceptionKwEnd])
 		eb := body[exceptionBodyStart:endKwStart]
 		if !controlFlowIsNoop(plCfg.ControlFlow) {
-			eb = reformatControlFlow(eb, indentUnit, plCfg.ControlFlow, cfg.Layout.LineLength)
+			eb = reformatControlFlow(eb, indentUnit, plCfg.ControlFlow, cfg.Layout.LineLength, plCfg.BeginBody.Indent == config.BodyIndentNone)
 		}
 		sb.WriteString(eb)
 	}
@@ -3371,7 +3475,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	// prefix that the result replaces (layout.clauses.align: right pads the first keyword).
 	applyLayoutToSQL := func(prefix, sqlText string) (out string, ok bool, drop int) {
 		baseIndent := lastLineIndent(prefix)
-		lc := layoutConfig(cfg)
+		lc := bodyLayoutConfig(cfg)
 		if lc.Clauses.Align == config.AlignRight && strings.TrimSpace(prefix[strings.LastIndexByte(prefix, '\n')+1:]) != "" {
 			// RETURN QUERY SELECT …: the statement does not start its line, so there is no
 			// edge to pad its keyword to
@@ -3381,8 +3485,10 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			// The blanks in front of the statement may be the river padding of a former run:
 			// the body indent is what they share with the lines below.
 			base := baseIndent
-			for _, ln := range strings.Split(sqlText, "\n")[1:] {
-				if strings.TrimSpace(ln) == "" {
+			sqlLines := strings.Split(sqlText, "\n")
+			sqlInside := linesInsideTokens(sqlText, len(sqlLines)) // (lines of a string constant are data)
+			for li, ln := range sqlLines[1:] {
+				if strings.TrimSpace(ln) == "" || sqlInside[li+1] {
 					continue
 				}
 				ind := ln[:len(ln)-len(strings.TrimLeft(ln, " \t"))]
@@ -3414,7 +3520,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		// line of its own to take an indent from: broken up, its lines would land at the margin and
 		// move on every run. It keeps its place; only the token rules above apply to it.
 		before := body[:lastEnd+len(prefix)] // (prefix is body[lastEnd:start of the statement])
-		if lastLine := before[strings.LastIndexByte(before, '\n')+1:]; strings.HasSuffix(strings.TrimRight(lastLine, " \t"), ";") {
+		if lastLine := before[strings.LastIndexByte(before, '\n')+1:]; strings.HasSuffix(strings.TrimRight(lastLine, " \t"), ";") || endsWithOpenerWord(lastLine) {
 			if !preChanged {
 				return "", false, 0
 			}
@@ -3472,7 +3578,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			prefix := body[lastEnd:condStart]
 			head := prefix[strings.LastIndexByte(prefix, '\n')+1:]
 			text := head + body[condStart:tokStart]
-			if out := layout.ExpandSubqueries(text, layoutConfig(cfg)); out != text {
+			if out := layout.ExpandSubqueries(text, bodyLayoutConfig(cfg)); out != text {
 				result.WriteString(prefix[:len(prefix)-len(head)])
 				result.WriteString(out)
 			} else {
@@ -3554,6 +3660,18 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	// Flush any remaining body content.
 	result.WriteString(body[lastEnd:])
 	return result.String(), nil
+}
+
+// endsWithOpenerWord reports whether a line of a PL/pgSQL body ends with THEN, ELSE or LOOP followed by
+// nothing else (a statement that follows it is on the line of its opener: `if a then select …;`).
+func endsWithOpenerWord(line string) bool {
+	t := strings.ToLower(strings.TrimSpace(line))
+	for _, w := range []string{"then", "else", "loop"} {
+		if t == w || strings.HasSuffix(t, " "+w) || strings.HasSuffix(t, "\t"+w) {
+			return true
+		}
+	}
+	return false
 }
 
 // bodyOpaqueDDL reports whether the token ti opens a CREATE / ALTER of a rule, trigger, policy or
@@ -3641,8 +3759,11 @@ func stripLeadingIndent(sql, indent string) string {
 		return sql
 	}
 	lines := strings.SplitAfter(sql, "\n")
+	inside := linesInsideTokens(sql, len(lines)) // (the lines of a string constant are data)
 	for i := 1; i < len(lines); i++ {
-		lines[i] = strings.TrimPrefix(lines[i], indent)
+		if !inside[i] {
+			lines[i] = strings.TrimPrefix(lines[i], indent)
+		}
 	}
 	return strings.Join(lines, "")
 }
@@ -3654,9 +3775,10 @@ func reindentLines(sql, baseIndent string) string {
 		return sql
 	}
 	lines := strings.SplitAfter(sql, "\n")
+	inside := linesInsideTokens(sql, len(lines)) // (the lines of a string constant are data)
 	var sb strings.Builder
 	for i, line := range lines {
-		if i == 0 || strings.TrimRight(line, "\n") == "" {
+		if i == 0 || strings.TrimRight(line, "\n") == "" || inside[i] {
 			sb.WriteString(line)
 		} else {
 			sb.WriteString(baseIndent)
@@ -3700,7 +3822,7 @@ func controlFlowIsNoop(cfg config.ControlFlowCfg) bool {
 // END IF, LOOP/END LOOP and CASE/END CASE constructs within a PL/pgSQL begin body.
 // lineLength is used for auto-break decisions within CASE branches.
 // It is called after applyBodyIndent so all lines already carry their base indent.
-func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lineLength int) string {
+func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lineLength int, flush bool) string {
 	if controlFlowIsNoop(cfg) {
 		return body
 	}
@@ -3708,6 +3830,15 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 	scanResult, err := pg_query.Scan(body)
 	if err != nil {
 		return body
+	}
+
+	// Depth 1 is one indent unit, or no indent at all when the body of BEGIN is flush left
+	// (begin_body.indent: none); each further level adds one unit.
+	indentAt := func(depth int) string {
+		if flush && depth > 0 {
+			depth--
+		}
+		return strings.Repeat(indentUnit, depth)
 	}
 
 	// cfEvent types
@@ -3912,11 +4043,18 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			return seg
 		}
 		lines := strings.Split(seg, "\n")
+		inside := linesInsideTokens(seg, len(lines)) // (the lines of a string constant are data)
 		// A segment starts right after an opener keyword: its first line is the rest of the keyword's
 		// line (IF a THEN RETURN 1; ELSE …), not a line of its own, and keeps its place.
-		minInd := findMinIndent(lines[1:])
+		var codeLines []string
+		for i, line := range lines[1:] {
+			if !inside[i+1] {
+				codeLines = append(codeLines, line)
+			}
+		}
+		minInd := findMinIndent(codeLines)
 		for i, line := range lines {
-			if i == 0 || strings.TrimSpace(line) == "" {
+			if i == 0 || strings.TrimSpace(line) == "" || inside[i] {
 				continue
 			}
 			stripped := strings.TrimPrefix(line, minInd)
@@ -3933,13 +4071,8 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		}
 		lastNL := strings.LastIndexByte(preceding, '\n')
 		if lastNL < 0 {
-			// keyword is on the same line as previous content
-			switch action {
-			case config.BlankLineRemove:
-				return "\n" + preceding
-			case config.BlankLineAdd:
-				return "\n\n" + preceding
-			}
+			// the keyword is on the same line as the content before it (`if a then x := 1; end if;`):
+			// there is no line of its own to put blank lines before
 			return preceding
 		}
 		beforeLastNL := preceding[:lastNL] // content lines
@@ -3959,14 +4092,32 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		if action == config.BlankLinePreserve || action == "" {
 			return following
 		}
+		// a comment after the keyword on its line (`ELSE -- why`) stays there: the blank lines
+		// are those after it
+		head := ""
+		if nl := strings.IndexByte(following, '\n'); nl >= 0 {
+			if t := strings.TrimSpace(following[:nl]); strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*") {
+				head, following = following[:nl], following[nl:]
+			}
+		}
+		if head == "" && !strings.HasPrefix(strings.TrimLeft(following, " \t"), "\n") && strings.TrimSpace(following) != "" {
+			return following // a statement on the line of the keyword (`then x := 1;`): no blank lines to adjust
+		}
+		if t := strings.TrimLeft(following, " \t"); strings.HasPrefix(t, "\n") {
+			following = t // (blanks left behind on the keyword's line)
+		}
 		stripped := strings.TrimLeft(following, "\n")
+		if strings.TrimSpace(following) == "" {
+			// nothing but blanks up to the next keyword: its indent is what stays
+			stripped = following[strings.LastIndexByte(following, '\n')+1:]
+		}
 		switch action {
 		case config.BlankLineRemove:
-			return "\n" + stripped
+			return head + "\n" + stripped
 		case config.BlankLineAdd:
-			return "\n\n" + stripped
+			return head + "\n\n" + stripped
 		}
-		return following
+		return head + following
 	}
 
 	// branchCfgFor returns the appropriate CaseBranchCfg based on whether the CASE is simple.
@@ -4023,6 +4174,9 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 	// collapseToSameLine strips leading whitespace/newlines from s and prepends a single space.
 	// Used to move body content onto the same line as the preceding keyword.
 	collapseToSameLine := func(s string) string {
+		if strings.Contains(s, "--") {
+			return s // a line comment ends its line: what follows may not be joined onto it
+		}
 		stripped := strings.TrimLeft(s, " \t\n")
 		if stripped == "" {
 			return ""
@@ -4062,7 +4216,11 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			// Compute breakBefore / collapseBefore for THEN.
 			whenEv := events[ei-1] // always evWHEN immediately before evCASETHEN
 			valSeg := body[whenEv.end:ev.start]
-			switch bc.ThenBreak {
+			thenBreak := bc.ThenBreak
+			if strings.Contains(valSeg, "--") {
+				thenBreak = config.BreakPreserve // WHEN x -- why \n THEN …: THEN stays on the line after the comment
+			}
+			switch thenBreak {
 			case config.BreakNever:
 				dec.collapseBefore = true
 			case config.BreakAlways:
@@ -4127,9 +4285,16 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 	var out strings.Builder
 	out.Grow(len(body) + len(body)/4)
 	pos := 0
+	// the indent an IF / ELSIF line had and got: the lines of its condition (up to THEN) move with it
+	var condOld, condNew string
+	condPending := false
 
 	for ei, ev := range events {
 		segText := body[pos:ev.start]
+		if condPending && (ev.kind == evTHEN || ev.kind == evCASETHEN) && condOld != condNew {
+			segText = reindentContinuation(segText, condOld, condNew)
+		}
+		condPending = false
 
 		// Determine body-indent mode and opener depth from the previous event.
 		// For CASE openers (evCASETHEN, evCASEELSE), caseDecisions overrides behaviour.
@@ -4185,8 +4350,15 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			if dec.collapseAfter {
 				segText = collapseToSameLine(segText)
 			} else if dec.breakAfter {
-				// Force body onto new line — strip all leading whitespace then add \n.
-				stripped := strings.TrimLeft(segText, " \t\n")
+				// Force body onto new line. A body that already starts on a line of its own keeps the
+				// indent it has; one that follows the keyword gets the indent of its depth.
+				rest := strings.TrimLeft(segText, " \t")
+				var stripped string
+				if strings.HasPrefix(rest, "\n") {
+					stripped = strings.TrimLeft(rest, "\n")
+				} else {
+					stripped = indentAt(bodyDepthForOpener(events[prevOpenerEI])) + rest
+				}
 				if bc.BlankLineAfter == config.BlankLineAdd {
 					segText = "\n\n" + stripped
 				} else {
@@ -4208,7 +4380,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		}
 
 		if segMode != "" && segMode != config.BodyIndentPreserve {
-			targetBodyStr := strings.Repeat(indentUnit, segBodyDepth)
+			targetBodyStr := indentAt(segBodyDepth)
 			bodyContent = normalizeBodyLines(bodyContent, targetBodyStr, segMode)
 		}
 
@@ -4227,7 +4399,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 					}
 				}
 				bodyContent = strings.TrimRight(bodyContent, " \t\n") + "\n"
-				kwIndentStr = strings.Repeat(indentUnit, thenDepth)
+				kwIndentStr = indentAt(thenDepth)
 			} else if dec.collapseBefore && lastNL >= 0 {
 				// Collapse val+THEN onto same line (remove stray newlines in val segment).
 				// Preserve a single space before THEN so "WHEN val THEN" reads correctly.
@@ -4240,7 +4412,11 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			kwDepth := kwDepthForEvent(ev)
 			if kwDepth > 0 && lastNL >= 0 { // (a keyword in the middle of a line has no indent to set)
 				rest := strings.TrimLeft(kwIndentStr, " \t")
-				kwIndentStr = strings.Repeat(indentUnit, kwDepth) + rest
+				oldIndent := kwIndentStr[:len(kwIndentStr)-len(rest)]
+				kwIndentStr = indentAt(kwDepth) + rest
+				if ev.kind == evIF || ev.kind == evELSIF || ev.kind == evWHEN {
+					condOld, condNew, condPending = oldIndent, indentAt(kwDepth), true
+				}
 			}
 		}
 		segText = bodyContent + kwIndentStr
@@ -4271,13 +4447,13 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			case evTHEN, evELSE:
 				remaining = applyBlankAfter(remaining, cfg.If.BlankLineAfter)
 				if cfg.If.BodyIndent != "" && cfg.If.BodyIndent != config.BodyIndentPreserve {
-					target := strings.Repeat(indentUnit, bodyDepthForOpener(lastEv))
+					target := indentAt(bodyDepthForOpener(lastEv))
 					remaining = normalizeBodyLines(remaining, target, cfg.If.BodyIndent)
 				}
 			case evLOOP:
 				remaining = applyBlankAfter(remaining, cfg.Loop.BlankLineAfter)
 				if cfg.Loop.BodyIndent != "" && cfg.Loop.BodyIndent != config.BodyIndentPreserve {
-					target := strings.Repeat(indentUnit, bodyDepthForOpener(lastEv))
+					target := indentAt(bodyDepthForOpener(lastEv))
 					remaining = normalizeBodyLines(remaining, target, cfg.Loop.BodyIndent)
 				}
 			case evCASETHEN, evCASEELSE:
@@ -4288,7 +4464,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 				} else if dec.breakAfter {
 					remaining = applyBlankAfter(remaining, bc.BlankLineAfter)
 					if bc.BodyIndent != "" && bc.BodyIndent != config.BodyIndentPreserve {
-						target := strings.Repeat(indentUnit, bodyDepthForOpener(lastEv))
+						target := indentAt(bodyDepthForOpener(lastEv))
 						remaining = normalizeBodyLines(remaining, target, bc.BodyIndent)
 					}
 				}
@@ -4471,6 +4647,16 @@ func canOmitAs(tok rawToken) bool {
 var bareLabelCache sync.Map
 
 // layoutConfig returns the layout config with the paren_spacing hint filled in.
+// bodyLayoutConfig is layoutConfig for the statements of a PL/pgSQL body.
+func bodyLayoutConfig(cfg *config.Config) *config.LayoutConfig {
+	lc := layoutConfig(cfg)
+	pl := cfg.Layout.DollarQuote.PLpgSQL
+	notPreserve := func(m config.BodyIndentMode) bool { return m != "" && m != config.BodyIndentPreserve }
+	lc.IndentSetLater = !controlFlowIsNoop(pl.ControlFlow) || notPreserve(pl.BeginBody.Indent) || notPreserve(pl.Declare.Indent) ||
+		notPreserve(pl.KeywordIndent) || notPreserve(cfg.Layout.DollarQuote.SQL.BodyIndent)
+	return lc
+}
+
 func layoutConfig(cfg *config.Config) *config.LayoutConfig {
 	lc := cfg.Layout
 	lc.ParenSpacing = cfg.ParenSpacing
@@ -4639,6 +4825,10 @@ func unquoteIdent(text string) string {
 func finishWholeText(result string, cfg *config.Config, addSemicolon bool) string {
 	if cfg.BlankLines != config.BlankLinesPreserve {
 		result = collapseBlankLines(result, cfg.BlankLines)
+	}
+
+	if addSemicolon && cfg.Semicolons == config.SemicolonRemove {
+		result = removeFinalSemicolon(result)
 	}
 
 	if addSemicolon && cfg.Semicolons == config.SemicolonAdd {

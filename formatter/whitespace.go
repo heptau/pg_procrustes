@@ -56,7 +56,7 @@ func spaceAfterLineCommentMarker(text string) string {
 // alignTrailingComments pads the code in front of trailing "--" comments so that the
 // comments of consecutive lines start in the same column. A run needs at least two
 // lines; runs whose code contains a tab are left alone (their width is ambiguous).
-func alignTrailingComments(text string) string {
+func alignTrailingComments(text string, tabIndent bool, tabWidth int) string {
 	if !strings.Contains(text, "--") {
 		return text
 	}
@@ -102,9 +102,13 @@ func alignTrailingComments(text string) string {
 		if strings.TrimSpace(code) == "" {
 			continue // comment on a line of its own
 		}
+		measured := code
+		if tabWidth > 0 && !tabIndent {
+			measured = strings.ReplaceAll(code, "\t", strings.Repeat(" ", tabWidth)) // (turned into blanks after the alignment)
+		}
 		found = append(found, trailing{
 			line: ln, codeEnd: ls + len(code), cmtStart: start,
-			width: utf8.RuneCountInString(code), hasTab: strings.Contains(code, "\t"), lineStart: ls,
+			width: utf8.RuneCountInString(measured), hasTab: tabIndent || tabWidth <= 0 && strings.Contains(code, "\t"), lineStart: ls,
 		})
 	}
 	if len(found) < 2 {

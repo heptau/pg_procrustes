@@ -778,6 +778,11 @@ type LayoutConfig struct {
 	// starts indented (inside BEGIN; … COMMIT;) is laid out relative to that indentation. It is
 	// off for function bodies, whose indentation the dollar-quote settings take care of.
 	KeepStatementIndent bool `yaml:"-"`
+
+	// IndentSetLater is set by the formatter for the statements of a PL/pgSQL body when the
+	// dollar-quote settings re-indent the lines afterwards: the blanks in front of a line are then
+	// not what the layout leaves it with, so they do not count when a line is measured.
+	IndentSetLater bool `yaml:"-"`
 }
 
 // DefaultLayout returns the default LayoutConfig (all fields set to preserve).

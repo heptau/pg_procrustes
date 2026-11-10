@@ -730,3 +730,57 @@ func TestBlankLinesLeaveDollarQuotedTextAlone(t *testing.T) {
 		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
 	}
 }
+
+// semicolons: remove takes off the ";" that ends the text; the ones between statements and in
+// PL/pgSQL bodies are needed, the output must stay valid SQL and be stable.
+func TestSemicolonsRemoveKeepsRequiredOnes(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) { c.Semicolons = config.SemicolonRemove })
+	in := "do $$\nbegin\nselect * from t;\nend\n$$;\nselect 1;\nselect 2;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "DO $$\nBEGIN\nSELECT * FROM t;\nEND\n$$;\nSELECT 1;\nSELECT 2\n"; got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// begin_body.indent moves the lines of the body as a whole, but not the lines that start inside a
+// string constant or a nested dollar-quoted body (their blanks are data).
+func TestBodyIndentLeavesNestedBodiesAlone(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.DollarQuote.PLpgSQL.BeginBody.Indent = config.BodyIndentIndent
+	})
+	in := "do $$\nbegin\ncreate function f() returns int language sql as $fn$\n\n   select 1;\n\n$fn$;\nend\n$$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "$fn$\n\n   SELECT 1;\n\n$fn$;") && !strings.Contains(got, "$fn$\n\n   select 1;\n\n$fn$;") {
+		t.Errorf("nested body changed:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// A comment after ELSE / THEN stays on that line when if.blank_line_after is set.
+func TestIfBlankLineAfterKeepsCommentOnKeywordLine(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.If.BlankLineAfter = config.BlankLineRemove
+	})
+	in := "do $$\nbegin\n  if a then\n    x := 1;\n  else -- other\n    x := 2;\n  end if;\nend\n$$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "ELSE -- other\n") {
+		t.Errorf("comment left its line:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}

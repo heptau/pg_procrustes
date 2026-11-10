@@ -265,6 +265,20 @@ Every user-visible change (code, docs, or website) gets an entry in `CHANGELOG.m
 
 `go run scripts/stmt_matrix.go <dir> <max-reports> <config.yaml>...` runs every single statement of a corpus through the given configs (bare and wrapped in `DO $$ … $$`) and reports output that does not parse or is not idempotent; single statements make small test cases.
 
+### Systematic sweep over the options
+
+`stmt_matrix.go` also checks that the string constants (and dollar-quoted texts that are no function body) come out exactly as they went in (`data-changed`) — the parse-tree fingerprint ignores constant values — and `stmt_matrix.go -check <config> <file.sql>` prints what is wrong with one file. To cover the option space instead of random configs:
+
+```bash
+go build -o /tmp/smx scripts/stmt_matrix.go
+python3 scripts/option_sweep.py .pg_procrustes.yaml /tmp/sweep 1     # reads the options from the comments of the reference config
+/tmp/smx <dir of .sql> 3 $(for f in /tmp/sweep/pair/*.yaml; do echo fp:$f; done)   # every pair of option values (~50 configs)
+/tmp/smx <dir of .sql> 3 $(for f in /tmp/sweep/ofat/*.yaml; do echo $f; done)      # every single option value (~300 configs, no tree check needed)
+python3 scripts/matrix_triage.py /tmp/smx <dir> <failing configs…>                  # shrinks each failure to the options that matter
+```
+
+Rebuild `smx` after every code change (it links the formatter). Fix a failure first, add a regression test that fails without the fix, then repeat until the sweep is clean over several corpora (a large real schema, `pg/src/test/regress`, `pg/contrib`, `pg/src/pl`).
+
 ## Running tests
 
 ```bash

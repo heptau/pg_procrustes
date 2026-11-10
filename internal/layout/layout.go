@@ -1934,14 +1934,9 @@ func reformatCaseExprs(item string, baseIndent string, cfg config.SQLCaseCfg, in
 			break
 		}
 
-		// Measure flat length: count chars between token texts joined by spaces.
-		flatLen := 0
-		for j := i; j <= endIdx; j++ {
-			if j > i {
-				flatLen++
-			}
-			flatLen += len(toks[j].text)
-		}
+		// Measure flat length: the CASE on one line, the blanks inside it as written.
+		flat := flattenCaseExpr(item, toks, i, endIdx, cfg.ParenSpacing)
+		flatLen := len(flat)
 
 		doExpand := shouldBreak(flatLen, cfg.Break, lineLen)
 
@@ -1953,7 +1948,7 @@ func reformatCaseExprs(item string, baseIndent string, cfg config.SQLCaseCfg, in
 		} else if doExpand {
 			sb.WriteString(expandCaseExpr(item, toks, i, endIdx, baseIndent, indentUnit, cfg.Indent, cfg.ParenSpacing))
 		} else {
-			sb.WriteString(flattenCaseExpr(toks, i, endIdx))
+			sb.WriteString(flat)
 		}
 		pos = toks[endIdx].end
 		i = endIdx
@@ -1981,12 +1976,27 @@ func findCaseEnd(toks []rawTok, caseIdx int) int {
 }
 
 // flattenCaseExpr returns a single-line representation of CASE toks[caseIdx..endIdx].
-func flattenCaseExpr(toks []rawTok, caseIdx, endIdx int) string {
-	parts := make([]string, 0, endIdx-caseIdx+1)
+func flattenCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, parenMode config.ParenSpacingMode) string {
+	// (the gaps between the tokens stay as they are, `a.b`, `f(x)`, `x::int`, `a[1]`, but a run of
+	// blanks is one blank: the length decides whether the CASE fits on a line, and the next run
+	// measures what this one wrote)
+	var sb strings.Builder
 	for i := caseIdx; i <= endIdx; i++ {
-		parts = append(parts, toks[i].text)
+		if i > caseIdx {
+			gap := gapBetween(item, toks, i-1, i)
+			one := inlineContent(item, toks, i-1, i+1, parenMode)
+			switch {
+			case gap == "":
+			case strings.ContainsRune(gap, '\n'):
+				// the line-break rules of inlineContent (a line comment ends its line, …)
+				sb.WriteString(one[len(toks[i-1].text) : len(one)-len(toks[i].text)])
+			default:
+				sb.WriteByte(' ')
+			}
+		}
+		sb.WriteString(toks[i].text)
 	}
-	return strings.Join(parts, " ")
+	return sb.String()
 }
 
 // expandCaseExpr returns a multi-line representation of CASE toks[caseIdx..endIdx].
@@ -2172,6 +2182,7 @@ func findCaseKeywordAny(toks []rawTok, from, to int) int {
 
 func normalizeIndent(s string, cfg *config.LayoutConfig) string {
 	lines := strings.Split(s, "\n")
+	data := stringDataLines(s)
 	dqDelim := "" // current dollar-quote delimiter; non-empty when inside a dollar-quoted body
 	for i, line := range lines {
 		inDollarBody := dqDelim != ""
@@ -2182,6 +2193,10 @@ func normalizeIndent(s string, cfg *config.LayoutConfig) string {
 			}
 		} else {
 			_, dqDelim = parenScanLine(line)
+		}
+
+		if data[i] {
+			continue // a line of a string constant: its blanks are data
 		}
 
 		// Inside a dollar-quoted body, skip normalization for tab-leading lines.
@@ -2293,6 +2308,8 @@ func applyParenIndent(text, indentUnit string, mode config.ParenIndentMode, clos
 	}
 
 	result := make([]string, n)
+	type opener struct{ orig, final string } // indent of the line that opened a parenthesis, before / after
+	var openers []opener
 	for i, line := range lines {
 		if skip[i] {
 			result[i] = line
@@ -2304,24 +2321,44 @@ func applyParenIndent(text, indentUnit string, mode config.ParenIndentMode, clos
 			result[i] = line // preserve blank lines as-is
 			continue
 		}
-
+		orig := line[:len(line)-len(stripped)]
 		d := depths[i]
 		// For closing-paren-first lines: dedent before the paren.
-		if strings.HasPrefix(stripped, ")") && closeFirst != config.ParenCloseAfter {
+		closesFirst := strings.HasPrefix(stripped, ")")
+		if closesFirst && closeFirst != config.ParenCloseAfter {
 			d = max(0, d-1)
 		}
 
 		switch mode {
 		case config.ParenIndentIndent:
-			if d == 0 {
+			switch {
+			case d == 0 && closesFirst && len(openers) > 0 && openers[len(openers)-1].orig == orig && orig != "":
+				// a `)` that stood under the line that opened its block still does, whatever that line ended up with
+				result[i] = openers[len(openers)-1].final + stripped
+			case d == 0:
 				result[i] = line // preserve clause-level indentation added by rebuildStatement
-			} else {
+			default:
 				result[i] = strings.Repeat(indentUnit, d) + stripped
 			}
 		case config.ParenIndentNone:
 			result[i] = stripped
 		default:
 			result[i] = line
+		}
+
+		final := result[i][:len(result[i])-len(strings.TrimLeft(result[i], " \t"))]
+		for k := 0; k < len(line); k++ {
+			if line[k] != '(' && line[k] != ')' {
+				continue
+			}
+			before, _ := parenScanLine(line[:k])
+			after, _ := parenScanLine(line[:k+1])
+			switch {
+			case after > before:
+				openers = append(openers, opener{orig, final})
+			case after < before && len(openers) > 0:
+				openers = openers[:len(openers)-1]
+			}
 		}
 	}
 
