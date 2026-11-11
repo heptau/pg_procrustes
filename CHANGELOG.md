@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- `docs/config-builder.html`: the YAML preview is built from DOM nodes with `textContent` instead of concatenated HTML (CodeQL `js/xss-through-dom`), and `escHtml` also escapes `"` and `'` (`js/incomplete-html-attribute-sanitization`)
+- `editors/vscode`: `minimatch` is pinned to `^11.0.1` through `overrides` in `package.json` (Dependabot, GHSA-g3hv-75wg-m249: denial of service via globparts amplification); `npm audit` is clean
+
 ## [0.6.0] — 2026-11-11
 
 ### Added
