@@ -69,8 +69,9 @@ func main() {
 			if err != nil {
 				continue
 			}
-			i := strings.Index(wrapped, "BEGIN")
-			j := strings.LastIndex(wrapped, "END")
+			lw := strings.ToLower(wrapped) // (a config may write the keywords in lower case)
+			i := strings.Index(lw, "begin")
+			j := strings.LastIndex(lw, "end")
 			if i < 0 || j < i {
 				continue
 			}
