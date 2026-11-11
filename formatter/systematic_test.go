@@ -224,8 +224,8 @@ func TestFlattenedIfConditionLineAfterCommentIsIndented(t *testing.T) {
 	formatTwice(t, c, "do $$\nbegin\n\n    IF (\n            SELECT a = 1 -- retail\n            FROM t\n        )\n    THEN\n        RETURN NEW;\n    END IF;\n\n    x := 1;\nend $$;\n")
 }
 
-// A subquery joined to one line behind a -- comment keeps its ")" on a line of its own, under the
-// line of its "(": at the margin it set the indent the whole body was moved by.
+// A subquery that ends in a -- comment is not joined to one line: its ")" would have to stay on a
+// line of its own, and at the margin it set the indent the whole body was moved by.
 func TestJoinedSubqueryClosingParenAfterCommentStaysUnderItsOpener(t *testing.T) {
 	c := plainCfg(t, func(c *config.Config) {
 		c.Layout.Subquery.Break = config.BreakNever
@@ -386,4 +386,63 @@ func plainCfg(t *testing.T, mutate func(*config.Config)) *config.Config {
 		t.Fatal(err)
 	}
 	return c
+}
+
+// The body of a CASE branch is the text up to the next control-flow event: a branch that holds a
+// nested IF after its first statement is not one of several statements for body_break: auto.
+func TestCaseBranchAutoWithNestedIfIsOneStatementBody(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAuto
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    CASE x\n        WHEN 1 THEN\n            SELECT lower(v)\n              INTO prev\n              FROM t\n             WHERE a = 1\n            FOR UPDATE;\n\n            IF prev = 2 THEN\n                y := 1;\n            END IF;\n    END CASE;\nEND\n$$;\n")
+}
+
+func TestParenIndentIndentLeavesWhatFollowsACallAlone(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignIndent
+		c.Layout.Content.Align = config.AlignIndent
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+		c.Layout.ParenIndent.CloseFirst = config.ParenCloseAfter
+	})
+	formatTwice(t, c, "SELECT x.*\nFROM dblink('conn_clients_and_terminals',\n            'SELECT * FROM terminals.lst_branches AS lb\n            WHERE lb.id_branch <= ' || _process, TRUE)\nAS x\n(\n    id_branch INTEGER,\n    branch_name CHARACTER VARYING,\n    branch_authorization_limit_coef NUMERIC\n)\nORDER BY id_branch DESC;\n")
+}
+
+func TestIfConditionWithoutSubqueryKeepsItsContinuationLines(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.DollarQuote.PLpgSQL.BeginBody.Indent = config.BodyIndentIndent
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BlankLineAfter = config.BlankLineRemove
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n\n    IF( a > 0\n  AND b = 1\n  )THEN\n\n IF c = 1 THEN -- x\n    _str = 1;\n END IF;\n\n    END IF;\nEND\n$$;\n")
+}
+
+func TestSubqueryAutoMeasuresInnerSubqueryWithoutItsBlanks(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Subquery.Break = config.BreakAuto
+		c.Layout.LineLength = 200
+	})
+	formatTwice(t, c, "WITH filtered AS(SELECT 1 AS id_client)\n,   to_set AS(\n        SELECT  min(id_client_action_history)\n        FROM    clients.tab_client_action_history\n        WHERE   id_client IN( SELECT id_client FROM filtered )\n          AND   id_client_action_type = 1\n        GROUP BY id_client\n    )\nSELECT * FROM to_set;\n")
+}
+
+func TestItemAfterCommentAndBlankLineIsNotShiftedEveryRun(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.Content.Align = config.AlignIndent
+		c.Layout.Content.CommaPosition = config.CommaEnd
+		c.Layout.ParenIndent.Open = config.ParenOpenOwnLine
+	})
+	formatTwice(t, c, "INSERT -- VALIDATE\n    INTO validator.tab_scenario_queries\n        ( id_scenario_query\n        )\n    VALUES\n        (   1,   1,  1,  1,  1.1    , 'test - success' )\n    --  sts_pl_online\n\n        -- client_reg_step_1:\n    ,   (1201, 300, 11,  101, 1 , 'verify_token (have__valid_token)');\n")
+}
+
+func TestInsertColumnListInlineFirstItemGetsParenSpacingAdd(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.ParenSpacing = config.ParenSpacingAdd
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.Content.FirstItem = config.FirstItemInline
+	})
+	formatTwice(t, c, "INSERT INTO dwh_kafka.lst_oppty_regions_conf_prematch\n(\n    oppty_region_is_bonus,\n    oppty_region_betradarunity_id,\n    oppty_region_betradarunity_name\n)\nVALUES (1, 2, 3);\n")
 }

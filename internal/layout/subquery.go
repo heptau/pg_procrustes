@@ -124,6 +124,13 @@ func flattenSubqueriesHang(sql string, cfg *config.LayoutConfig, hang bool) stri
 	var sb strings.Builder
 	pos := 0
 	for _, sq := range subs {
+		if sq.close-1 > sq.open && strings.HasPrefix(tokens[sq.close-1].text, "--") {
+			// a subquery that ends in a -- comment keeps its lines: its ")" has to stay on a line of its
+			// own, and where that line belongs is only known once the lines around it are placed
+			sb.WriteString(sql[pos:tokens[sq.close].start])
+			pos = tokens[sq.close].start
+			continue
+		}
 		if prev := sq.open - 1; cfg.KeywordParenSpacing == config.ParenSpacingRemove && prev >= pos0(tokens, pos) &&
 			parenKeywords[strings.ToLower(tokens[prev].text)] && strings.Contains(gapBetween(sql, tokens, prev, sq.open), "\n") {
 			// keyword_paren_spacing: remove joins the "(" of a subquery that is joined to one line to its keyword
@@ -144,11 +151,7 @@ func flattenSubqueriesHang(sql string, cfg *config.LayoutConfig, hang bool) stri
 		}
 		sb.WriteString(inner)
 		if sq.close-1 > sq.open && strings.HasPrefix(tokens[sq.close-1].text, "--") {
-			// the ")" must not end up inside the comment: it goes to a line of its own, under the line of its "("
-			ls := strings.LastIndexByte(sql[:tokens[sq.open].start], '\n') + 1
-			lead := sql[ls:tokens[sq.open].start]
-			sb.WriteByte('\n')
-			sb.WriteString(lead[:len(lead)-len(strings.TrimLeft(lead, " \t"))])
+			sb.WriteByte('\n') // the ")" must not end up inside the comment
 		}
 		pos = tokens[sq.close].start
 	}
@@ -282,6 +285,9 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 	// (a subquery inside is joined to one line on its own, without the blank after its `(`)
 	// (blank runs inside count as one: a CASE inside is reformatted afterwards, and that takes them off)
 	sub := collapseBlanks(innerSubqueryOpen.ReplaceAllString(sql[start:end], "(${1}"))
+	if innerSubqueryOpen.MatchString(sql[start:end]) {
+		sub = blankBeforeClose.ReplaceAllString(sub, ")") // (and the blank before its `)`)
+	}
 	if commaCompact {
 		// comma_spacing: compact takes the blank after a comma off in the token pass; a text that
 		// has it (lines joined behind a comma) and one that has not are the same line to measure
@@ -328,6 +334,8 @@ func aliasIsKeyword(m string) bool {
 	}
 	return false
 }
+
+var blankBeforeClose = regexp.MustCompile(`\s+\)`)
 
 var innerSubqueryOpen = regexp.MustCompile(`(?i)\(\s+(select\b|with\b|values\b)`)
 

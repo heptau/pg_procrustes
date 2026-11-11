@@ -1035,6 +1035,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				} else if contentFirstItem == config.FirstItemInline {
 					sb.WriteByte('(')
+					if cfg.ParenSpacing == config.ParenSpacingAdd {
+						sb.WriteByte(' ') // (the first column stands behind the blank paren_spacing: add gives the "(")
+					}
 					colStart := resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, openIdx+1, closeIdx)
 					for ii, item := range colItems {
 						if ii == 0 {
@@ -1146,7 +1149,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				body = contentIndent + body[len(ws):]
 			}
 			rest := reindentBody(body)
-			if rest == body && !commaStart && strings.Contains(body, "\n") && !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
+			if rest == body && !commaStart && strings.TrimSpace(body[:strings.IndexByte(body+"\n", '\n')]) != "" && strings.Contains(body, "\n") && !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
 				// The lines below the comments stand as they did relative to each other (the common indent
 				// was taken off): lines that happen to have as much indent as the item are no sign that
 				// they are placed, all of them move in with the first.
@@ -1180,8 +1183,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if first, ok := openParenBodyIndent(item); ok && len(first) < len(contentIndent) && strings.HasPrefix(contentIndent, first) {
 				pad := contentIndent[len(first):]
 				parts := strings.Split(item, "\n")
+				outer := outsideOpenParen(item, cfg.ParenIndent.Mode == config.ParenIndentIndent)
 				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" {
+					if strings.TrimSpace(parts[j]) != "" && !outer[j] {
 						parts[j] = pad + parts[j]
 					}
 				}
@@ -1193,8 +1197,12 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// (judging by the body alone left `(` at the item's indent and the `)` at the margin).
 			// (paren_indent: indent puts that `)` at the depth it has afterwards: what follows it must not move
 			// with it, or every run finds the `)` left of the item's indent and shifts the item again)
-			if fixed, ok := shiftClosedParenItem(item, contentIndent, indentUnit, cfg.ParenIndent.Mode == config.ParenIndentIndent); ok {
-				return fixed
+			// (with close_first_on_line: after that `)` is put at the depth of its content by paren_indent
+			// anyway, left of the item's indent: shifting the item to it would only be undone, and done again)
+			if !(cfg.ParenIndent.Mode == config.ParenIndentIndent && cfg.ParenIndent.CloseFirst == config.ParenCloseAfter) {
+				if fixed, ok := shiftClosedParenItem(item, contentIndent, indentUnit, cfg.ParenIndent.Mode == config.ParenIndentIndent); ok {
+					return fixed
+				}
 			}
 			// `PERFORM f(` + arguments on the lines below: the call opens a parenthesis that closes on
 			// the last argument line, and its arguments stand one level deeper than the call; when they
@@ -1202,8 +1210,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// they are shifted one level.
 			if shift := openParenBodyShift(item, contentIndent, indentUnit); shift != "" {
 				parts := strings.Split(item, "\n")
+				outer := outsideOpenParen(item, cfg.ParenIndent.Mode == config.ParenIndentIndent)
 				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" {
+					if strings.TrimSpace(parts[j]) != "" && !outer[j] {
 						// after the blanks it has (not before them): with tabs for the indent unit
 						// and spaces right-aligned under the keyword, "<spaces><tab>" is the order
 						// a second pass finds again.
@@ -1350,6 +1359,30 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 	return sb.String()
 }
 
+// outsideOpenParen marks the lines of a multi-line item (after its first) that start outside the
+// parentheses its first line opened, when on is set: with paren_indent: indent the lines inside are
+// placed by their depth, and what follows the closing parenthesis (`AS x`, a column list) must not be
+// moved along with the call's arguments, or every run moves it again. All false when off.
+func outsideOpenParen(item string, on bool) []bool {
+	lines := strings.Split(item, "\n")
+	out := make([]bool, len(lines))
+	if !on {
+		return out
+	}
+	depth := 0
+	for j, ln := range lines {
+		if j > 0 && depth <= 0 {
+			out[j] = true
+		}
+		d, _ := parenScanLine(ln)
+		depth += d
+		if depth < 0 {
+			depth = 0
+		}
+	}
+	return out
+}
+
 // shiftClosedParenItem moves a multi-line item that opens a parenthesis (CTE body, VALUES row) so
 // that the `)` that closes it — the first line starting with ")" at nesting level one — stands at
 // indent, and the lines between the opening and the closing parenthesis stand deeper than that.
@@ -1371,6 +1404,9 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 		d, _ := parenScanLine(ln)
 		if depth += d; depth < 0 {
 			depth = 0
+		}
+		if j > 0 && depth == 0 {
+			return item, false // the parenthesis of the first line closed before: a `)` further down is another one's
 		}
 	}
 	if closeAt < 0 {

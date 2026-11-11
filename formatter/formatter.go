@@ -2912,6 +2912,8 @@ func applyBodyIndent(content, indentUnit string, mode config.BodyIndentMode) str
 	return strings.Join(result, "\n")
 }
 
+var subqueryOpen = regexp.MustCompile(`(?i)\(\s*(?:select|with|values)\b`)
+
 // reindentContinuation replaces the indent oldIndent that starts the lines of seg after its first
 // one by newIndent (the lines of a condition that moves with the keyword line it belongs to).
 func reindentContinuation(seg, oldIndent, newIndent string) string {
@@ -2921,7 +2923,9 @@ func reindentContinuation(seg, oldIndent, newIndent string) string {
 	}
 	inside := linesInsideTokens(seg, strings.Count(seg, "\n")+1)
 	lines := strings.Split(seg, "\n")
-	spacesOnly := strings.Trim(oldIndent, " ") == "" && strings.Trim(newIndent, " ") == ""
+	// (only with a subquery in the condition: its lines, laid out from the line that opens it, have to keep
+	// their distance to that line; other lines stay where they are, left of the keyword or not)
+	spacesOnly := strings.Trim(oldIndent, " ") == "" && strings.Trim(newIndent, " ") == "" && subqueryOpen.MatchString(seg)
 	for i := 1; i < len(lines); i++ {
 		last := i == len(lines)-1 // (the indent of the keyword that ends the segment)
 		if !inside[i] && strings.HasPrefix(lines[i], oldIndent) && (last && lines[i] != "" || strings.TrimSpace(lines[i]) != "") {
@@ -3831,7 +3835,7 @@ func caseBranchMovesBody(text, rest string, cfg *config.Config) bool {
 }
 
 var (
-	branchEnd   = regexp.MustCompile(`\bwhen\b|\belse\b|\bend\s+case\b`)
+	branchEnd   = regexp.MustCompile(`(?im)^[ \t]*(?:when|else|elsif|elseif|if|case|end)\b|\bloop\b`) // (the next control-flow event: the body of the branch is the text up to it)
 	stringConst = regexp.MustCompile(`'(?:[^']|'')*'`)
 )
 
