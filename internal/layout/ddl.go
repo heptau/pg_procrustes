@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"regexp"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -823,9 +824,13 @@ func rebuildCreateFunction(sql string, tokens []rawTok, stmt statement, open int
 	return sb.String(), true
 }
 
+var tableParenGap = regexp.MustCompile(`(?i)^(returns\s+table)\s+\(`)
+
 // tableColsWidth is the width of a RETURNS TABLE (…) text as the line ends up, with the blanks
 // after the commas that comma_spacing: compact takes off in the token pass that follows.
 func tableColsWidth(text string, cfg *config.LayoutConfig) int {
+	// (broken up, the `(` stands right after TABLE: the width does not depend on the blank a former run had)
+	text = tableParenGap.ReplaceAllString(text, "${1}(")
 	if cfg.CommaSpacing == config.CommaSpacingCompact {
 		text = unspaceCommas(text)
 	}

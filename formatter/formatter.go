@@ -2921,10 +2921,20 @@ func reindentContinuation(seg, oldIndent, newIndent string) string {
 	}
 	inside := linesInsideTokens(seg, strings.Count(seg, "\n")+1)
 	lines := strings.Split(seg, "\n")
+	spacesOnly := strings.Trim(oldIndent, " ") == "" && strings.Trim(newIndent, " ") == ""
 	for i := 1; i < len(lines); i++ {
 		last := i == len(lines)-1 // (the indent of the keyword that ends the segment)
 		if !inside[i] && strings.HasPrefix(lines[i], oldIndent) && (last && lines[i] != "" || strings.TrimSpace(lines[i]) != "") {
 			lines[i] = newIndent + lines[i][len(oldIndent):]
+		} else if !inside[i] && !last && spacesOnly && strings.TrimSpace(lines[i]) != "" {
+			// a line that stood left of the old indent (hand-aligned `AND`) moves by the same distance, or
+			// the lines of a subquery opened in the condition would move without it and meet it differently
+			// on the next run
+			if d := len(newIndent) - len(oldIndent); d > 0 {
+				lines[i] = strings.Repeat(" ", d) + lines[i]
+			} else if t := strings.TrimLeft(lines[i], " "); len(lines[i])-len(t) > 0 {
+				lines[i] = lines[i][min(-d, len(lines[i])-len(t)):]
+			}
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -3010,6 +3020,8 @@ func trimIndent(line, indent string) string {
 	return line[n:]
 }
 
+var leadingBlankLines = regexp.MustCompile(`^(?:[ \t]*\n)+`)
+
 func applyDollarBoundary(body string, afterOpen, beforeClose config.BlankLineAction) string {
 	if strings.TrimSpace(body) == "" && (afterOpen == config.BlankLineAdd || afterOpen == config.BlankLineRemove ||
 		beforeClose == config.BlankLineAdd || beforeClose == config.BlankLineRemove) {
@@ -3021,10 +3033,10 @@ func applyDollarBoundary(body string, afterOpen, beforeClose config.BlankLineAct
 	}
 	switch afterOpen {
 	case config.BlankLineAdd:
-		stripped := strings.TrimLeft(body, "\n")
+		stripped := leadingBlankLines.ReplaceAllString(body, "") // (a line of blanks after the delimiter is a blank line)
 		body = "\n\n" + stripped
 	case config.BlankLineRemove:
-		stripped := strings.TrimLeft(body, "\n")
+		stripped := leadingBlankLines.ReplaceAllString(body, "")
 		body = "\n" + stripped
 	}
 	switch beforeClose {
@@ -3548,7 +3560,8 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	applyLayoutToSQL := func(prefix, sqlText string) (out string, ok bool, drop int) {
 		baseIndent := lastLineIndent(prefix)
 		lc := bodyLayoutConfig(cfg)
-		if lc.Clauses.Align == config.AlignRight && strings.TrimSpace(prefix[strings.LastIndexByte(prefix, '\n')+1:]) != "" {
+		if lc.Clauses.Align == config.AlignRight && strings.TrimSpace(prefix[strings.LastIndexByte(prefix, '\n')+1:]) != "" &&
+			!caseBranchMovesBody(body[:lastEnd+len(prefix)], body[lastEnd+len(prefix):], cfg) {
 			// RETURN QUERY SELECT …: the statement does not start its line, so there is no
 			// edge to pad its keyword to
 			lc.Clauses.Align = config.AlignSame
@@ -3578,6 +3591,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		// reindentLines adds it back exactly once (without this, Phase 2
 		// sees FROM users already at 4sp, preserves it, then reindentLines
 		// prepends another 4sp giving double indentation).
+		rawText := sqlText
 		sqlText = stripLeadingIndent(sqlText, baseIndent)
 
 		// Phase 1: apply full formatter rules (alias detection, casing) now that we have
@@ -3592,12 +3606,19 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		// line of its own to take an indent from: broken up, its lines would land at the margin and
 		// move on every run. It keeps its place; only the token rules above apply to it.
 		before := body[:lastEnd+len(prefix)] // (prefix is body[lastEnd:start of the statement])
-		if lastLine := before[strings.LastIndexByte(before, '\n')+1:]; strings.HasSuffix(strings.TrimRight(lastLine, " \t"), ";") || endsWithOpenerWord(lastLine) && !caseBranchMovesBody(before, cfg) {
+		if lastLine := before[strings.LastIndexByte(before, '\n')+1:]; strings.HasSuffix(strings.TrimRight(lastLine, " \t"), ";") || endsWithOpenerWord(lastLine) && !caseBranchMovesBody(before, body[len(before):], cfg) {
 			if cfg.Layout.ParenIndent.Open == config.ParenOpenOwnLine {
 				// paren_indent.open: own_line is no line breaking: the "(" that ends its line goes to a line of
 				// its own here too (the token pass may just have joined it to its keyword)
-				if moved, err := layout.Apply(sqlText, &config.LayoutConfig{ParenIndent: config.ParenIndentCfg{Open: config.ParenOpenOwnLine}}); err == nil && moved != sqlText {
-					sqlText, preChanged = moved, true
+				ownLine := &config.LayoutConfig{ParenIndent: config.ParenIndentCfg{Open: config.ParenOpenOwnLine}}
+				if !preChanged {
+					// only the move: on the lines as they stand (their indent need not be the body's base indent
+					// a re-indentation could restore: tabs against blanks)
+					if moved, err := layout.Apply(rawText, ownLine); err == nil && moved != rawText {
+						return moved, true, 0
+					}
+				} else if moved, err := layout.Apply(sqlText, ownLine); err == nil && moved != sqlText {
+					sqlText = moved
 				}
 			}
 			if !preChanged {
@@ -3638,6 +3659,9 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 
 		if parenDepth > 0 {
 			continue
+		}
+		if strings.HasPrefix(text, "--") || strings.HasPrefix(text, "/*") {
+			continue // (a comment between `IN` and `SELECT` does not make the SELECT another kind of word)
 		}
 
 		lower := strings.ToLower(text)
@@ -3681,7 +3705,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			// If SELECT follows IN (FOR r IN SELECT...LOOP), mark it as a cursor query
 			// so we terminate at LOOP rather than the first unrelated ';'.
 			sqlStart = tokStart
-			forInSQL = lower == "select" && prevLower == "in"
+			forInSQL = (lower == "select" || lower == "with" || lower == "update" || lower == "delete" || lower == "insert" || lower == "values") && prevLower == "in"
 			prevLower = lower
 			continue
 		}
@@ -3713,8 +3737,10 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			// End of a SQL statement we were tracking.
 			// Everything from lastEnd to sqlStart is prefix (BEGIN, RETURN QUERY, etc.)
 			prefix := body[lastEnd:sqlStart]
-			sqlText := strings.TrimRight(body[sqlStart:tokStart], " \t")
-			if reformatted, ok, drop := applyLayoutToSQL(prefix, sqlText); ok {
+			sqlText := strings.TrimRight(body[sqlStart:tokStart], " \t\n")
+			// (a statement whose own `;` was lost — in a comment — runs on into the END of its block:
+			// it is no statement to lay out, and neither is it once end_semicolon has put a `;` there)
+			if reformatted, ok, drop := applyLayoutToSQL(prefix, sqlText); ok && !runsIntoBlockEnd(sqlText) {
 				result.WriteString(prefix[:len(prefix)-drop])
 				result.WriteString(reformatted)
 				result.WriteByte(';')
@@ -3741,6 +3767,28 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	return result.String(), nil
 }
 
+// runsIntoBlockEnd reports whether the SQL text ends in an END that closes no CASE of its own (it is the
+// END of the block the statement stands in).
+func runsIntoBlockEnd(sqlText string) bool {
+	res, err := pg_query.Scan(sqlText)
+	if err != nil || len(res.Tokens) == 0 {
+		return false
+	}
+	depth := 0
+	last := ""
+	for _, t := range res.Tokens {
+		w := strings.ToLower(sqlText[t.Start:t.End])
+		switch w {
+		case "case":
+			depth++
+		case "end":
+			depth--
+		}
+		last = w
+	}
+	return last == "end" && depth < 0
+}
+
 // endsWithOpenerWord reports whether a line of a PL/pgSQL body ends with THEN, ELSE or LOOP followed by
 // nothing else (a statement that follows it is on the line of its opener: `if a then select …;`).
 func endsWithOpenerWord(line string) bool {
@@ -3757,7 +3805,7 @@ func endsWithOpenerWord(line string) bool {
 // `WHEN … THEN` of a CASE branch whose body case.*.body_break: always puts on a line of its own afterwards:
 // the statement is laid out as the line-start statement it will be (kept where it stands, the next run
 // found it on its own line).
-func caseBranchMovesBody(text string, cfg *config.Config) bool {
+func caseBranchMovesBody(text, rest string, cfg *config.Config) bool {
 	t := strings.ToLower(strings.TrimRight(text, " \t\n"))
 	if !strings.HasSuffix(t, "then") {
 		return false
@@ -3768,8 +3816,24 @@ func caseBranchMovesBody(text string, cfg *config.Config) bool {
 		return false
 	}
 	c := cfg.Layout.DollarQuote.PLpgSQL.ControlFlow.Case
-	return c.Simple.BodyBreak == config.BreakAlways || c.Searched.BodyBreak == config.BreakAlways
+	if c.Simple.BodyBreak == config.BreakAlways || c.Searched.BodyBreak == config.BreakAlways {
+		return true
+	}
+	if c.Simple.BodyBreak == config.BreakAuto || c.Searched.BodyBreak == config.BreakAuto {
+		// auto breaks the body of a branch of more than one statement
+		end := branchEnd.FindStringIndex(strings.ToLower(rest))
+		if end == nil {
+			return false
+		}
+		return strings.Count(stringConst.ReplaceAllString(rest[:end[0]], "''"), ";") > 1
+	}
+	return false
 }
+
+var (
+	branchEnd   = regexp.MustCompile(`\bwhen\b|\belse\b|\bend\s+case\b`)
+	stringConst = regexp.MustCompile(`'(?:[^']|'')*'`)
+)
 
 // bodyOpaqueDDL reports whether the token ti opens a CREATE / ALTER of a rule, trigger, policy or
 // default privileges: statements with SQL words (UPDATE, DELETE, INSERT, SELECT) that do not start
@@ -4203,7 +4267,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		if t := strings.TrimLeft(following, " \t"); strings.HasPrefix(t, "\n") {
 			following = t // (blanks left behind on the keyword's line)
 		}
-		stripped := strings.TrimLeft(following, "\n")
+		stripped := leadingBlankLines.ReplaceAllString(following, "") // (a line of blanks is a blank line)
 		if strings.TrimSpace(following) == "" {
 			// nothing but blanks up to the next keyword: its indent is what stays
 			stripped = following[strings.LastIndexByte(following, '\n')+1:]

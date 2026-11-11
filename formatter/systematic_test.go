@@ -223,3 +223,167 @@ func TestFlattenedIfConditionLineAfterCommentIsIndented(t *testing.T) {
 	})
 	formatTwice(t, c, "do $$\nbegin\n\n    IF (\n            SELECT a = 1 -- retail\n            FROM t\n        )\n    THEN\n        RETURN NEW;\n    END IF;\n\n    x := 1;\nend $$;\n")
 }
+
+// A subquery joined to one line behind a -- comment keeps its ")" on a line of its own, under the
+// line of its "(": at the margin it set the indent the whole body was moved by.
+func TestJoinedSubqueryClosingParenAfterCommentStaysUnderItsOpener(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Subquery.Break = config.BreakNever
+		c.Layout.DollarQuote.PLpgSQL.BeginBody.Indent = config.BodyIndentIndent
+	})
+	formatTwice(t, c, "CREATE FUNCTION f() RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n\n    IF a THEN -- x\n\n        UPDATE t\n        SET a = 1;\n\n        IF NOT EXISTS(\n                        SELECT FROM t\n                        WHERE b = 1 -- c\n                     )\n        THEN\n            RETURN 1;\n        END IF;\n\n    END IF;\nEND\n$$;\n")
+}
+
+// A CASE branch whose body moves to a line of its own (always, or auto with several statements) is
+// laid out as the line-start statement it becomes — river alignment included.
+func TestCaseBranchMovingBodyKeepsRiverAlignment(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAlways
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    CASE x\n        WHEN 'U'\n            THEN UPDATE t\n                    SET v = 1\n                  WHERE a = 2;\n\n                 INSERT INTO t(a)\n                 VALUES (1);\n    END CASE;\nEND;\n$$;\n")
+	c = wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAuto
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    CASE x\n        WHEN 'U'\n            THEN UPDATE t\n                    SET v = 1\n                  WHERE a = 2;\n\n                 INSERT INTO t(a)\n                 VALUES (1);\n    END CASE;\nEND;\n$$;\n")
+}
+
+func TestOwnLineParenOfStatementAfterThenKeepsTabs(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.KeywordParenSpacing = config.ParenSpacingRemove
+		c.Layout.Indent.Type = config.IndentTypeTab
+		c.Layout.ParenIndent.Open = config.ParenOpenOwnLine
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAuto
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    CASE x\n        WHEN 'I' THEN\n\n            INSERT INTO t\n            (\n                a,\n                b\n            )\n            VALUES\n            (\n                1,\n                2\n            );\n    END CASE;\nEND;\n$$;\n")
+}
+
+// A subquery measured for subquery.break: auto counts blank runs as one (a CASE inside is reformatted
+// afterwards, which takes them off).
+func TestSubqueryAutoMeasuresWithoutBlankRuns(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Subquery.Break = config.BreakAuto
+		c.Layout.Case.Break = config.BreakAuto
+		c.Layout.LineLength = 200
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    RETURN QUERY\n        WITH\n            s AS(\n                SELECT 1 FROM t\n            )\n        ,   test AS(\n                SELECT\n                    CASE\n                        WHEN( 1 <(SELECT count(1) FROM s)\n                            )\n                        THEN    public.raise_exception('Function registration_api.get_data_for_reset_password(text) ERROR: found more than 1 row.')\n                        ELSE    1\n                    END AS cnt\n            )\n        SELECT * FROM s\n        WHERE 0 <= (SELECT * FROM test)\n    ;\nEND\n$$;\n")
+}
+
+func TestParenIndentIndentDoesNotShiftItemsEveryRun(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignIndent
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+		c.Layout.ParenIndent.CloseFirst = config.ParenCloseAfter
+	})
+	formatTwice(t, c, "SELECT * FROM crosstab(\n'select 1\n  from t',\n'select sport_name from opportunities.lst_sports where id_sport in (184,185,200,201,186,183,224,188,187,217,238,222,229,223,198,202,195,226,209)'\n)\n\nAS ct(a text,\n   b text)\nORDER BY 1;\n")
+	c = wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+	})
+	formatTwice(t, c, "CREATE TEMPORARY TABLE items AS\nSELECT ti.id_ticket, o.*\nFROM tickets AS tti\n    JOIN tickets AS ti USING(id_ticket)\n    JOIN LATERAL\n    (\n        SELECT id_odds, MAX(odds_history_time) AS odds_change_time\n        FROM h AS toh\n        WHERE id_odds = tti.id_odds\n        GROUP BY id_odds\n    ) AS o ON TRUE\nWHERE x IS NULL;\n")
+	c = wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignIndent
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    LOOP\n\n        INSERT INTO terminals.lst_terminals AS lt\n        (\n            id_terminal,\n            terminal_supports_cash\n        )\n        VALUES\n        (\n            _rcd.id_terminal,\n            _rcd.terminal_supports_cash\n        )\n        ON CONFLICT (id_terminal)\n        DO UPDATE SET\n            id_branch                = EXCLUDED.id_branch,\n            terminal_supports_cash   = EXCLUDED.terminal_supports_cash;\n\n        COMMIT;\n    END LOOP;\nEND\n$$;\n")
+}
+
+func TestDollarOpenWithTrailingBlankAndNewlineAfterOpenRemove(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) { c.Layout.DollarQuote.NewlineAfterOpen = config.BlankLineRemove })
+	got := formatTwice(t, c, "CREATE FUNCTION f() RETURNS trigger\n    LANGUAGE plpgsql\n    AS $$ \nBEGIN\n  RETURN NEW;\nEND;\n$$;\n")
+	if strings.Contains(got, "$$\n\nBEGIN") || strings.Contains(got, "$$\n \nBEGIN") {
+		t.Errorf("a blank line is left after the opening delimiter:\n%s", got)
+	}
+}
+
+func TestIfBlankLineAfterRemoveTakesLinesOfBlanks(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.If.BlankLineAfter = config.BlankLineRemove
+		c.Layout.Indent.Type = config.IndentTypeTab
+		c.Layout.Indent.Normalize = config.IndentNormalizeChange
+		c.Layout.Indent.Remainder = config.IndentRemainderRemove
+		c.Layout.Indent.Size = 3
+	})
+	got := formatTwice(t, c, "CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  IF a IS NULL THEN\n  \n    RETURN NULL;\n  \n  END IF;\n  RETURN 1;\nEND;\n$$;\n")
+	if strings.Contains(got, "THEN\n\n") || strings.Contains(got, "THEN\n \n") || strings.Contains(got, "THEN\n\t\n") {
+		t.Errorf("a line of blanks was left after THEN:\n%s", got)
+	}
+}
+
+// A statement whose own `;` stands in a comment runs on into the END of its block: it is no statement
+// to lay out (end_semicolon: add makes it look like one on the next run).
+func TestStatementWithSemicolonInCommentIsNotLaidOutWithTheEnd(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.DollarQuote.PLpgSQL.EndSemicolon = config.EndSemicolonAdd
+		c.Layout.Clauses.Break = config.BreakAlways
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\nUPDATE  t\n    SET a = 1\nWHERE   id = 820\n  AND   x = 174   -- EMAIL (kontakt);\nEND\n$$;\n")
+}
+
+func TestJoinedSubqueryKeepsParenSpacingAdd(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.ParenSpacing = config.ParenSpacingAdd
+		c.Layout.Subquery.Break = config.BreakNever
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakNever
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    CASE tg_op\n        WHEN 'DELETE' THEN\n            PERFORM f(old.id, FALSE)\n               FROM m AS map\n              WHERE map.s = OLD.s\n                AND EXISTS(SELECT FROM u WHERE id = OLD.id)\n                AND EXISTS(SELECT FROM v WHERE id = OLD.id);\n    END CASE;\nEND\n$$;\n")
+}
+
+func TestReturnsTableBreakDoesNotDependOnTheBlankBeforeItsParen(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.DDL.CreateFunction.Params = config.BreakAuto
+		c.Layout.DDL.CreateFunction.Options = config.BreakNever
+		c.Layout.LineLength = 80
+	})
+	formatTwice(t, c, "CREATE OR REPLACE FUNCTION terminals_api.get_terminal_branch_daily_report_data_card_payments(_id_terminal INTEGER, _id_branch INTEGER, _date DATE)\n RETURNS TABLE\n (\n    report_type VARCHAR,\n    report_amount NUMERIC,\n    report_count BIGINT\n )\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  RETURN;\nEND;\n$function$;\n")
+}
+
+func TestForInUpdateReturningIsACursorQuery(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.ParenIndent.Mode = config.ParenIndentNone
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BlankLineAfter = config.BlankLineRemove
+	})
+	formatTwice(t, c, "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n\n    FOR r IN\n        UPDATE t\n        SET is_active = FALSE\n        WHERE expired_at < NOW()\n          AND is_active\n        RETURNING *\n    LOOP\n\n        INSERT INTO u(a) VALUES (r.a);\n\n    END LOOP;\nEND;\n$$;\n")
+}
+
+func TestItemAfterCommentLineMovesInWithItsFirstLine(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Content.Break = config.BreakAlways
+		c.Layout.Case.Break = config.BreakAlways
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    SELECT\n        t.ticket_time_bet,\n        t.ticket_win,\n        --t.id_ticket_state\n        CASE WHEN t.id_ticket_state = 4 THEN 1 ELSE 0 END as id_ticket_state\n    FROM tick t\n    LEFT JOIN\n    (\n    SELECT dc.client_email, dc.id_client\n        FROM dblink('conn', _str_client, TRUE) AS dc(client_email VARCHAR, id_client INTEGER)\n    ) ci ON ci.id_client = t.id_client\n ORDER BY  ticket_time_bet ;\nEND\n$$;\n")
+}
+
+func TestIfConditionLineLeftOfTheKeywordMovesWithIt(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.KeywordParenSpacing = config.ParenSpacingRemove
+		c.Layout.Subquery.Break = config.BreakAlways
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BlankLineAfter = config.BlankLineAdd
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n        IF a THEN\n\n            IF NEW.id_oppty_state = 9 -- State 9 allowed\n           AND NOT EXISTS\n                    (\n                        SELECT\n                        FROM opportunities.tab_odds\n                        WHERE id_opportunity = NEW.id_opportunity\n                          AND odds_is_winning IS NOT NULL\n                    )\n            THEN\n                _ok = FALSE;\n            END IF;\n        END IF;\nEND\n$$;\n")
+}
+
+// plainCfg is the default configuration (every layout option preserve) with the options of one test:
+// what the sweeps over the option space ran.
+func plainCfg(t *testing.T, mutate func(*config.Config)) *config.Config {
+	t.Helper()
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutate(c)
+	if err := config.Validate(c); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}

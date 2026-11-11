@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"regexp"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -10,7 +11,7 @@ import (
 // SELECT aliases, "=" for SET assignments) so the separators line up. Items that
 // span lines, carry comments, contain CASE or have no separator are returned as
 // they are; with fewer than two alignable items nothing changes.
-func alignItems(items []string, sep string, indentLen, limit int, commaCompact bool) []string {
+func alignItems(items []string, sep string, indentLen, limit int, commaCompact, skipSubqueries bool) []string {
 	// comma_spacing: compact takes the blank after a comma off in the token pass that follows,
 	// so the width of a head is the one it will have then
 	widthOf := func(head string) int {
@@ -27,6 +28,9 @@ func alignItems(items []string, sep string, indentLen, limit int, commaCompact b
 		_, it, _ := splitCommentLines(full)
 		if strings.ContainsAny(it, "\n") || strings.Contains(it, "--") || strings.Contains(it, "/*") {
 			continue
+		}
+		if skipSubqueries && alignSubqueryOpen.MatchString(it) {
+			continue // (a subquery that is opened onto lines afterwards: the item has several lines then)
 		}
 		at := topLevelSeparator(it, sep)
 		if at <= 0 {
@@ -149,3 +153,5 @@ func collapseSeparatorPadding(item, sep string) string {
 	}
 	return head + " " + item[at:]
 }
+
+var alignSubqueryOpen = regexp.MustCompile(`(?i)\(\s*(select|with|values)\b`)

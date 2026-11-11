@@ -138,9 +138,17 @@ func flattenSubqueriesHang(sql string, cfg *config.LayoutConfig, hang bool) stri
 			lead := sql[ls:tokens[sq.open].start]
 			lineHang = lead[:len(lead)-len(strings.TrimLeft(lead, " \t"))] + indentUnitStr(cfg)
 		}
-		sb.WriteString(inlineContentLines(sql, tokens, sq.open+1, sq.close, cfg.ParenSpacing, false, lineHang))
+		inner := inlineContentLines(sql, tokens, sq.open+1, sq.close, cfg.ParenSpacing, false, lineHang)
+		if cfg.ParenSpacing == config.ParenSpacingAdd && inner != "" && sq.close-1 > sq.open && !strings.HasPrefix(tokens[sq.close-1].text, "--") {
+			inner = " " + inner + " " // (paren_spacing: add — the blanks inside the parentheses stay when the subquery is joined)
+		}
+		sb.WriteString(inner)
 		if sq.close-1 > sq.open && strings.HasPrefix(tokens[sq.close-1].text, "--") {
-			sb.WriteByte('\n') // the ")" must not end up inside the comment
+			// the ")" must not end up inside the comment: it goes to a line of its own, under the line of its "("
+			ls := strings.LastIndexByte(sql[:tokens[sq.open].start], '\n') + 1
+			lead := sql[ls:tokens[sq.open].start]
+			sb.WriteByte('\n')
+			sb.WriteString(lead[:len(lead)-len(strings.TrimLeft(lead, " \t"))])
 		}
 		pos = tokens[sq.close].start
 	}
@@ -272,7 +280,8 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 	}
 	front = strings.ReplaceAll(front, "\t", strings.Repeat(" ", tab))
 	// (a subquery inside is joined to one line on its own, without the blank after its `(`)
-	sub := innerSubqueryOpen.ReplaceAllString(sql[start:end], "(${1}")
+	// (blank runs inside count as one: a CASE inside is reformatted afterwards, and that takes them off)
+	sub := collapseBlanks(innerSubqueryOpen.ReplaceAllString(sql[start:end], "(${1}"))
 	if commaCompact {
 		// comma_spacing: compact takes the blank after a comma off in the token pass; a text that
 		// has it (lines joined behind a comma) and one that has not are the same line to measure

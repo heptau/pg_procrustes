@@ -1112,11 +1112,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if contentFirstItem != config.FirstItemInline {
 			switch {
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsAlign:
-				items = alignItems(items, "as", runeLen(contentIndent), wrapLimit(cfg), cfg.CommaSpacing == config.CommaSpacingCompact)
+				items = alignItems(items, "as", runeLen(contentIndent), wrapLimit(cfg), cfg.CommaSpacing == config.CommaSpacingCompact, subqueryMode(cfg) == config.BreakAlways || subqueryMode(cfg) == config.BreakAuto)
 			case cl.kind == clauseSelect && cfg.Content.AlignAliases == config.AlignItemsNone:
 				items = unpadItems(items, "as")
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsAlign:
-				items = alignItems(items, "=", runeLen(contentIndent), wrapLimit(cfg), cfg.CommaSpacing == config.CommaSpacingCompact)
+				items = alignItems(items, "=", runeLen(contentIndent), wrapLimit(cfg), cfg.CommaSpacing == config.CommaSpacingCompact, subqueryMode(cfg) == config.BreakAlways || subqueryMode(cfg) == config.BreakAuto)
 			case cl.kind == clauseSet && cfg.Content.AlignSet == config.AlignItemsNone:
 				items = unpadItems(items, "=")
 			}
@@ -1146,6 +1146,18 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				body = contentIndent + body[len(ws):]
 			}
 			rest := reindentBody(body)
+			if rest == body && !commaStart && strings.Contains(body, "\n") && !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
+				// The lines below the comments stand as they did relative to each other (the common indent
+				// was taken off): lines that happen to have as much indent as the item are no sign that
+				// they are placed, all of them move in with the first.
+				parts := strings.Split(body, "\n")
+				for j := range parts {
+					if strings.TrimSpace(parts[j]) != "" {
+						parts[j] = contentIndent + parts[j]
+					}
+				}
+				return lead + strings.Join(parts, "\n")
+			}
 			if !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") && (rest != body || !strings.Contains(body, "\n")) {
 				// The comment lines took the item's indent off its other lines
 				// (trimLeadingCommentIndent), so the first line of the body has none either: it starts
@@ -1179,7 +1191,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// a line of its own, and that `)` belongs at the indent of the item. When it stands further
 			// left, the whole item is shifted right by the difference, body and parentheses together
 			// (judging by the body alone left `(` at the item's indent and the `)` at the margin).
-			if fixed, ok := shiftClosedParenItem(item, contentIndent, indentUnit); ok {
+			// (paren_indent: indent puts that `)` at the depth it has afterwards: what follows it must not move
+			// with it, or every run finds the `)` left of the item's indent and shifts the item again)
+			if fixed, ok := shiftClosedParenItem(item, contentIndent, indentUnit, cfg.ParenIndent.Mode == config.ParenIndentIndent); ok {
 				return fixed
 			}
 			// `PERFORM f(` + arguments on the lines below: the call opens a parenthesis that closes on
@@ -1209,8 +1223,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// clause, an alias) says more.
 			judgeOf := func(onlyOuter, skipComments bool) string {
 				depth, _ := parenScanLine(item[:firstNewline])
-				first := ""
+				first, closer := "", ""
 				for _, ln := range strings.Split(item[firstNewline+1:], "\n") {
+					if closer == "" && depth == 1 && strings.HasPrefix(strings.TrimSpace(ln), ")") {
+						closer = ln
+					}
 					inner := depth > 0
 					d, _ := parenScanLine(ln)
 					if depth += d; depth < 0 {
@@ -1227,8 +1244,14 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 						return ln
 					}
 				}
-				if onlyOuter {
+				if onlyOuter && cfg.ParenIndent.Mode != config.ParenIndentIndent {
 					return "" // lone parentheses alone: judge by all the lines instead
+				}
+				// (paren_indent: indent sets the lines inside parentheses itself, at their depth: they
+				// say nothing about the item, and judging by them moved it on every run; the `)` that
+				// closes the parenthesis the item opened stands where the item does)
+				if first == "" {
+					first = closer
 				}
 				return first
 			}
@@ -1331,7 +1354,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 // that the `)` that closes it — the first line starting with ")" at nesting level one — stands at
 // indent, and the lines between the opening and the closing parenthesis stand deeper than that.
 // ok is false when there is no such `)` line or it already stands at indent or further right.
-func shiftClosedParenItem(item, indent, unit string) (string, bool) {
+func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bool) {
 	lines := strings.Split(item, "\n")
 	depth := 0
 	closeAt := -1
@@ -1397,11 +1420,13 @@ func shiftClosedParenItem(item, indent, unit string) (string, bool) {
 		if strings.TrimSpace(lines[j]) == "" || bodyDeep && j >= bodyFrom && j < closeAt {
 			continue
 		}
-		if strings.HasPrefix(lines[j], have) {
+		switch {
+		case holdAfter && j > closeAt:
+		case strings.HasPrefix(lines[j], have):
 			// after the blanks the line has in common with the `)` (with tabs for the unit and
 			// blanks in front of them, "<blanks><tab>" is the order a second run finds again)
 			lines[j] = have + closeShift + lines[j][len(have):]
-		} else {
+		default:
 			lines[j] = closeShift + lines[j]
 		}
 		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && strings.TrimSpace(lines[j]) != "" && !isCommentLine(lines[j]) {
