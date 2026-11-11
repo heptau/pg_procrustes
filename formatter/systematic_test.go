@@ -446,3 +446,27 @@ func TestInsertColumnListInlineFirstItemGetsParenSpacingAdd(t *testing.T) {
 	})
 	formatTwice(t, c, "INSERT INTO dwh_kafka.lst_oppty_regions_conf_prematch\n(\n    oppty_region_is_bonus,\n    oppty_region_betradarunity_id,\n    oppty_region_betradarunity_name\n)\nVALUES (1, 2, 3);\n")
 }
+
+// An item that follows a comment line is moved to the item's indent as a whole before the generic
+// indentation looks at it: a trailing -- comment inside it made that indent only the line after the comment.
+func TestCteBehindCommentWithTrailingCommentAndTabs(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.Content.Align = config.AlignIndent
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.Indent.Type = config.IndentTypeTab
+		c.Layout.Subquery.Break = config.BreakAuto
+	})
+	formatTwice(t, c, "CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$\n    WITH\n    -- select related offer entries\n    oppty AS\n    (\n        SELECT o.id_opportunity, o.oppty_end_date + o.oppty_end_time AS match_timestamp, l.id_league, l.league_name\n        FROM live_opportunities.tab_opportunities AS o\n        JOIN live_opportunities.tab_odds            AS od   USING(id_opportunity)\n          AND oppty_end_date     <= _date_to\n          AND o.id_data_provider =  _provider -- 8=RTS\n    ),\n    b AS (SELECT 1)\n    SELECT * FROM oppty;\n$$;\n")
+}
+
+func TestRiverInsertColumnListClosesWithParenSpacingAdd(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.ParenSpacing = config.ParenSpacingAdd
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAuto
+	})
+	formatTwice(t, c, "DO $$\nBEGIN\n    CASE TG_OP\n        WHEN 'INSERT' THEN\n            INSERT INTO dwh_kafka.lst_oppty_regions_conf_prematch\n            (\n                oppty_region_is_bonus,\n                oppty_region_betradarunity_id,\n                oppty_region_betradarunity_name\n            )\n            VALUES (1, 2, 3);\n    END CASE;\nEND;\n$$;\n")
+}

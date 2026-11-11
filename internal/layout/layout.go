@@ -1065,6 +1065,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 						}
 					}
 					if riverHang != "" && !strings.Contains(colItems[len(colItems)-1], "--") {
+						if cfg.ParenSpacing == config.ParenSpacingAdd {
+							sb.WriteByte(' ')
+						}
 						sb.WriteByte(')') // river: the list closes behind its last column
 					} else {
 						sb.WriteByte('\n')
@@ -1148,19 +1151,21 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; ws != "" && len(ws) < len(contentIndent) && strings.HasPrefix(contentIndent, ws) {
 				body = contentIndent + body[len(ws):]
 			}
-			rest := reindentBody(body)
-			if rest == body && !commaStart && strings.TrimSpace(body[:strings.IndexByte(body+"\n", '\n')]) != "" && strings.Contains(body, "\n") && !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
+			if !commaStart && strings.TrimSpace(body[:strings.IndexByte(body+"\n", '\n')]) != "" && strings.Contains(body, "\n") &&
+				!strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
 				// The lines below the comments stand as they did relative to each other (the common indent
-				// was taken off): lines that happen to have as much indent as the item are no sign that
-				// they are placed, all of them move in with the first.
+				// was taken off): they are moved to the item's indent first, all of them, and what the
+				// generic indentation judges is the item as it stands there (a line that happens to have as
+				// much indent as the item says nothing about the lines before it being placed).
 				parts := strings.Split(body, "\n")
-				for j := range parts {
+				for j := 1; j < len(parts); j++ {
 					if strings.TrimSpace(parts[j]) != "" {
 						parts[j] = contentIndent + parts[j]
 					}
 				}
-				return lead + strings.Join(parts, "\n")
+				return lead + contentIndent + reindentBody(strings.Join(parts, "\n"))
 			}
+			rest := reindentBody(body)
 			if !strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") && (rest != body || !strings.Contains(body, "\n")) {
 				// The comment lines took the item's indent off its other lines
 				// (trimLeadingCommentIndent), so the first line of the body has none either: it starts
