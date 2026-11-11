@@ -83,6 +83,29 @@ func findSubqueries(tokens []rawTok) []subqueryParen {
 }
 
 func flattenSubqueries(sql string, cfg *config.LayoutConfig) string {
+	return flattenSubqueriesHang(sql, cfg, false)
+}
+
+// flattenSubqueriesHang is flattenSubqueries that, with hang, puts the line that follows a -- comment in a
+// subquery one level below the line the subquery opens on (nothing indents it afterwards, as the clause
+// layout does for the statements of a file).
+// parenKeywords are the words whose "(" keyword_paren_spacing speaks about.
+var parenKeywords = map[string]bool{"as": true, "in": true, "values": true, "on": true, "exists": true, "any": true,
+	"all": true, "some": true, "from": true, "join": true, "where": true, "and": true, "or": true, "not": true,
+	"select": true, "set": true, "using": true, "union": true, "intersect": true, "except": true, "then": true,
+	"else": true, "when": true, "having": true, "lateral": true}
+
+// pos0 is the index of the first token that starts at or after the text offset pos.
+func pos0(tokens []rawTok, pos int) int {
+	for i, t := range tokens {
+		if t.start >= pos {
+			return i
+		}
+	}
+	return len(tokens)
+}
+
+func flattenSubqueriesHang(sql string, cfg *config.LayoutConfig, hang bool) string {
 	if subqueryMode(cfg) == config.BreakPreserve {
 		return sql
 	}
@@ -101,8 +124,21 @@ func flattenSubqueries(sql string, cfg *config.LayoutConfig) string {
 	var sb strings.Builder
 	pos := 0
 	for _, sq := range subs {
-		sb.WriteString(sql[pos:tokens[sq.open].end])
-		sb.WriteString(inlineContent(sql, tokens, sq.open+1, sq.close, cfg.ParenSpacing))
+		if prev := sq.open - 1; cfg.KeywordParenSpacing == config.ParenSpacingRemove && prev >= pos0(tokens, pos) &&
+			parenKeywords[strings.ToLower(tokens[prev].text)] && strings.Contains(gapBetween(sql, tokens, prev, sq.open), "\n") {
+			// keyword_paren_spacing: remove joins the "(" of a subquery that is joined to one line to its keyword
+			sb.WriteString(sql[pos:tokens[prev].end])
+			sb.WriteString("(")
+		} else {
+			sb.WriteString(sql[pos:tokens[sq.open].end])
+		}
+		lineHang := ""
+		if hang {
+			ls := strings.LastIndexByte(sql[:tokens[sq.open].start], '\n') + 1
+			lead := sql[ls:tokens[sq.open].start]
+			lineHang = lead[:len(lead)-len(strings.TrimLeft(lead, " \t"))] + indentUnitStr(cfg)
+		}
+		sb.WriteString(inlineContentLines(sql, tokens, sq.open+1, sq.close, cfg.ParenSpacing, false, lineHang))
 		if sq.close-1 > sq.open && strings.HasPrefix(tokens[sq.close-1].text, "--") {
 			sb.WriteByte('\n') // the ")" must not end up inside the comment
 		}
@@ -346,7 +382,7 @@ func ExpandSubqueries(text string, cfg *config.LayoutConfig) string {
 	if cfg == nil || subqueryMode(cfg) == config.BreakPreserve {
 		return text
 	}
-	return expandSubqueries(flattenSubqueries(text, cfg), cfg, indentUnitStr(cfg))
+	return expandSubqueries(flattenSubqueriesHang(text, cfg, true), cfg, indentUnitStr(cfg))
 }
 
 // dedentLines removes up to n leading blanks from every line of text after the first.

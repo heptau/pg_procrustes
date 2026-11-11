@@ -41,7 +41,7 @@ def check(cfg, sql):
 
 clusters = collections.defaultdict(list)
 for c in cfgs:
-    res = subprocess.run([smx, corpus, "4", "fp:" + c], capture_output=True, text=True).stdout
+    res = subprocess.run([smx, corpus, os.environ.get("TRIAGE_N", "4"), "fp:" + c], capture_output=True, text=True).stdout
     for m in re.finditer(r"=== (\S+) \[.*?\] wrap=(\w+)\s+(.*?)\n--- in\n(.*?)\n--- out\n", res, re.S):
         sql = m.group(4)
         cfg = json.load(open(c))

@@ -783,6 +783,10 @@ type LayoutConfig struct {
 	// dollar-quote settings re-indent the lines afterwards: the blanks in front of a line are then
 	// not what the layout leaves it with, so they do not count when a line is measured.
 	IndentSetLater bool `yaml:"-"`
+
+	// KeywordParenSpacing is keyword_paren_spacing as the formatter has it: with remove, the layout
+	// writes a clause keyword and a content that starts with "(" without a blank between them.
+	KeywordParenSpacing ParenSpacingMode `yaml:"-"`
 }
 
 // DefaultLayout returns the default LayoutConfig (all fields set to preserve).
@@ -954,6 +958,10 @@ type Config struct {
 	// Nested is set by the formatter while it formats a fragment of a statement (the body of a
 	// function) and never read from YAML.
 	Nested bool `yaml:"-"`
+
+	// OwnLineParen is set for the inner passes over a PL/pgSQL body (whose layout is applied later): the
+	// layout of the file puts the "(" after a keyword on a line of its own (paren_indent.open: own_line).
+	OwnLineParen bool `yaml:"-"`
 }
 
 // defaultConfig is what an empty .pg_procrustes.yaml means: every rule is

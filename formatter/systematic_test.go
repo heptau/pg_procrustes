@@ -168,3 +168,58 @@ func TestQuotedNameAfterAsInXmlFunctionKeepsItsQuotes(t *testing.T) {
 	})
 	formatTwice(t, c, "create function f() returns xml language plpgsql as $$\nbegin\n  return xmlelement(name a, xmlattributes(1 as \"period\"));\nend;\n$$;\n")
 }
+
+// Found by running the sweep over a large real project (every pair of option values over 330 000 statements).
+
+func TestSQLBodyIndentNoneWithMixedTabsAndBlanks(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) { c.Layout.DollarQuote.SQL.BodyIndent = config.BodyIndentNone })
+	formatTwice(t, c, "CREATE FUNCTION f() RETURNS int LANGUAGE sql\n    AS $_$\n        SELECT 1\n\t, 2\n$_$;\n")
+}
+
+func TestBeginKeepsItsIndentWhenDeclareIsRemoved(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) { c.Layout.DollarQuote.PLpgSQL.DeclareEmpty = config.WhenEmptyRemove })
+	got := formatTwice(t, c, "CREATE FUNCTION f() RETURNS trigger LANGUAGE plpgsql\n AS $function$\n DECLARE\n BEGIN\n   RETURN NEW;\n END;\n $function$;\n")
+	if !strings.Contains(got, "\n BEGIN\n") {
+		t.Errorf("BEGIN lost its indent:\n%s", got)
+	}
+}
+
+func TestInequalityAndCompactOperatorSpacingBeforeMinus(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.InequalityOp = config.InequalityANSI
+		c.OperatorSpacing = config.OperatorSpacingCompact
+	})
+	formatTwice(t, c, "select a != -99, b <> -1 from t;\n")
+}
+
+func TestTableAfterQuotedSchemaIsLocated(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.QuotedIdents = config.QuotedIdentRemoveSafe
+		c.Tables.Case = config.CaseCapitalize
+	})
+	got := formatTwice(t, c, "select 1 from \"live_opportunities\".lst_oppty_types as o;\n")
+	if !strings.Contains(strings.ToLower(got), "live_opportunities.lst_oppty_types") || strings.Contains(got, "\"") {
+		t.Errorf("unexpected: %s", got)
+	}
+}
+
+func TestBodyStartingWithCommentIsStillABlock(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) { c.Layout.DollarQuote.SQL.BodyIndent = config.BodyIndentIndent })
+	formatTwice(t, c, "CREATE FUNCTION f() RETURNS int LANGUAGE plpgsql\n    AS $$  /*DOCU\nx\nDOCU*/\nBEGIN\n  RETURN 1;\nEND;\n$$;\n")
+}
+
+func TestCaseBranchBodyThatMovesIsLaidOutAsLineStart(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAlways
+		c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = config.BreakAlways
+	})
+	formatTwice(t, c, "CREATE FUNCTION f(a int) RETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n    CASE a\n        WHEN 1\n            THEN INSERT INTO t(x)\n                 VALUES (1);\n\n        WHEN 2\n            THEN UPDATE t\n                    SET x = 2\n                  WHERE y = 1;\n    END CASE;\nEND;\n$$;\n")
+}
+
+func TestFlattenedIfConditionLineAfterCommentIsIndented(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Subquery.Break = config.BreakNever
+		c.Layout.DollarQuote.PLpgSQL.BeginBody.Indent = config.BodyIndentIndent
+	})
+	formatTwice(t, c, "do $$\nbegin\n\n    IF (\n            SELECT a = 1 -- retail\n            FROM t\n        )\n    THEN\n        RETURN NEW;\n    END IF;\n\n    x := 1;\nend $$;\n")
+}

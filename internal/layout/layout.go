@@ -823,7 +823,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				sb.WriteString(strings.TrimSpace(originalText(sql, tokens, kwStart, kwEnd)))
 				content := strings.TrimSpace(originalText(sql, tokens, kwEnd, conEnd))
 				if content != "" {
-					sb.WriteByte(' ')
+					// (the gap between the keyword and its content is the one it has, a blank at least: the
+					// keyword_paren_spacing: remove of the token pass took it off before a "(")
+					if !(cfg.KeywordParenSpacing == config.ParenSpacingRemove && contentStartsWithParen(tokens, kwEnd, conEnd)) {
+						sb.WriteByte(' ')
+					}
 					content = reformatCaseExprs(content, baseIndent, cfg.Case, indentUnit, cfg.LineLength)
 					sb.WriteString(content)
 				}
@@ -955,7 +959,9 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 
 		if !doContentBreak {
-			sb.WriteByte(' ')
+			if !(cfg.KeywordParenSpacing == config.ParenSpacingRemove && contentStartsWithParen(tokens, kwEnd, conEnd)) {
+				sb.WriteByte(' ')
+			}
 			// Use inlineContent instead of originalText: the original may span multiple
 			// lines (e.g. ORDER BY items each on their own line), and placing that verbatim
 			// on the same line as the keyword would embed raw newlines in the output.
@@ -3122,4 +3128,9 @@ func mapLinesBelowFirst(text string, base int, inside map[int]bool, f func(strin
 		start += end + 1
 	}
 	return b.String()
+}
+
+// contentStartsWithParen reports whether the first token of the content [from, to) is a "(".
+func contentStartsWithParen(tokens []rawTok, from, to int) bool {
+	return from < to && from < len(tokens) && tokens[from].text == "("
 }
