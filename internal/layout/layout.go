@@ -1149,7 +1149,17 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			// (the first line below the comments starts a line of its own: blanks it has left of the
 			// item's indent, from the keyword line, are brought to it)
 			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; ws != "" && len(ws) < len(contentIndent) && strings.HasPrefix(contentIndent, ws) {
-				body = contentIndent + body[len(ws):]
+				// (and the lines below it, whose indent was taken off by the same amount: the first
+				// line alone would leave the `(` that follows it behind)
+				pad := contentIndent[len(ws):]
+				parts := strings.Split(body, "\n")
+				parts[0] = contentIndent + parts[0][len(ws):]
+				for j := 1; j < len(parts); j++ {
+					if strings.TrimSpace(parts[j]) != "" && strings.HasPrefix(parts[j], ws) {
+						parts[j] = pad + parts[j]
+					}
+				}
+				body = strings.Join(parts, "\n")
 			}
 			if !commaStart && strings.TrimSpace(body[:strings.IndexByte(body+"\n", '\n')]) != "" && strings.Contains(body, "\n") &&
 				!strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
@@ -1470,7 +1480,7 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 		default:
 			lines[j] = closeShift + lines[j]
 		}
-		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && strings.TrimSpace(lines[j]) != "" && !isCommentLine(lines[j]) {
+		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && strings.TrimSpace(lines[j]) != "" {
 			// what follows the closing parenthesis (`) AS f` / `USING (id)`) belongs to the item
 			// and stands at its indent at least; a line left of it would be what the next run
 			// judges the whole item by, and move the item once more

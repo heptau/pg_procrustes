@@ -470,3 +470,29 @@ func TestRiverInsertColumnListClosesWithParenSpacingAdd(t *testing.T) {
 	})
 	formatTwice(t, c, "DO $$\nBEGIN\n    CASE TG_OP\n        WHEN 'INSERT' THEN\n            INSERT INTO dwh_kafka.lst_oppty_regions_conf_prematch\n            (\n                oppty_region_is_bonus,\n                oppty_region_betradarunity_id,\n                oppty_region_betradarunity_name\n            )\n            VALUES (1, 2, 3);\n    END CASE;\nEND;\n$$;\n")
 }
+
+// With paren_indent: indent a comment line between the last CTE's `)` and the main query stands at the
+// item's indent like the `)` does, not where the first run's input left it.
+func TestRiverCommentAfterLastCteParenIndentIndent(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+	})
+	formatTwice(t, c, "WITH\n    a AS\n    (\n        SELECT 1 AS x\n    ),\n    -- find tickets\n    b AS\n    (\n        SELECT id_ticket, COUNT(id_odds) AS sum_all\n        FROM tickets\n        GROUP BY id_ticket\n    )\n    -- generate final report\n    SELECT\n        a.x,\n        b.sum_all\n    FROM a\n    JOIN b ON TRUE;\n")
+}
+
+// A CTE after a comment line, with `paren_indent: indent` and `close_first_on_line: after`: the lines
+// below the first one lose the same indent as the first when the comment lines are taken off, and are
+// moved back with it (the `(` stayed five columns behind and moved on the next run).
+func TestRiverCteAfterCommentParenIndentCloseAfter(t *testing.T) {
+	c := plainCfg(t, func(c *config.Config) {
+		c.Layout.Clauses.Break = config.BreakAuto
+		c.Layout.Clauses.Align = config.AlignRight
+		c.Layout.Content.Break = config.BreakAuto
+		c.Layout.ParenIndent.Mode = config.ParenIndentIndent
+		c.Layout.ParenIndent.CloseFirst = config.ParenCloseAfter
+	})
+	formatTwice(t, c, "WITH\n    a AS\n    (\n        SELECT 1 AS x\n    ),\n    -- find tickets\n    b AS\n    (\n        SELECT id_ticket\n        FROM tickets\n        WHERE id_ticket = 1\n        GROUP BY id_ticket\n    ),\n    -- more\n    c AS\n    (\n        SELECT 2 FROM b\n    )\n    SELECT a.x\n    FROM a\n    JOIN b ON TRUE;\n")
+}
