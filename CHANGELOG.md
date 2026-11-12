@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `syntax_errors: skip` (and `--lines` / LSP range formatting): a statement that starts in the middle of a line — after another statement (`select * from a; select * from b;`) or after the trailing comment of the previous one (`…; -- note` / `…; /* note */`) — took the blanks that separate the two for its indentation: its continuation lines came out one space (or the width of the separator) too far right, and a second run moved them again (not idempotent). Such a statement is now laid out with the indentation of its line, as when the script is formatted as a whole; test `TestSyntaxErrorsSkipStatementsStartingMidLine` compares both paths for every shipped template
+- `inline_spacing: normalize` collapsed the indentation of the first line of a file to one space (`    select 1;` at the very start became ` select 1;`); the blanks before the first token of a script are indentation and stay
+- `--diff`: the hunk headers named a line 3 before the first line shown and the hunks had no leading context, so `patch` / `git apply` rejected the output; changes closer than 6 lines now share a hunk, and a last line without a newline gets `\ No newline at end of file` instead of running into the next line. Unchanged lines at both ends of the file no longer take part in the line comparison (memory for large files)
+- `--backup` without a value (`pg_procrustes -w --backup query.sql`, as documented) took the next argument for the extension — the file was not formatted and the program waited for stdin; a bare `--backup` now means `.bak`, `--backup=.orig` and `--backup .orig` keep working
+- `-c path` (and the LSP `configPath`) pointing to a file that does not exist is an error instead of silently formatting with the built-in defaults (which change nothing)
+- `--version` and the header of `--print-config` show the release version for builds installed with `go install …@vX.Y.Z` instead of `dev`
+
 ### Security
 
 - `docs/config-builder.html`: the YAML preview is built from DOM nodes with `textContent` instead of concatenated HTML (CodeQL `js/xss-through-dom`), and `escHtml` also escapes `"` and `'` (`js/incomplete-html-attribute-sanitization`)

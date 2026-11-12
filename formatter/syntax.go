@@ -123,12 +123,12 @@ func formatDiagnostics(sql string, cfg *config.Config) (string, []SyntaxError, e
 	}
 	if len(diags) == 0 {
 		// Only psql meta-commands made the whole script unparsable.
-		return formatChunks(chunks, valid, cfg), nil, nil
+		return formatChunks(sql, chunks, valid, cfg), nil, nil
 	}
 	if mode == config.SyntaxErrorFail {
 		return "", diags, nil
 	}
-	return formatChunks(chunks, valid, cfg), diags, nil
+	return formatChunks(sql, chunks, valid, cfg), diags, nil
 }
 
 // chunk is one statement (with its leading whitespace/comments and its terminating
@@ -210,6 +210,25 @@ func splitStatements(sql string) ([]chunk, error) {
 	return chunks, nil
 }
 
+// startsOnFirstLine reports whether the first line of text holds more than blanks and comments.
+func startsOnFirstLine(text string) bool {
+	for i := 0; i < len(text); {
+		switch {
+		case text[i] == ' ' || text[i] == '\t' || text[i] == '\r':
+			i++
+		case strings.HasPrefix(text[i:], "/*"):
+			end := strings.Index(text[i+2:], "*/")
+			if end < 0 || strings.Contains(text[i:i+2+end], "\n") {
+				return false
+			}
+			i += 2 + end + 2
+		default:
+			return text[i] != '\n' && !strings.HasPrefix(text[i:], "--")
+		}
+	}
+	return false
+}
+
 // atLineStart reports whether only blanks precede offset on its line.
 func atLineStart(sql string, offset int) bool {
 	for i := offset - 1; i >= 0; i-- {
@@ -260,7 +279,7 @@ func syntaxErrorAt(text string, base int, err error, full ...string) SyntaxError
 
 // formatChunks formats the valid chunks one by one, copies the others verbatim and
 // applies the whole-text settings to the result.
-func formatChunks(chunks []chunk, valid []bool, cfg *config.Config) string {
+func formatChunks(sql string, chunks []chunk, valid []bool, cfg *config.Config) string {
 	per := *cfg
 	per.BlankLines = config.BlankLinesPreserve
 	per.Semicolons = config.SemicolonPreserve
@@ -274,11 +293,50 @@ func formatChunks(chunks []chunk, valid []bool, cfg *config.Config) string {
 			b.WriteString(ch.text)
 			continue
 		}
-		out, err := formatParsed(ch.text, &per, ch.parsed)
-		if err != nil {
-			out = ch.text
-		}
-		b.WriteString(out)
+		b.WriteString(formatChunk(sql, ch, &per))
 	}
 	return finishWholeText(b.String(), cfg, lastValid)
+}
+
+// formatChunk formats one chunk of sql that is known to parse. A chunk that starts in the
+// middle of a line — a statement after another one ("a; b;"), or the trailing comment of the
+// previous statement — begins with the blanks that separate the two. They are no indentation:
+// the chunk is formatted with the indentation of its line instead (as when the script is
+// formatted as a whole) and the separator is put back in front.
+func formatChunk(sql string, ch chunk, cfg *config.Config) string {
+	if ch.start == 0 || sql[ch.start-1] == '\n' {
+		out, err := formatParsed(ch.text, cfg, ch.parsed)
+		if err != nil {
+			return ch.text
+		}
+		return out
+	}
+	lead := len(ch.text) - len(strings.TrimLeft(ch.text, " \t"))
+	indent := ""
+	if startsOnFirstLine(ch.text[lead:]) {
+		// The statement itself starts on this line. (After a trailing comment of the
+		// previous statement it starts on a line of its own, with its own indentation.)
+		lineStart := strings.LastIndexByte(sql[:ch.start], '\n') + 1
+		line := sql[lineStart:ch.start]
+		indent = line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+	}
+	text := indent + ch.text[lead:]
+	parsed, err := pg_query.Parse(text)
+	if err != nil {
+		return ch.text
+	}
+	out, err := formatParsed(text, cfg, parsed)
+	if err != nil {
+		return ch.text
+	}
+	if strings.HasPrefix(out, indent) {
+		out = out[len(indent):]
+	} else {
+		out = strings.TrimLeft(out, " \t")
+	}
+	sep := ch.text[:lead]
+	if sep != "" && !strings.HasPrefix(out, "\n") {
+		sep = processGap(sep, ";", "x", false, cfg)
+	}
+	return sep + out
 }

@@ -65,11 +65,8 @@ func FormatRange(sql string, cfg *config.Config, startLine, endLine int) (string
 			b.WriteString(ch.text)
 			continue
 		}
-		out, err := formatParsed(ch.text, &per, parsed)
-		if err != nil {
-			out = ch.text
-		}
-		b.WriteString(out)
+		ch.parsed = parsed
+		b.WriteString(formatChunk(masked, ch, &per))
 	}
 	diags = shiftDiagnostics(diags, regions)
 	if len(diags) > 0 && mode == config.SyntaxErrorFail {

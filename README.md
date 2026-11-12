@@ -325,7 +325,7 @@ It also works between the statements of a function body. Put the directives betw
 
 ## Configuration
 
-For every file pg_procrustes looks for `.pg_procrustes.yaml` in **the file's own directory** and then in each parent up to the filesystem root, so the result does not depend on where you run the program (several files in different projects, each with its own config, work in one call). For text on stdin, `--stdin-filepath path/to/file.sql` names the file the text belongs to (the file need not exist); without it the lookup starts in the current directory. When no file's directory has a config, the search continues from the current directory. Specify a custom path with `-c path/to/config.yaml` — it applies to everything. All settings default to `preserve` (no change).
+For every file pg_procrustes looks for `.pg_procrustes.yaml` in **the file's own directory** and then in each parent up to the filesystem root, so the result does not depend on where you run the program (several files in different projects, each with its own config, work in one call). For text on stdin, `--stdin-filepath path/to/file.sql` names the file the text belongs to (the file need not exist); without it the lookup starts in the current directory. When no file's directory has a config, the search continues from the current directory. Specify a custom path with `-c path/to/config.yaml` — it applies to everything (the file must exist). All settings default to `preserve` (no change).
 
 > **Note:** The `.pg_procrustes.yaml` in this repository root is the reference config: every option with its allowed values and a comment, all set to `preserve` where that is possible. It is documentation, not a recommended style — pick a [template](#templates) or copy the options you need.
 

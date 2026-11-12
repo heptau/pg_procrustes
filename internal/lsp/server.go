@@ -361,6 +361,12 @@ func (s *server) loadConfig(uri string) (*config.Config, error) {
 	if path == "" {
 		path = s.initConfig
 	}
+	if path != "" {
+		// A config file that was named must exist (a typo must not silently mean "no config").
+		if _, err := os.Stat(path); err != nil {
+			return nil, err
+		}
+	}
 	if path == "" {
 		file := uriToPath(uri)
 		if file == "" && s.root != "" {

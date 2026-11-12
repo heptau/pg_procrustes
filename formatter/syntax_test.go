@@ -2,6 +2,8 @@ package formatter_test
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -147,5 +149,77 @@ func TestSyntaxErrorModeIsValidated(t *testing.T) {
 	c := syntaxCfg(t, "sometimes")
 	if err := config.Validate(c); err == nil {
 		t.Fatal("expected validation error for syntax_errors")
+	}
+}
+
+// In skip mode every statement is formatted on its own. A statement that follows another one
+// on its line, or the trailing comment of the previous statement, starts with the blanks that
+// separate the two; they are no indentation of the statement.
+func TestSyntaxErrorsSkipStatementsStartingMidLine(t *testing.T) {
+	files, _ := filepath.Glob("../templates/*.yaml")
+	if len(files) == 0 {
+		t.Fatal("no templates found in templates/")
+	}
+	const bad = "select 1 frm frm;\n"
+	for _, src := range []string{
+		"select * from parent; select * from child;\nupdate parent set val1 = 1;\n",
+		"begin;\n  select * from parent; select * from child;\ncommit;\n",
+		"update parent set val1 = 'b' where aid = 1; -- should fail\nselect * from parent where a = 1;\nselect 2;\n",
+		"select a from t\n\t\twhere b = 1;\t\t-- fails\nselect * from parent where a = 1;\n",
+		"select 1;\t/* commuted */\nselect * from lp where a is not null;\n",
+	} {
+		for _, f := range files {
+			cfg, err := config.Load(f)
+			if err != nil {
+				t.Fatalf("%s: %v", f, err)
+			}
+			whole, err := formatter.Format(src, cfg)
+			if err != nil {
+				t.Fatalf("Format: %v", err)
+			}
+			cfg.SyntaxErrors = config.SyntaxErrorSkip
+			out, diags, err := formatter.FormatWithDiagnostics(src+bad, cfg)
+			if err != nil || len(diags) != 1 {
+				t.Fatalf("skip: %v %v", err, diags)
+			}
+			i := strings.LastIndex(out, strings.TrimSpace(bad))
+			if i < 0 {
+				t.Fatalf("the bad statement is gone:\n%s", out)
+			}
+			norm := func(s string) string { return strings.TrimRight(s, "\n") }
+			if norm(out[:i]) != norm(whole) {
+				t.Errorf("%s: statements formatted one by one differ from the whole script\n--- input ---\n%s--- whole ---\n%s\n--- skip ---\n%s",
+					filepath.Base(f), src, whole, out[:i])
+			}
+			again, _, err := formatter.FormatWithDiagnostics(out, cfg)
+			if err != nil {
+				t.Fatalf("second pass: %v", err)
+			}
+			if again != out {
+				t.Errorf("%s: not idempotent\n--- first ---\n%s\n--- second ---\n%s", filepath.Base(f), out, again)
+			}
+		}
+	}
+}
+
+// The blanks before the first token of a script are the indentation of its first line.
+func TestInlineSpacingKeepsIndentOfFirstLine(t *testing.T) {
+	empty := filepath.Join(t.TempDir(), "empty.yaml")
+	if err := os.WriteFile(empty, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.InlineSpacing = config.InlineSpacingNormalize
+	const src = "    select *   from child;\n    select 2;\n"
+	const want = "    select * from child;\n    select 2;\n"
+	if got, err := formatter.Format(src, cfg); err != nil || got != want {
+		t.Errorf("got:\n%q (%v)\nwant:\n%q", got, err, want)
+	}
+	// A dollar-quoted body is no script: the blanks after $$ are inline spacing.
+	if got, err := formatter.Format("do $$   begin   perform 1;   end $$;\n", cfg); err != nil || got != "do $$ begin perform 1; end $$;\n" {
+		t.Errorf("body: got %q (%v)", got, err)
 	}
 }

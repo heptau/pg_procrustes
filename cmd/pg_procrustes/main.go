@@ -44,6 +44,18 @@ func reorderArgs(args []string) []string {
 		// We recognise our own boolean flags so we don't accidentally consume
 		// a positional argument as a flag value.
 		name := strings.TrimLeft(a, "-")
+		// --backup has an optional value (default .bak): the next token is its value only when
+		// it looks like an extension and is not a file ("--backup .orig"), so that
+		// "-w --backup query.sql" does not take the file for the extension.
+		if name == "backup" {
+			if i+1 < len(args) && isBackupExt(args[i+1]) {
+				i++
+				flags = append(flags, a+"="+args[i])
+			} else {
+				flags = append(flags, a+"=.bak")
+			}
+			continue
+		}
 		switch name {
 		case "w", "check", "diff", "v", "version", "print-config", "list-templates", "install-templates", "lsp":
 			flags = append(flags, a)
@@ -57,6 +69,16 @@ func reorderArgs(args []string) []string {
 		}
 	}
 	return append(flags, positional...)
+}
+
+// isBackupExt reports whether s can be the value of --backup given as a separate argument:
+// ".ext" that is not an existing file or directory.
+func isBackupExt(s string) bool {
+	if len(s) < 2 || s[0] != '.' || strings.ContainsAny(s[1:], `./\*?[`) {
+		return false
+	}
+	_, err := os.Stat(s)
+	return err != nil
 }
 
 // releaseVersion is the version of this build: the -ldflags value, else the module version
@@ -112,7 +134,7 @@ func printTemplates() {
 // printEffectiveConfig prints every option with the value that is in effect, preceded by
 // the files it came from.
 func printEffectiveConfig(cfg *config.Config) {
-	fmt.Printf("# pg_procrustes %s — effective configuration\n", version)
+	fmt.Printf("# pg_procrustes %s — effective configuration\n", releaseVersion())
 	if len(cfg.Sources) == 0 {
 		fmt.Println("# no config file found: built-in defaults (every rule is preserve)")
 	} else {
@@ -169,7 +191,7 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Printf("pg_procrustes %s\n", version)
+		fmt.Printf("pg_procrustes %s\n", releaseVersion())
 		return
 	}
 
@@ -194,6 +216,15 @@ func main() {
 	if outDir != "" {
 		if err := os.MkdirAll(outDir, 0o755); err != nil {
 			die("out-dir: %v", err)
+		}
+	}
+
+	// A config file named with -c must exist (a typo must not silently mean "no config").
+	if configPath != "" {
+		if info, err := os.Stat(configPath); err != nil {
+			die("config: %v", err)
+		} else if info.IsDir() {
+			die("config: %s is a directory", configPath)
 		}
 	}
 
@@ -460,80 +491,63 @@ func reportSyntax(name, src string, diags []formatter.SyntaxError, warn bool) {
 	}
 }
 
-// unifiedDiff produces a minimal unified diff between original and formatted.
+// unifiedDiff produces a unified diff between original and formatted: hunks with 3 lines
+// of context before and after each change (changes closer than that share a hunk), which
+// patch(1) and git apply accept.
 func unifiedDiff(name, original, formatted string) string {
-	origLines := splitLines(original)
-	fmtLines := splitLines(formatted)
+	edits := lcsEdits(splitLines(original), splitLines(formatted))
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "--- %s\n", name)
 	fmt.Fprintf(&b, "+++ %s\n", name)
 
-	edits := lcsEdits(origLines, fmtLines)
-
-	// Walk edits and emit hunks with 3 lines of context.
 	const ctxLines = 3
-	aLine, bLine := 1, 1
-	// Collect pending hunk lines before emitting the header.
-	type pending struct {
-		aStart, bStart int
-		lines          []string
-		aCount, bCount int
-	}
-	var cur *pending
-
-	flush := func() {
-		if cur == nil {
-			return
+	// aBefore[i] / bBefore[i]: the number of lines of each side before edit i.
+	aBefore := make([]int, len(edits)+1)
+	bBefore := make([]int, len(edits)+1)
+	for i, e := range edits {
+		aBefore[i+1], bBefore[i+1] = aBefore[i], bBefore[i]
+		if e.op != opInsert {
+			aBefore[i+1]++
 		}
-		fmt.Fprintf(&b, "@@ -%d,%d +%d,%d @@\n", cur.aStart, cur.aCount, cur.bStart, cur.bCount)
-		for _, l := range cur.lines {
-			b.WriteString(l)
-		}
-		cur = nil
-	}
-
-	// trailing context lines buffered after last change
-	trailingCtx := 0
-
-	for _, e := range edits {
-		switch e.op {
-		case opEqual:
-			if cur != nil {
-				if trailingCtx < ctxLines {
-					cur.lines = append(cur.lines, " "+e.text)
-					cur.aCount++
-					cur.bCount++
-					trailingCtx++
-				} else {
-					flush()
-				}
-			}
-			aLine++
-			bLine++
-		case opDelete:
-			if cur == nil {
-				startA := max(aLine-ctxLines, 1)
-				startB := max(bLine-ctxLines, 1)
-				cur = &pending{aStart: startA, bStart: startB}
-			}
-			cur.lines = append(cur.lines, "-"+e.text)
-			cur.aCount++
-			trailingCtx = 0
-			aLine++
-		case opInsert:
-			if cur == nil {
-				startA := max(aLine-ctxLines, 1)
-				startB := max(bLine-ctxLines, 1)
-				cur = &pending{aStart: startA, bStart: startB}
-			}
-			cur.lines = append(cur.lines, "+"+e.text)
-			cur.bCount++
-			trailingCtx = 0
-			bLine++
+		if e.op != opDelete {
+			bBefore[i+1]++
 		}
 	}
-	flush()
+	for i := 0; i < len(edits); {
+		if edits[i].op == opEqual {
+			i++
+			continue
+		}
+		// The hunk runs from ctxLines before this change to ctxLines after the last change
+		// that is followed by more than 2*ctxLines unchanged lines (or by the end).
+		lo := max(i-ctxLines, 0)
+		last := i // last changed edit of the hunk
+		for j := i + 1; j < len(edits) && j-last <= 2*ctxLines; j++ {
+			if edits[j].op != opEqual {
+				last = j
+			}
+		}
+		hi := min(last+1+ctxLines, len(edits))
+
+		aCount, bCount := aBefore[hi]-aBefore[lo], bBefore[hi]-bBefore[lo]
+		aStart, bStart := aBefore[lo]+1, bBefore[lo]+1
+		if aCount == 0 { // an empty range names the line before it
+			aStart--
+		}
+		if bCount == 0 {
+			bStart--
+		}
+		fmt.Fprintf(&b, "@@ -%d,%d +%d,%d @@\n", aStart, aCount, bStart, bCount)
+		for _, e := range edits[lo:hi] {
+			b.WriteByte(" -+"[e.op])
+			b.WriteString(e.text)
+			if !strings.HasSuffix(e.text, "\n") {
+				b.WriteString("\n\\ No newline at end of file\n")
+			}
+		}
+		i = hi
+	}
 	return b.String()
 }
 
@@ -563,6 +577,18 @@ type edit struct {
 
 // lcsEdits computes an edit script between a and b using LCS.
 func lcsEdits(a, b []string) []edit {
+	// The unchanged lines at both ends need no table (it has len(a)*len(b) cells).
+	pre := 0
+	for pre < len(a) && pre < len(b) && a[pre] == b[pre] {
+		pre++
+	}
+	suf := 0
+	for suf < len(a)-pre && suf < len(b)-pre && a[len(a)-1-suf] == b[len(b)-1-suf] {
+		suf++
+	}
+	head, tail := a[:pre], a[len(a)-suf:]
+	a, b = a[pre:len(a)-suf], b[pre:len(b)-suf]
+
 	m, n := len(a), len(b)
 	dp := make([][]int, m+1)
 	for i := range dp {
@@ -598,14 +624,15 @@ func lcsEdits(a, b []string) []edit {
 	for lo, hi := 0, len(edits)-1; lo < hi; lo, hi = lo+1, hi-1 {
 		edits[lo], edits[hi] = edits[hi], edits[lo]
 	}
-	return edits
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
+	all := make([]edit, 0, len(head)+len(edits)+len(tail))
+	for _, l := range head {
+		all = append(all, edit{opEqual, l})
 	}
-	return b
+	all = append(all, edits...)
+	for _, l := range tail {
+		all = append(all, edit{opEqual, l})
+	}
+	return all
 }
 
 func usage() {

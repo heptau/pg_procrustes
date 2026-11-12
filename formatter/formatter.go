@@ -1421,16 +1421,19 @@ func formatTolerant(sql string, cfg *config.Config) (string, error) {
 // formatBody is formatTolerant for a PL/pgSQL body: vars are the names of the function's parameters,
 // which the body's expressions use (see resolvePLpgSQLVars).
 func formatBody(sql string, cfg *config.Config, vars map[string]bool) (string, error) {
-	return formatParsedVars(sql, cfg, nil, vars)
+	return formatParsedVars(sql, cfg, nil, vars, false)
 }
 
 // formatParsed is formatTolerant with an optional parse result for sql, so callers that
 // already parsed the input (to check its syntax) do not make PostgreSQL parse it again.
 func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) (string, error) {
-	return formatParsedVars(sql, cfg, parsed, nil)
+	return formatParsedVars(sql, cfg, parsed, nil, true)
 }
 
-func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResult, vars map[string]bool) (string, error) {
+// lineStart says that sql begins at the start of a line of a script (it is no PL/pgSQL body):
+// the blanks before the first token are then
+// the indentation of that line and stay as they are.
+func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResult, vars map[string]bool, lineStart bool) (string, error) {
 	if strings.TrimSpace(sql) == "" {
 		return sql, nil
 	}
@@ -1839,6 +1842,9 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			}
 			if !suppressGap[i] {
 				g := processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg)
+				if i == 0 && lineStart && isOnlyHorizontalWS(gap) {
+					g = gap // indentation of the first line, not inline spacing
+				}
 				if prevIsCall && tok.text == "(" && !strings.Contains(g, "/*") && !strings.Contains(g, "--") {
 					switch cfg.CallParenSpacing {
 					case config.ParenSpacingAdd:
