@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -137,5 +139,23 @@ func TestOutDirClash(t *testing.T) {
 	}
 	if _, _, _, clash := outDirClash("out", []input{{"a/x.sql", filepath.Join("a", "x.sql")}, {"b/x.sql", filepath.Join("b", "x.sql")}}); clash {
 		t.Error("different paths below the directory do not clash")
+	}
+}
+
+func TestUnifiedDiffOfHugeChangeIsCheap(t *testing.T) {
+	var a, b strings.Builder
+	for i := 0; i < 20000; i++ {
+		fmt.Fprintf(&a, "select %d;\n", i)
+		fmt.Fprintf(&b, "SELECT %d;\n", i)
+	}
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	d := unifiedDiff("f", a.String(), b.String())
+	runtime.ReadMemStats(&after)
+	if used := after.TotalAlloc - before.TotalAlloc; used > 1<<30 {
+		t.Errorf("diff of two 20000-line files allocated %d MB", used>>20)
+	}
+	if !strings.HasPrefix(d, "--- f\n+++ f\n@@ -1,20000 +1,20000 @@\n-select 0;\n") {
+		t.Errorf("unexpected diff start: %.80q", d)
 	}
 }

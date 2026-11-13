@@ -610,6 +610,9 @@ type edit struct {
 	text string
 }
 
+// maxLCSCells bounds the table of lcsEdits (8 bytes a cell).
+const maxLCSCells = 16_000_000
+
 // lcsEdits computes an edit script between a and b using LCS.
 func lcsEdits(a, b []string) []edit {
 	// The unchanged lines at both ends need no table (it has len(a)*len(b) cells).
@@ -625,6 +628,24 @@ func lcsEdits(a, b []string) []edit {
 	a, b = a[pre:len(a)-suf], b[pre:len(b)-suf]
 
 	m, n := len(a), len(b)
+	if m*n > maxLCSCells {
+		// Too much to compare line by line (the table would need gigabytes): report the
+		// differing middle as removed and added as a whole — still a valid diff.
+		all := make([]edit, 0, len(head)+m+n+len(tail))
+		for _, l := range head {
+			all = append(all, edit{opEqual, l})
+		}
+		for _, l := range a {
+			all = append(all, edit{opDelete, l})
+		}
+		for _, l := range b {
+			all = append(all, edit{opInsert, l})
+		}
+		for _, l := range tail {
+			all = append(all, edit{opEqual, l})
+		}
+		return all
+	}
 	dp := make([][]int, m+1)
 	for i := range dp {
 		dp[i] = make([]int, n+1)

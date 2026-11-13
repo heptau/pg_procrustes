@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `--diff` on a large file the formatter changes almost everywhere (20 000 lines) needed about 2.5 GB of memory (quadratic line-comparison table); beyond 16 million cells the differing middle is now shown as removed and added as a whole. Test `TestUnifiedDiffOfHugeChangeIsCheap`
 - A lone `-` as the file argument (`pg_procrustes - < q.sql`) was looked up as a file named `-` (and flags after it were ignored); it now means stdin. Test case in `TestReorderArgsBackup`
 - A file argument whose name contains glob characters (`v[1].sql`) was treated as a pattern, so with `v1.sql` next to it the wrong file was formatted (and the named one skipped); an existing file is now always taken literally. Test `TestExpandInputsExistingFileWithPatternCharacters`
 - Neovim plugin (`:PgProcrustesFormat`): blank lines at the start of the buffer and the blank line at its end were deleted (the output was split with `trimempty`), so the buffer differed from what `pg_procrustes -w` writes and `--check` failed on a file just formatted in the editor; the buffer is now exactly the output of the command line
