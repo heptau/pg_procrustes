@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-11-13
+
 ### Changed
 
 - `FuzzTemplates` (`go test ./formatter -run '^$' -fuzz FuzzTemplates`): fuzzes the shipped templates (postgresql, ai, modern) for parseable and idempotent output, next to `FuzzFormat`'s single options
