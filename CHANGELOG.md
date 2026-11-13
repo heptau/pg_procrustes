@@ -5,14 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- `--check --diff` prints the diff of every file that would be reformatted (and exits 1); `--diff` was ignored when `--check` was given
+- A config file with an option that does not exist is an error (`parse config x.yaml: line 2: unknown option "casee"`) instead of a setting that silently does nothing; with `template:` the error names the file the option stands in. A config that still carries an option removed in an earlier version has to drop it. Test `TestLoadRejectsUnknownOptions`
+
 ### Fixed
 
+- Neovim plugin (`:PgProcrustesFormat`): blank lines at the start of the buffer and the blank line at its end were deleted (the output was split with `trimempty`), so the buffer differed from what `pg_procrustes -w` writes and `--check` failed on a file just formatted in the editor; the buffer is now exactly the output of the command line
+- `--out-dir` with inputs that land on the same file (`--out-dir out a/x.sql b/x.sql`, or two directories that both hold `x.sql`) silently wrote only the last one; this is now an error that names both inputs. `--out-dir` without files (stdin) is an error too instead of being ignored. Test `TestOutDirClash`
+- LSP server: a relative `configPath` in the initialization options (`pgProcrustes.configPath` in VS Code, `lsp.pg_procrustes.initialization_options` in Zed) is looked up below the workspace root, not in the directory the editor started the server in. Test `TestRelativeConfigPathIsBelowTheWorkspaceRoot`
 - `syntax_errors: skip` (and `--lines` / LSP range formatting): a statement that starts in the middle of a line — after another statement (`select * from a; select * from b;`) or after the trailing comment of the previous one (`…; -- note` / `…; /* note */`) — took the blanks that separate the two for its indentation: its continuation lines came out one space (or the width of the separator) too far right, and a second run moved them again (not idempotent). Such a statement is now laid out with the indentation of its line, as when the script is formatted as a whole; test `TestSyntaxErrorsSkipStatementsStartingMidLine` compares both paths for every shipped template
 - `inline_spacing: normalize` collapsed the indentation of the first line of a file to one space (`    select 1;` at the very start became ` select 1;`); the blanks before the first token of a script are indentation and stay
 - `--diff`: the hunk headers named a line 3 before the first line shown and the hunks had no leading context, so `patch` / `git apply` rejected the output; changes closer than 6 lines now share a hunk, and a last line without a newline gets `\ No newline at end of file` instead of running into the next line. Unchanged lines at both ends of the file no longer take part in the line comparison (memory for large files)
 - `--backup` without a value (`pg_procrustes -w --backup query.sql`, as documented) took the next argument for the extension — the file was not formatted and the program waited for stdin; a bare `--backup` now means `.bak`, `--backup=.orig` and `--backup .orig` keep working
 - `-c path` (and the LSP `configPath`) pointing to a file that does not exist is an error instead of silently formatting with the built-in defaults (which change nothing)
 - `--version` and the header of `--print-config` show the release version for builds installed with `go install …@vX.Y.Z` instead of `dev`
+- A file that starts with a UTF-8 byte order mark (saved by Windows editors) was a syntax error at line 1 (`syntax error at or near "\ufeffselect"`); the mark stays at the start of the output and the SQL after it is formatted (also with `--lines` and in the LSP server; error columns do not count the mark). Test `TestByteOrderMarkIsKept`
+- `-- pg_procrustes: off` / `on`: a line that only looks like a directive because it is a line of a multi-line string constant, quoted identifier or `/* … */` comment started a region (the string was cut in two and the file failed with an error that named the internal placeholder); such a line is data. Directives inside `$$` function bodies work as before. Test `TestDirectiveLineInsideStringOrCommentIsData`
+- Error positions in a file with `off` … `on` regions: an unterminated string / comment after a region was reported on the line of the masked text (too early by the lines of the region, with the wrong source line shown), also by `--lines`; an error between two regions was moved down by the lines of the region after it as well; and the byte offset was off by one per digit from the eleventh region on. Test `TestOffOnErrorPositionsAfterRegions`
+- `layout.indent.size` with a negative number crashed the program (`panic: strings: negative Repeat count` with `indent.normalize: change`); the config is now rejected: `layout.indent.size` must be 0–32 and `layout.line_length` must not be negative. Test `TestValidateRejectsBadNumbers`
 
 ### Security
 

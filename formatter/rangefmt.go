@@ -19,6 +19,18 @@ import (
 // Settings that work on the whole text (blank_lines, blank_lines_between_statements,
 // statement_break, semicolons: add, trailing_newline, line_endings) are not applied.
 func FormatRange(sql string, cfg *config.Config, startLine, endLine int) (string, []SyntaxError, error) {
+	if body, ok := strings.CutPrefix(sql, utf8BOM); ok {
+		out, diags, err := formatRange(body, cfg, startLine, endLine)
+		shiftForBOM(diags, err)
+		if err != nil || (out == "" && body != "") {
+			return out, diags, err
+		}
+		return utf8BOM + out, diags, nil
+	}
+	return formatRange(sql, cfg, startLine, endLine)
+}
+
+func formatRange(sql string, cfg *config.Config, startLine, endLine int) (string, []SyntaxError, error) {
 	if startLine < 1 || endLine < startLine {
 		return "", nil, fmt.Errorf("invalid line range %d:%d", startLine, endLine)
 	}
@@ -31,7 +43,7 @@ func FormatRange(sql string, cfg *config.Config, startLine, endLine int) (string
 
 	chunks, err := splitStatements(masked)
 	if err != nil {
-		return "", nil, SyntaxErrors{syntaxErrorAt(masked, 0, err)}
+		return "", nil, SyntaxErrors(shiftDiagnostics([]SyntaxError{syntaxErrorAt(masked, 0, err)}, regions))
 	}
 
 	per := *cfg

@@ -299,6 +299,17 @@ func main() {
 		}
 	}
 
+	// Two inputs must not land on the same file below --out-dir (a/x.sql and b/x.sql given
+	// as files both go to x.sql): the second would silently replace the first.
+	if outDir != "" {
+		if len(files) == 0 {
+			die("--out-dir needs files or directories to format (stdin is written to stdout)")
+		}
+		if a, b, dest, clash := outDirClash(outDir, files); clash {
+			die("--out-dir: %s and %s would both be written to %s; give their common directory instead of the files", a, b, dest)
+		}
+	}
+
 	// No files → read from stdin.
 	if len(files) == 0 {
 		if writeInPlace {
@@ -316,6 +327,9 @@ func main() {
 		switch {
 		case checkMode:
 			if out != src {
+				if diffMode {
+					fmt.Print(unifiedDiff("<stdin>", src, out))
+				}
 				fmt.Fprintln(os.Stderr, "pg_procrustes: stdin would be reformatted")
 				os.Exit(1)
 			}
@@ -341,6 +355,9 @@ func main() {
 		switch {
 		case checkMode:
 			if out != src {
+				if diffMode {
+					fmt.Print(unifiedDiff(path, src, out))
+				}
 				fmt.Fprintf(os.Stderr, "pg_procrustes: %s: would be reformatted\n", path)
 				exitCode = 1
 			}
@@ -386,6 +403,19 @@ func main() {
 		}
 	}
 	os.Exit(exitCode)
+}
+
+// outDirClash finds two inputs that would be written to the same file below outDir.
+func outDirClash(outDir string, files []input) (first, second, dest string, clash bool) {
+	dests := map[string]string{}
+	for _, in := range files {
+		d := filepath.Clean(filepath.Join(outDir, in.rel))
+		if other, ok := dests[d]; ok {
+			return other, in.path, d, true
+		}
+		dests[d] = in.path
+	}
+	return "", "", "", false
 }
 
 // readAndFormat reads path and returns (original, formatted, ok). Problems are
@@ -464,7 +494,8 @@ func formatRangeSource(name, src string, cfg *config.Config, start, end int) (st
 // reportSyntax prints each diagnostic as "name:line:col: [warning: ]message", followed
 // by the source line and a caret under the error column.
 func reportSyntax(name, src string, diags []formatter.SyntaxError, warn bool) {
-	lines := strings.Split(src, "\n")
+	// A byte order mark has no width: without it the caret stands under the right column.
+	lines := strings.Split(strings.TrimPrefix(src, "\uFEFF"), "\n")
 	kind := "error"
 	if warn {
 		kind = "warning: statement left unformatted"
@@ -656,6 +687,7 @@ Flags:
   --out-dir <dir>    write formatted files into this directory, keeping their path below the searched
                      directory (cannot be combined with -w)
   --check            exit 1 if any file would be reformatted (CI / pre-commit use)
+                     (with --diff the changes are printed as well)
   --diff             print unified diff of changes without writing
   --syntax-errors <m> what to do with SQL that does not parse: fail (default), skip, ignore
                      fail:   report every bad statement (file:line:col) and exit 1

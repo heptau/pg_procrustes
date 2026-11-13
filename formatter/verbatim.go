@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 )
 
 // Regions between
@@ -18,6 +20,9 @@ import (
 // The region is swapped for a one-line placeholder comment before formatting and put back
 // afterwards, so the rest of the text is formatted as if the region were a comment: put
 // the directives between statements (or between the statements of a function body).
+//
+// A line that only looks like a directive because it is a line of a multi-line string
+// constant, quoted identifier or /* … */ comment is data and starts no region.
 
 var directiveRE = regexp.MustCompile(`(?i)^[ \t]*(?:--|/\*)[ \t]*pg_procrustes:[ \t]*(off|on)[ \t]*(?:\*/)?[ \t]*$`)
 
@@ -44,7 +49,7 @@ func maskVerbatimRegions(sql string) (string, []verbatimRegion) {
 	line, off := 1, 0
 	for i := 0; i < len(lines); i++ {
 		m := directiveRE.FindStringSubmatch(lines[i])
-		if m == nil || !strings.EqualFold(m[1], "off") {
+		if m == nil || !strings.EqualFold(m[1], "off") || insideOpenToken(out.String()) {
 			out.WriteString(lines[i])
 			if i < len(lines)-1 {
 				out.WriteByte('\n')
@@ -78,6 +83,22 @@ func maskVerbatimRegions(sql string) (string, []verbatimRegion) {
 	return out.String(), regions
 }
 
+// insideOpenToken reports whether the text ends inside a string constant, a quoted
+// identifier or a /* … */ comment, i.e. whether the line that follows it is part of that
+// token. The inside of a dollar-quoted text does not count: it may be a function body, whose
+// directives are honoured.
+func insideOpenToken(prefix string) bool {
+	if !strings.ContainsAny(prefix, `'"*`) {
+		return false
+	}
+	_, err := pg_query.Scan(prefix)
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "unterminated") && !strings.Contains(msg, "dollar-quoted")
+}
+
 // restoreVerbatimRegions puts the regions back where their placeholder lines ended up.
 func restoreVerbatimRegions(out string, regions []verbatimRegion) (string, error) {
 	for i, r := range regions {
@@ -99,12 +120,15 @@ func restoreVerbatimRegions(out string, regions []verbatimRegion) (string, error
 // shiftDiagnostics maps error positions in the masked text back to the original input.
 func shiftDiagnostics(diags []SyntaxError, regions []verbatimRegion) []SyntaxError {
 	for k := range diags {
-		for _, r := range regions {
-			if r.maskedLine < diags[k].Line {
+		// The masked position decides which regions lie before the error; the shifts of the
+		// earlier regions must not take part in the comparison.
+		line, off := diags[k].Line, diags[k].Offset
+		for i, r := range regions {
+			if r.maskedLine < line {
 				diags[k].Line += r.lines - 1
 			}
-			if r.maskedOff < diags[k].Offset {
-				diags[k].Offset += len(r.text) - len(verbatimPlaceholder(0))
+			if r.maskedOff < off {
+				diags[k].Offset += len(r.text) - len(verbatimPlaceholder(i))
 			}
 		}
 	}

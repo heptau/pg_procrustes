@@ -277,6 +277,7 @@ cat query.sql | pg_procrustes
 
 # CI mode — exit 1 if any file would change
 pg_procrustes --check *.sql
+pg_procrustes --check --diff *.sql    # … and print what would change
 
 # Show a unified diff without writing
 pg_procrustes --diff query.sql
@@ -292,7 +293,8 @@ pg_procrustes -w --syntax-errors skip migrations/*.sql
 pg_procrustes -w --backup query.sql
 pg_procrustes -w --backup=.orig query.sql
 
-# Write formatted files to a different directory (the path below the searched directory is kept)
+# Write formatted files to a different directory (the path below the searched directory is kept;
+# two inputs that would land on the same file are an error)
 pg_procrustes --out-dir formatted/ migrations/*.sql
 pg_procrustes --out-dir formatted/ migrations/    # -> formatted/2026/001.sql, …
 
@@ -309,7 +311,7 @@ pg_procrustes --list-templates
 
 ### Leaving a part alone
 
-Everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` is copied to the output exactly as written (the two comments included); `/* pg_procrustes: off */` works too. Each directive goes on a line of its own. Without a closing `on` the region runs to the end of the file, and a stray `on` is just a comment.
+Everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` is copied to the output exactly as written (the two comments included); `/* pg_procrustes: off */` works too. Each directive goes on a line of its own. Without a closing `on` the region runs to the end of the file, and a stray `on` is just a comment. A directive-looking line inside a multi-line string constant or `/* … */` comment is not a directive.
 
 ```sql
 select a, b from t;
@@ -325,7 +327,7 @@ It also works between the statements of a function body. Put the directives betw
 
 ## Configuration
 
-For every file pg_procrustes looks for `.pg_procrustes.yaml` in **the file's own directory** and then in each parent up to the filesystem root, so the result does not depend on where you run the program (several files in different projects, each with its own config, work in one call). For text on stdin, `--stdin-filepath path/to/file.sql` names the file the text belongs to (the file need not exist); without it the lookup starts in the current directory. When no file's directory has a config, the search continues from the current directory. Specify a custom path with `-c path/to/config.yaml` — it applies to everything (the file must exist). All settings default to `preserve` (no change).
+For every file pg_procrustes looks for `.pg_procrustes.yaml` in **the file's own directory** and then in each parent up to the filesystem root, so the result does not depend on where you run the program (several files in different projects, each with its own config, work in one call). For text on stdin, `--stdin-filepath path/to/file.sql` names the file the text belongs to (the file need not exist); without it the lookup starts in the current directory. When no file's directory has a config, the search continues from the current directory. Specify a custom path with `-c path/to/config.yaml` — it applies to everything (the file must exist). All settings default to `preserve` (no change). An option that does not exist (a typo such as `keywordz:` or `casee: upper`) is an error that names the file, the line and the option — it is never silently ignored.
 
 > **Note:** The `.pg_procrustes.yaml` in this repository root is the reference config: every option with its allowed values and a comment, all set to `preserve` where that is possible. It is documentation, not a recommended style — pick a [template](#templates) or copy the options you need.
 

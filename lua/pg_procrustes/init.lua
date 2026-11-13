@@ -79,8 +79,15 @@ function M.format(bufnr, line1, line2)
     return
   end
 
+  -- The buffer becomes exactly what the command line writes: only the line break that ends
+  -- the last line is no line of its own (blank lines at the start and the end are kept).
+  local out = vim.split(result.stdout, "\n", { plain = true })
+  if out[#out] == "" then
+    table.remove(out)
+  end
+
   local view = vim.fn.winsaveview()
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(result.stdout, "\n", { trimempty = true }))
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, out)
   vim.fn.winrestview(view)
 end
 

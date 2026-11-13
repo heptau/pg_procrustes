@@ -2,9 +2,13 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -1039,7 +1043,7 @@ func Load(path string) (*Config, error) {
 		sources = files
 	}
 	cfg.Sources = sources
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	if err := decodeStrict(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 
@@ -1048,6 +1052,38 @@ func Load(path string) (*Config, error) {
 	}
 	return cfg, nil
 }
+
+// decodeStrict reads a YAML config document into cfg. An option that does not exist (a typo
+// such as `keywordz:` or `casee: upper`) is an error instead of a setting that silently does
+// nothing. The top-level `template` key is not an option of Config and is allowed.
+func decodeStrict(data []byte, cfg *Config) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	err := dec.Decode(cfg)
+	if err == nil || errors.Is(err, io.EOF) { // io.EOF: an empty file
+		return nil
+	}
+	var te *yaml.TypeError
+	if !errors.As(err, &te) {
+		return err
+	}
+	var msgs []string
+	for _, m := range te.Errors {
+		if f := unknownFieldRE.FindStringSubmatch(m); f != nil {
+			if f[2] == "template" && f[3] == "Config" {
+				continue
+			}
+			m = fmt.Sprintf("%sunknown option %q", f[1], f[2])
+		}
+		msgs = append(msgs, m)
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(msgs, "; "))
+}
+
+var unknownFieldRE = regexp.MustCompile(`^(line \d+: )?field (\S+) not found in type config\.(\S+)$`)
 
 // Validate checks that all config fields have recognised values.
 func Validate(cfg *Config) error { return validate(cfg) }
@@ -1361,6 +1397,12 @@ func validate(cfg *Config) error {
 	case UnionBlankLinePreserve, UnionBlankLineNone, UnionBlankLineBefore, UnionBlankLineAfter, UnionBlankLineBoth, "":
 	default:
 		return fmt.Errorf("layout.union.blank_line must be preserve|none|before|after|both, got %q", cfg.Layout.Union.BlankLine)
+	}
+	if n := cfg.Layout.Indent.Size; n < 0 || n > 32 {
+		return fmt.Errorf("layout.indent.size must be a number from 0 to 32, got %d", n)
+	}
+	if n := cfg.Layout.LineLength; n < 0 {
+		return fmt.Errorf("layout.line_length must not be negative, got %d", n)
 	}
 	switch cfg.Layout.Indent.Normalize {
 	case IndentNormalizePreserve, IndentNormalizeChange, "":

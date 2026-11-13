@@ -361,6 +361,11 @@ func (s *server) loadConfig(uri string) (*config.Config, error) {
 	if path == "" {
 		path = s.initConfig
 	}
+	if s.opts.ConfigPath == "" && path != "" && !filepath.IsAbs(path) && s.root != "" {
+		// configPath from the editor's settings ("db/.pg_procrustes.yaml") is relative to the
+		// workspace, not to the directory the editor happened to start the server in.
+		path = filepath.Join(s.root, path)
+	}
 	if path != "" {
 		// A config file that was named must exist (a typo must not silently mean "no config").
 		if _, err := os.Stat(path); err != nil {
@@ -549,6 +554,9 @@ func (s *server) diagnose(uri, text string) []diagnostic {
 	}
 	lines := strings.Split(text, "\n")
 	for _, e := range diags {
+		if e.Line == 1 && strings.HasPrefix(text, "\uFEFF") {
+			e.Col++ // the byte order mark is a character of the first line for the editor
+		}
 		list = append(list, diagnostic{
 			Range:    errorRange(lines, e),
 			Severity: sev,

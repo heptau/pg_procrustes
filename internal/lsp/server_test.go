@@ -419,3 +419,55 @@ func TestExitCodes(t *testing.T) {
 func syntaxErr(line, col int) formatter.SyntaxError {
 	return formatter.SyntaxError{Line: line, Col: col}
 }
+
+// A relative configPath of the initialization options is looked up below the workspace root.
+func TestRelativeConfigPathIsBelowTheWorkspaceRoot(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "conf"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "conf", "style.yaml"), []byte("reserved_keywords:\n  case: upper\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	uri := "file://" + filepath.ToSlash(filepath.Join(root, "a.sql"))
+	src := "select a from t;\n"
+	got := session(t,
+		req(1, "initialize", map[string]any{
+			"rootUri":               "file://" + filepath.ToSlash(root),
+			"initializationOptions": map[string]any{"configPath": "conf/style.yaml"},
+		}),
+		open(uri, src),
+		req(2, "textDocument/formatting", map[string]any{"textDocument": doc(uri)}),
+	)
+	if byID(got, 2)["error"] != nil {
+		t.Fatalf("config not found: %v", byID(got, 2))
+	}
+	if out := apply(t, src, byID(got, 2)["result"].([]any)); out != "SELECT a FROM t;\n" {
+		t.Fatalf("got %q", out)
+	}
+}
+
+// A document that starts with a byte order mark keeps it, and the error of its first line
+// is marked at the character the editor counts.
+func TestByteOrderMark(t *testing.T) {
+	_, uri := project(t, "reserved_keywords:\n  case: upper\n")
+	src := "\uFEFFselect a from t;\n"
+	got := session(t,
+		req(1, "initialize", map[string]any{}),
+		open(uri, src),
+		req(2, "textDocument/formatting", map[string]any{"textDocument": doc(uri)}),
+	)
+	if out := apply(t, src, byID(got, 2)["result"].([]any)); out != "\uFEFFSELECT a FROM t;\n" {
+		t.Fatalf("got %q", out)
+	}
+	bad := "\uFEFFselect from from;\n"
+	got = session(t, req(1, "initialize", map[string]any{}), open(uri, bad))
+	d := diagnosticsFor(got, uri)
+	if len(d) != 1 {
+		t.Fatalf("want one diagnostic, got %v", d)
+	}
+	start := d[0].(map[string]any)["range"].(map[string]any)["start"].(map[string]any)
+	if start["line"].(float64) != 0 || start["character"].(float64) != 13 {
+		t.Fatalf("diagnostic at %v, want line 0 character 13", start)
+	}
+}

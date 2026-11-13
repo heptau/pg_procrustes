@@ -126,3 +126,15 @@ func TestUnifiedDiffAppliesWithPatch(t *testing.T) {
 		t.Errorf("patched file differs from the formatted text")
 	}
 }
+
+// Files of the same name from different directories would overwrite each other below
+// --out-dir; a directory argument keeps their paths apart.
+func TestOutDirClash(t *testing.T) {
+	a, b, dest, clash := outDirClash("out", []input{{"a/x.sql", "x.sql"}, {"b/y.sql", "y.sql"}, {"b/x.sql", "x.sql"}})
+	if !clash || a != "a/x.sql" || b != "b/x.sql" || dest != filepath.Join("out", "x.sql") {
+		t.Errorf("got %q %q %q %v", a, b, dest, clash)
+	}
+	if _, _, _, clash := outDirClash("out", []input{{"a/x.sql", filepath.Join("a", "x.sql")}, {"b/x.sql", filepath.Join("b", "x.sql")}}); clash {
+		t.Error("different paths below the directory do not clash")
+	}
+}

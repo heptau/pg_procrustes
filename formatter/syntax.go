@@ -1,6 +1,7 @@
 package formatter
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -65,6 +66,36 @@ func syntaxMode(cfg *config.Config) config.SyntaxErrorMode {
 // with skip the output contains those statements verbatim; with ignore nothing is
 // checked. A non-nil error means the input could not even be tokenised.
 func FormatWithDiagnostics(sql string, cfg *config.Config) (string, []SyntaxError, error) {
+	// A UTF-8 byte order mark (files saved by Windows editors) is no SQL: it stays at the
+	// start of the output and the rest is formatted without it.
+	if body, ok := strings.CutPrefix(sql, utf8BOM); ok {
+		out, diags, err := formatWithDiagnostics(body, cfg)
+		shiftForBOM(diags, err)
+		if err != nil || (out == "" && body != "") {
+			return out, diags, err
+		}
+		return utf8BOM + out, diags, nil
+	}
+	return formatWithDiagnostics(sql, cfg)
+}
+
+const utf8BOM = "\uFEFF"
+
+// shiftForBOM adds the bytes of the byte order mark that was cut off to the offsets of the
+// errors (also of those in a SyntaxErrors error). Line and column stay: the mark has no width.
+func shiftForBOM(diags []SyntaxError, err error) {
+	for k := range diags {
+		diags[k].Offset += len(utf8BOM)
+	}
+	var fatal SyntaxErrors
+	if errors.As(err, &fatal) {
+		for k := range fatal {
+			fatal[k].Offset += len(utf8BOM)
+		}
+	}
+}
+
+func formatWithDiagnostics(sql string, cfg *config.Config) (string, []SyntaxError, error) {
 	if strings.TrimSpace(sql) == "" {
 		return sql, nil, nil
 	}
@@ -73,6 +104,11 @@ func FormatWithDiagnostics(sql string, cfg *config.Config) (string, []SyntaxErro
 	masked, regions := maskVerbatimRegions(normalizeEOL(sql))
 	out, diags, err := formatDiagnostics(masked, cfg)
 	if err != nil || out == "" {
+		// The positions of a fatal error are positions in the masked text as well.
+		var fatal SyntaxErrors
+		if errors.As(err, &fatal) {
+			shiftDiagnostics(fatal, regions)
+		}
 		return out, shiftDiagnostics(diags, regions), err
 	}
 	if len(regions) > 0 {

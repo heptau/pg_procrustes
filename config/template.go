@@ -149,6 +149,11 @@ func loadMerged(path string, data []byte, stack []string, files *[]string) (map[
 	if own == nil {
 		own = map[string]any{}
 	}
+	// Unknown options are reported for the file they stand in (the merged document that is
+	// decoded in the end has neither its name nor its line numbers).
+	if err := decodeStrict(data, defaultConfig()); err != nil {
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
 	refs, err := templateRefs(own["template"])
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
