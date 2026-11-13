@@ -247,3 +247,17 @@ func TestAliasFollowedByCommentIsFound(t *testing.T) {
 		}
 	}
 }
+
+// A number that ends in a dot (0.) followed by a quoted alias: the inserted AS needs a blank
+// before it (0.AS "0" is a lexical error).
+func TestAliasAfterNumberEndingInDot(t *testing.T) {
+	c := verbatimCfg(t)
+	c.Aliases.As = config.AliasAsAdd
+	got, err := formatter.Format("select 0.\"0\", 2. x from t;\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg_query.Parse(got); err != nil {
+		t.Errorf("output does not parse: %v\n%s", err, got)
+	}
+}

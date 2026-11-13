@@ -1940,7 +1940,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 				switch {
 				case pos.aliases[tok.start]:
 					if cfg.Aliases.As == config.AliasAsAdd && strings.ToLower(prevTokenText) != "as" {
-						ensureSeparator(&buf)
+						ensureSeparatorBeforeAS(&buf, prevTokenText)
 						buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
 						buf.WriteByte(' ')
 					}
@@ -2042,7 +2042,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		if class == classAlias && cfg.Aliases.As == config.AliasAsAdd {
 			if strings.ToLower(prevTokenText) != "as" {
 				collapsePaddingBeforeAS(&buf)
-				ensureSeparator(&buf)
+				ensureSeparatorBeforeAS(&buf, prevTokenText)
 				buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
 				buf.WriteByte(' ')
 			}
@@ -4903,6 +4903,16 @@ func collapsePaddingBeforeAS(buf *strings.Builder) {
 	buf.Reset()
 	buf.WriteString(out[:i])
 	buf.WriteByte(' ')
+}
+
+// ensureSeparatorBeforeAS is ensureSeparator for the AS inserted before an alias: also after a
+// number that ends in a dot (select 0."a" → 0. AS "a", not 0.AS "a").
+func ensureSeparatorBeforeAS(buf *strings.Builder, prevTokenText string) {
+	if out := buf.String(); strings.HasSuffix(out, ".") && prevTokenText != "" && prevTokenText[0] >= '0' && prevTokenText[0] <= '9' {
+		buf.WriteByte(' ')
+		return
+	}
+	ensureSeparator(buf)
 }
 
 func ensureSeparator(buf *strings.Builder) {

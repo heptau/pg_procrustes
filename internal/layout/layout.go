@@ -1149,6 +1149,17 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 		reindentItemLines = func(item string) string {
 			lead, body := splitLeadingCommentLines(item)
+			if strings.Count(lead, "\n") > 1 && !commaStart {
+				// the comment lines below the first one stand at the item's indent like it (their own
+				// indent was cut off with the common indent of the item, or is the one of the source)
+				parts := strings.SplitAfter(lead, "\n")
+				for k := 1; k < len(parts); k++ {
+					if strings.TrimSpace(parts[k]) != "" {
+						parts[k] = contentIndent + strings.TrimLeft(parts[k], " \t")
+					}
+				}
+				lead = strings.Join(parts, "")
+			}
 			if lead == "" || strings.TrimSpace(body) == "" {
 				return reindentBody(item)
 			}

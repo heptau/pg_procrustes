@@ -687,3 +687,27 @@ func TestColumnNamedLikeStatementKeywordIsNoClause(t *testing.T) {
 		}
 	}
 }
+
+// Comment lines below the first leading comment of an item stand at the item's indent too; the
+// block comment kept the indent of the source and the next run moved it (not idempotent).
+func TestLeadingCommentLinesShareTheItemIndent(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"select -- c\n  /* x */\n  a from t": "select\n  -- c\n  /* x */\n  a\nfrom\n  t",
+		"select--\n /* x */\n0":             "select\n  --\n  /* x */\n  0",
+		"select--\n /*/\n*/0":               "select\n  --\n  /*/\n  */0",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent: %q → %q", in, got, again)
+		}
+	}
+}
