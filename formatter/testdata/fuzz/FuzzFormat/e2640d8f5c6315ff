@@ -1,0 +1,2 @@
+go test fuzz v1
+string("select 0 B--\nunion--\nseleCt B ,A0000/**/")

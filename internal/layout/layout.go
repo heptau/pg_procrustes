@@ -346,6 +346,9 @@ func withOptionLen(tokens []rawTok, i int) int {
 
 func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 	n := len(tokens)
+	if i > 0 && tokens[i-1].text == "." && tokens[i-1].end == tokens[i].start {
+		return clauseUnknown, 0 // a name after a dot (a.join, s.from) is an identifier, whatever it is spelled like
+	}
 	lower := strings.ToLower(tokens[i].text)
 	next := func() string {
 		if i+1 < n {
@@ -1140,8 +1143,11 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		// Comment lines in front of the item are not part of it: judged as its first line they
 		// made every line below look unindented (their own first line has no indent yet), so each
 		// run indented the rest once more.
-		var reindentBody func(item string) string
+		var reindentBody, reindentItemLines func(item string) string
 		reindentItem := func(item string) string {
+			return blankLinesEmpty(reindentItemLines(item))
+		}
+		reindentItemLines = func(item string) string {
 			lead, body := splitLeadingCommentLines(item)
 			if lead == "" || strings.TrimSpace(body) == "" {
 				return reindentBody(item)
@@ -1505,6 +1511,21 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 		}
 	}
 	return strings.Join(lines, "\n"), true
+}
+
+// blankLinesEmpty leaves no blanks on a line that holds nothing else (an indent put in front of
+// a blank line would be taken off again by the next run).
+func blankLinesEmpty(s string) string {
+	if !strings.Contains(s, "\n") {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, ln := range lines {
+		if ln != "" && strings.TrimSpace(ln) == "" {
+			lines[i] = ""
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // indentAfterComments brings a line that follows a line ending in a `--` comment up to indent when

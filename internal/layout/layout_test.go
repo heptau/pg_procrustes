@@ -577,3 +577,70 @@ func TestNotClausesOutsideQueries(t *testing.T) {
 	assertLayoutFormat(t, "select a from t where c is not distinct from d", cfg,
 		"select\n  a\nfrom\n  t\nwhere\n  c is not distinct from d")
 }
+
+// A name after a dot (a.join, s.from, t.where) is an identifier even when it is spelled like a
+// clause keyword: it must not start a clause (the layout broke the line after the dot, and the
+// second pass then saw something else than the first).
+func TestKeywordAfterDotIsNoClause(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"select from a.join":                "select\nfrom a.join",
+		"select a.from from t":              "select a.from\nfrom t",
+		"select x from t where a.where = 1": "select x\nfrom t\nwhere a.where = 1",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent: %q → %q", in, got, again)
+		}
+	}
+}
+
+// The lines of a quoted identifier that spans several lines are its name: the layout must not
+// indent them (like it leaves multi-line string constants alone).
+func TestMultiLineQuotedIdentifierIsData(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	in := "select x, \"a\n  b\" from \"t\nu\" where \"c\nd\" = 1"
+	got, err := layout.Apply(in, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"\"a\n  b\"", "\"t\nu\"", "\"c\nd\""} {
+		if !strings.Contains(got, id) {
+			t.Errorf("identifier %q was changed:\n%s", id, got)
+		}
+	}
+	if again, _ := layout.Apply(got, cfg); again != got {
+		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+// A blank line below a comment in a broken content item stays empty: the indent that was put
+// in front of it was taken off again by the next run (not idempotent).
+func TestBlankLineAfterCommentHasNoIndent(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for _, in := range []string{"select 1 from t where --\n\na = 1", ";select --\n--\n\n-0"} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ln := range strings.Split(got, "\n") {
+			if ln != "" && strings.TrimSpace(ln) == "" {
+				t.Errorf("%q: line of blanks %q in\n%s", in, ln, got)
+			}
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent:\n%q\n%q", in, got, again)
+		}
+	}
+}

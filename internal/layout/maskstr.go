@@ -17,7 +17,7 @@ const litPrefix = "__pgp_lit_"
 // it is returned as it is.
 func maskStrings(sql string) (string, func(string) string) {
 	identity := func(s string) string { return s }
-	if !strings.ContainsAny(sql, "'$") || strings.Contains(sql, litPrefix) {
+	if !strings.ContainsAny(sql, "'\"$") || strings.Contains(sql, litPrefix) {
 		return sql, identity
 	}
 	res, err := pg_query.Scan(sql)
@@ -27,12 +27,13 @@ func maskStrings(sql string) (string, func(string) string) {
 	var (
 		b     strings.Builder
 		lits  []string
+		holes []string // the placeholder written for each literal
 		cur   int
 		quote = func(text string) bool {
 			if strings.HasPrefix(text, "$") || !strings.Contains(text, "\n") {
 				return false
 			}
-			i := strings.IndexByte(text, '\'')
+			i := strings.IndexAny(text, `'"`)
 			return i >= 0 && i <= 2 && strings.TrimLeft(text[:i], "eEbBxXuU&nN") == ""
 		}
 	)
@@ -47,7 +48,14 @@ func maskStrings(sql string) (string, func(string) string) {
 			continue
 		}
 		b.WriteString(sql[cur:t.Start])
-		b.WriteString("'" + litPrefix + strconv.Itoa(len(lits)) + "__'")
+		// a quoted identifier (its text is data as well) is masked by a quoted identifier
+		q := "'"
+		if strings.Contains(text, `"`) && (strings.IndexByte(text, '"') < strings.IndexByte(text+"'", '\'')) {
+			q = `"`
+		}
+		hole := q + litPrefix + strconv.Itoa(len(lits)) + "__" + q
+		b.WriteString(hole)
+		holes = append(holes, hole)
 		lits = append(lits, text)
 		cur = int(t.End)
 	}
@@ -57,7 +65,7 @@ func maskStrings(sql string) (string, func(string) string) {
 	b.WriteString(sql[cur:])
 	return b.String(), func(s string) string {
 		for i := len(lits) - 1; i >= 0; i-- {
-			s = strings.Replace(s, "'"+litPrefix+strconv.Itoa(i)+"__'", lits[i], 1)
+			s = strings.Replace(s, holes[i], lits[i], 1)
 		}
 		return s
 	}

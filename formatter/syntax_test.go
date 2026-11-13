@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	pg_query "github.com/pganalyze/pg_query_go/v6"
+
 	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/formatter"
 )
@@ -221,5 +223,27 @@ func TestInlineSpacingKeepsIndentOfFirstLine(t *testing.T) {
 	// A dollar-quoted body is no script: the blanks after $$ are inline spacing.
 	if got, err := formatter.Format("do $$   begin   perform 1;   end $$;\n", cfg); err != nil || got != "do $$ begin perform 1; end $$;\n" {
 		t.Errorf("body: got %q (%v)", got, err)
+	}
+}
+
+// A comment between an implicit alias and the next clause must not hide the alias: the search
+// went on into the next SELECT and put the AS before the column `b` there (SELECT AS b).
+func TestAliasFollowedByCommentIsFound(t *testing.T) {
+	c := verbatimCfg(t)
+	c.Aliases.As = config.AliasAsAdd
+	for _, in := range []string{
+		"select 0 b -- c\nunion select b, a;\n",
+		"select 0 b /* c */ union select b, a;\n",
+	} {
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got, "0 as b") || strings.Contains(got, "select as") {
+			t.Errorf("%q:\n%s", in, got)
+		}
+		if _, err := pg_query.Parse(got); err != nil {
+			t.Errorf("%q: output does not parse: %v\n%s", in, err, got)
+		}
 	}
 }

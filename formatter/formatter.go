@@ -867,12 +867,17 @@ var clauseKeywords = map[string]bool{
 }
 
 func isFollowedBySeparator(tokens []rawToken, i int) bool {
-	if i+1 >= len(tokens) {
+	// comments between the alias and what follows do not count (select 0 b -- c \n union …)
+	j := i + 1
+	for j < len(tokens) && (strings.HasPrefix(tokens[j].text, "--") || strings.HasPrefix(tokens[j].text, "/*")) {
+		j++
+	}
+	if j >= len(tokens) {
 		return true
 	}
-	next := strings.ToLower(tokens[i+1].text)
-	return tokens[i+1].text == "," || tokens[i+1].text == ")" ||
-		tokens[i+1].text == ";" || clauseKeywords[next]
+	next := strings.ToLower(tokens[j].text)
+	return tokens[j].text == "," || tokens[j].text == ")" ||
+		tokens[j].text == ";" || clauseKeywords[next]
 }
 
 func classify(kind pg_query.KeywordKind, tokenText string) tokenClass {
@@ -1173,6 +1178,12 @@ func multilineStringRanges(text string, base int) [][2]int {
 // that follows the gap; prevText is the text of the token that precedes it.
 func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) string {
 	hasNL := strings.ContainsRune(gap, '\n')
+
+	// "<>" written as "!=" (inequality_op: c) must not touch a sign: "!=+" is one operator, "<>+"
+	// is not (a trailing + / - belongs to an operator only if it has one of ~!@#%^&|`).
+	if gap == "" && prevText == "<>" && cfg.InequalityOp == config.InequalityC && nextText != "" && strings.ContainsAny(nextText[:1], "+-") {
+		return " "
+	}
 
 	// Paren spacing — only when no newline (keep structural formatting intact).
 	if !hasNL && cfg.ParenSpacing != config.ParenSpacingPreserve {
