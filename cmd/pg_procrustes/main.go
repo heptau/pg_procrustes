@@ -31,7 +31,7 @@ func reorderArgs(args []string) []string {
 			positional = append(positional, args[i+1:]...)
 			break
 		}
-		if !strings.HasPrefix(a, "-") {
+		if a == "-" || !strings.HasPrefix(a, "-") {
 			positional = append(positional, a)
 			continue
 		}
@@ -241,7 +241,11 @@ func main() {
 	}
 
 	// Expand globs from args.
-	files, err := expandInputs(flag.Args())
+	args := flag.Args()
+	if len(args) == 1 && args[0] == "-" {
+		args = nil // "-" is stdin, as in most tools
+	}
+	files, err := expandInputs(args)
 	if err != nil {
 		die("%v", err)
 	}

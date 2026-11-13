@@ -36,6 +36,7 @@ func TestReorderArgsBackup(t *testing.T) {
 		{"an existing dot file is a file", []string{"-w", "--backup", ".hidden"}, []string{"-w", "--backup=.bak", ".hidden"}},
 		{"a path is a file", []string{"-w", "-backup", "./query.sql"}, []string{"-w", "-backup=.bak", "./query.sql"}},
 		{"value flags still take the next token", []string{"query.sql", "-c", "cfg.yaml", "--check"}, []string{"-c", "cfg.yaml", "--check", "query.sql"}},
+		{"a lone - is stdin, not a flag", []string{"-", "--check"}, []string{"--check", "-"}},
 	} {
 		if got := reorderArgs(c.in); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
