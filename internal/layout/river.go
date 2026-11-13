@@ -54,7 +54,7 @@ func riverKeyword(sql string, tokens []rawTok, stmt statement, ci int) (string, 
 	if strings.Contains(text, "--") || strings.Contains(text, "/*") {
 		return "", false
 	}
-	kw := strings.Join(strings.Fields(text), " ")
+	kw := strings.Join(sqlFields(text), " ")
 	return kw, kw != ""
 }
 

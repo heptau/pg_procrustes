@@ -95,7 +95,7 @@ func TestLoadRejectsUnknownOptions(t *testing.T) {
 		"top.yaml":    {"keywordz:\n  case: upper\n", `line 1: unknown option "keywordz"`},
 		"nested.yaml": {"keywords:\n  casee: upper\n", `line 2: unknown option "casee"`},
 		"layout.yaml": {"layout:\n  indent:\n    sizes: 2\n", `line 3: unknown option "sizes"`},
-		"tmpl.yaml":   {"template: base.yaml\nlayout:\n  line_lenght: 80\n", `tmpl.yaml: line 3: unknown option "line_lenght"`},
+		"tmpl.yaml":   {"template: base.yaml\nlayout:\n  line_limit: 80\n", `tmpl.yaml: line 3: unknown option "line_limit"`},
 	} {
 		_, err := Load(write(name, tc.text))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {

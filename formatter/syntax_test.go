@@ -261,3 +261,174 @@ func TestAliasAfterNumberEndingInDot(t *testing.T) {
 		t.Errorf("output does not parse: %v\n%s", err, got)
 	}
 }
+
+// The alias of a table name directly before a keyword that is no list separator (`UPDATE t b SET`):
+// the search ran on and took a later `b` for the alias, so `aliases.as: add` wrote `SET x = AS b`.
+func TestTableAliasIsTheTokenAfterTheName(t *testing.T) {
+	c := verbatimCfg(t)
+	c.Aliases.As = config.AliasAsAdd
+	for in, want := range map[string]string{
+		"update a b set x = b;\n":           "update a as b set x = b;\n",
+		"update a ɴ set ɴ = ɴ;\n":           "update a as ɴ set ɴ = ɴ;\n",
+		"update only s.a b set x = b;\n":    "update only s.a as b set x = b;\n",
+		"select * from a /*x*/ b, c.d e;\n": "select * from a /*x*/ as b, c.d as e;\n",
+	} {
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.ReplaceAll(got, "\n", " ") != strings.ReplaceAll(want, "\n", " ") {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+	}
+}
+
+// A vertical tab or form feed between an expression and its alias: the inserted AS kept it in front
+// of itself, a later rule dropped it, and the AS was glued to the expression (`(a)AS b`).
+func TestAliasAfterVerticalTabGetsABlank(t *testing.T) {
+	c := verbatimCfg(t)
+	c.Aliases.As = config.AliasAsAdd
+	for _, in := range []string{"select (a)\vb;\n", "select (a)\fb;\n", "select (a)\tb;\n"} {
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got, "(a) as b") {
+			t.Errorf("%q: %q", in, got)
+		}
+	}
+}
+
+// cast_style: operator wrote CAST(a + 1 AS int) as a + 1::int, which casts only the 1, and glued a
+// word that followed the ")" to the type (CAST(0 AS int)AND x → 0::intAND x). An argument that is
+// no operand keeps the parentheses; the parse tree stays the same.
+func TestCastStyleOperatorKeepsTheMeaning(t *testing.T) {
+	c := verbatimCfg(t)
+	c.CastStyle = config.CastStyleOperator
+	for in, want := range map[string]string{
+		"select cast(a + 1 as int);\n":                   "(a + 1)::int",
+		"select cast(-1 as int);\n":                      "(-1)::int",
+		"select cast(not a as int);\n":                   "(not a)::int",
+		"select cast(a at time zone 'utc' as date);\n":   "(a at time zone 'utc')::date",
+		"select cast(a in (select 1) as int);\n":         "(a in (select 1))::int",
+		"select cast((a + 1) as int);\n":                 "(a + 1)::int",
+		"select cast(f(a) as int), cast(a[1] as int);\n": "f(a)::int, a[1]::int",
+		"select cast(0 as int)and true;\n":               "0::int and true",
+		"select cast(exists(select 1) as int);\n":        "exists(select 1)::int",
+	} {
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got, want) {
+			t.Errorf("%q: %q, want %q in it", in, got, want)
+		}
+		a, _ := pg_query.Fingerprint(in)
+		b, err := pg_query.Fingerprint(got)
+		if err != nil || a != b {
+			t.Errorf("%q: parse tree changed (%v): %q", in, err, got)
+		}
+	}
+}
+
+// A table named as (s.as) is no AS keyword: aliases.as: remove dropped the table's name
+// (merge into public.as a → merge into public.a), and add took it for the AS of the alias.
+func TestTableNamedAsIsNoKeyword(t *testing.T) {
+	c := verbatimCfg(t)
+	c.Aliases.As = config.AliasAsRemove
+	got, err := formatter.Format("select * from s.as x, t as y;\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "s.as x") || strings.Contains(got, "t as y") {
+		t.Errorf("remove: %q", got)
+	}
+	c.Aliases.As = config.AliasAsAdd
+	// (a column named as: the AS after it is the keyword, the alias follows it)
+	got, err = formatter.Format("select t.as \"x\";\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := formatter.Format(got, c); again != got || !strings.Contains(got, "t.as as \"x\"") {
+		t.Errorf("column named as: %q → %q", got, again)
+	}
+	got, err = formatter.Format("select * from s.as x, t y;\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "s.as as x") || !strings.Contains(got, "t as y") {
+		t.Errorf("add: %q", got)
+	}
+}
+
+// quoted_identifiers: remove_safe after a number that ends in a dot (select 0."a"): the name was
+// glued to it (0.a, a lexical error).
+func TestUnquotedAliasAfterNumberEndingInDot(t *testing.T) {
+	c := verbatimCfg(t)
+	c.QuotedIdents = config.QuotedIdentRemoveSafe
+	got, err := formatter.Format("select 0.\"a0\";\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg_query.Parse(got); err != nil {
+		t.Errorf("output does not parse: %v\n%s", err, got)
+	}
+}
+
+// A comment between AS and the alias: the comment was taken for the alias (the alias itself got no
+// aliases.case, cased only by the next run), and aliases.as: add wrote a second AS after it.
+func TestCommentBetweenAsAndAlias(t *testing.T) {
+	c := verbatimCfg(t)
+	c.Aliases.As = config.AliasAsAdd
+	c.Aliases.Case = config.CaseLower
+	got, err := formatter.Format("select 0 as --\nA, 1 as /* x */ B;\n", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(strings.ToLower(got), " as ") != 2 || !strings.Contains(got, "a,") || !strings.Contains(got, "*/ b") {
+		t.Errorf("%q", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent: %q", again)
+	}
+}
+
+// quoted_identifiers: remove_safe with a word right behind the closing quote ("a"é, a type name that
+// starts with a letter beyond ASCII): the unquoted name was glued to it (a column named aé, no type).
+func TestUnquotedNameBeforeAGluedWord(t *testing.T) {
+	c, err := config.Load("../templates/ai.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range []string{"create table t (\"a\"int);\n", "select 1 from t where \"x\"is null;\n", "create table a(\"a\"\u899f)", "create table a(\"a\"é)"} {
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a, _ := pg_query.Fingerprint(in)
+		if b, err := pg_query.Fingerprint(got); err != nil || a != b {
+			t.Errorf("%q: %q (%v)", in, got, err)
+		}
+	}
+}
+
+// A keyword alias without AS is a bare label only where the parser does not read it as the next part
+// of the expression: !0 at (AT TIME ZONE), count(*) over (a window). quoted_identifiers: remove_safe
+// unquoted such aliases and aliases.as: remove dropped their AS, which left SQL that does not parse.
+func TestKeywordAliasStaysParseable(t *testing.T) {
+	c := verbatimCfg(t)
+	c.QuotedIdents = config.QuotedIdentRemoveSafe
+	c.Aliases.As = config.AliasAsRemove
+	in := "select !0 \"at\", -1 as \"at\", count(*) as over, 2 as x from t;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := pg_query.Fingerprint(in)
+	if b, err := pg_query.Fingerprint(got); err != nil || a != b {
+		t.Errorf("%q (%v)", got, err)
+	}
+	if !strings.Contains(got, "2 x") {
+		t.Errorf("AS of an ordinary alias not removed: %q", got)
+	}
+}

@@ -10,31 +10,75 @@ import (
 	"github.com/heptau/pg_procrustes/config"
 )
 
-// detectEOL returns "\r\n" when most line breaks of sql are CRLF, else "\n".
+// detectEOL returns "\r\n" when most line breaks of sql are CRLF, "\r" when most are a lone CR
+// (classic Mac), else "\n". The line breaks inside string constants are data and not counted
+// (they are kept as written, and counted they could tip the output the other way).
 func detectEOL(sql string) string {
-	crlf := strings.Count(sql, "\r\n")
-	lf := strings.Count(sql, "\n") - crlf
-	if crlf > lf {
+	if !strings.Contains(sql, "\r") {
+		return "\n"
+	}
+	crlf, lf, cr := 0, 0, 0
+	outsideStrings(sql, func(s string) string {
+		n := strings.Count(s, "\r\n")
+		crlf += n
+		lf += strings.Count(s, "\n") - n
+		cr += strings.Count(s, "\r") - n
+		return s
+	})
+	switch {
+	case crlf > lf && crlf >= cr:
 		return "\r\n"
+	case cr > lf && cr > crlf:
+		return "\r"
 	}
 	return "\n"
 }
 
-// normalizeEOL converts every CRLF to LF; the formatter works on LF only.
-func normalizeEOL(sql string) string { return strings.ReplaceAll(sql, "\r\n", "\n") }
+// normalizeEOL converts every CRLF to LF; the formatter works on LF only. The line breaks
+// inside multi-line string constants are data and stay as written (applyEOL converts them
+// only for line_endings: lf / crlf).
+// A lone CR ends a line for PostgreSQL too (and the -- comment before it): it becomes LF as well.
+func normalizeEOL(sql string) string {
+	if !strings.Contains(sql, "\r") {
+		return sql
+	}
+	return outsideStrings(sql, func(s string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+	})
+}
+
+// outsideStrings applies f to the text between the multi-line string constants of text.
+func outsideStrings(text string, f func(string) string) string {
+	var b strings.Builder
+	cur := 0
+	for _, r := range multilineStringRanges(text, 0) {
+		b.WriteString(f(text[cur:r[0]]))
+		b.WriteString(text[r[0]:r[1]])
+		cur = r[1]
+	}
+	b.WriteString(f(text[cur:]))
+	return b.String()
+}
+
+// eolToLF turns every line break of s into LF: CRLF and a lone CR, inside string constants too.
+func eolToLF(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+}
 
 // applyEOL converts LF-only text to the requested line ending. detected is the style
-// of the input, used by line_endings: preserve.
+// of the input, used by line_endings: preserve — which leaves the line breaks inside
+// string constants as they were (`'a⏎b'` in a CRLF file, `'a\r\r⏎b'`): they are data.
 func applyEOL(text string, mode config.LineEndingMode, detected string) string {
-	eol := detected
+	// (lf / crlf convert every line break, a lone CR too: `\r\r\n` is two of them, and converting
+	// the CRLF alone left another CRLF behind for the next run)
 	switch mode {
 	case config.LineEndingLF:
-		eol = "\n"
+		return eolToLF(text)
 	case config.LineEndingCRLF:
-		eol = "\r\n"
+		return strings.ReplaceAll(eolToLF(text), "\n", "\r\n")
 	}
-	if eol == "\r\n" {
-		return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\n", "\r\n")
+	if detected == "\r\n" || detected == "\r" {
+		return outsideStrings(text, func(s string) string { return strings.ReplaceAll(s, "\n", detected) })
 	}
 	return text
 }
@@ -99,7 +143,7 @@ func alignTrailingComments(text string, tabIndent bool, tabWidth int) string {
 		ln := lineOf(start)
 		ls := lineStarts[ln]
 		code := strings.TrimRight(text[ls:start], " \t")
-		if strings.TrimSpace(code) == "" {
+		if trimSQLSpace(code) == "" {
 			continue // comment on a line of its own
 		}
 		measured := code
@@ -206,7 +250,7 @@ func currentLineIndent(text string) string {
 }
 
 func breakLead(s, indent string) string {
-	if strings.TrimSpace(s) == "" {
+	if trimSQLSpace(s) == "" {
 		return s
 	}
 	p := 0
@@ -217,10 +261,10 @@ func breakLead(s, indent string) string {
 	if strings.HasPrefix(s[p:], "--") {
 		return s // the comment ends the line, whatever follows is on the next one
 	} else if strings.HasPrefix(s[p:], "/*") {
-		end := strings.Index(s[p:], "*/")
+		end := blockCommentLen(s[p:])
 		if end >= 0 && !strings.Contains(s[p:p+end], "\n") {
-			keep = s[:p+end+2]
-			s = s[p+end+2:]
+			keep = s[:p+end]
+			s = s[p+end:]
 		}
 	}
 	q := 0
@@ -233,10 +277,30 @@ func breakLead(s, indent string) string {
 	return keep + s
 }
 
+// blockCommentLen is the length of the /* … */ comment s starts with, nested comments included
+// (`/* a /* b */ c */`: PostgreSQL nests them), or -1 when it does not end.
+func blockCommentLen(s string) int {
+	depth := 0
+	for i := 0; i+1 < len(s); i++ {
+		switch {
+		case s[i] == '/' && s[i+1] == '*':
+			depth++
+			i++
+		case s[i] == '*' && s[i+1] == '/':
+			depth--
+			i++
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return -1
+}
+
 // normalizeLead rewrites the whitespace at the start of a statement chunk (after the
 // previous statement's ';') so that exactly n blank lines precede the statement.
 func normalizeLead(s string, n int) string {
-	if strings.TrimSpace(s) == "" {
+	if trimSQLSpace(s) == "" {
 		return s // nothing follows: trailing whitespace is trailing_newline's business
 	}
 	p := 0
@@ -253,10 +317,10 @@ func normalizeLead(s string, n int) string {
 		keep = s[:p+end]
 		s = s[p+end:]
 	} else if strings.HasPrefix(s[p:], "/*") {
-		end := strings.Index(s[p:], "*/")
+		end := blockCommentLen(s[p:])
 		if end >= 0 && !strings.Contains(s[p:p+end], "\n") {
-			keep = s[:p+end+2]
-			s = s[p+end+2:]
+			keep = s[:p+end]
+			s = s[p+end:]
 		}
 	}
 	q := 0
@@ -292,7 +356,7 @@ func collapseTrailingCommentGap(text string) string {
 		}
 		ls := strings.LastIndexByte(text[:start], '\n') + 1
 		code := strings.TrimRight(text[ls:start], " \t")
-		if strings.TrimSpace(code) == "" {
+		if trimSQLSpace(code) == "" {
 			continue // comment on a line of its own
 		}
 		codeEnd := ls + len(code)

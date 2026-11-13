@@ -47,6 +47,7 @@ var reservedValueWords = map[string]bool{
 // reservedOperandStarters are reserved keywords that can begin an operand.
 var reservedOperandStarters = map[string]bool{
 	"case": true, "array": true, "null": true, "true": true, "false": true,
+	"cast":         true, // (CAST(x AS t), which cast_style: operator turns into x::t after this decision)
 	"current_date": true, "current_time": true, "current_timestamp": true,
 	"current_user": true, "session_user": true, "user": true,
 	"localtime": true, "localtimestamp": true, "current_role": true,

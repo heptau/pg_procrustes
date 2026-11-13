@@ -109,6 +109,14 @@ func TestSetOperationAfterParenthesisStartsNoBlankLines(t *testing.T) {
 		if strings.HasPrefix(got, "\n") {
 			t.Errorf("union.blank_line %s: output starts with a line break: %q", bl, got)
 		}
+		// the operator after the group gets its blank lines like after any other operand
+		before := strings.Contains(got, ")\n\nINTERSECT")
+		after := strings.Contains(got, "INTERSECT\n\n")
+		wantBefore := bl == config.UnionBlankLineBefore || bl == config.UnionBlankLineBoth
+		wantAfter := bl == config.UnionBlankLineAfter || bl == config.UnionBlankLineBoth
+		if before != wantBefore || after != wantAfter {
+			t.Errorf("union.blank_line %s: blank lines around INTERSECT: %q", bl, got)
+		}
 	}
 }
 
@@ -327,4 +335,25 @@ func TestSubqueryAutoIgnoresIndentThatParenIndentSets(t *testing.T) {
 func TestCaseAutoMeasuresJoinedText(t *testing.T) {
 	cfg := caseCfg(config.BreakAuto, config.BodyIndentIndent, 60)
 	applyIdem(t, "SELECT CASE\n    WHEN a   IS NOT NULL THEN   format('x %s', b)\n    ELSE   format('y %s', c)   END FROM t", cfg)
+}
+
+// A subquery whose query opens with a parenthesized one (`((select …) except select 3)`) was not
+// taken for a subquery: only the inner group was opened and the rest of the query stayed glued to
+// its `)` (`)` / `except select 3) s`). An expression around a subquery (`((select 1) + 1)`) is no query.
+func TestSubqueryOpeningWithParenthesizedQueryIsOpened(t *testing.T) {
+	cfg := parenItemCfg()
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Subquery.Break = config.BreakAlways
+	got := applyIdem(t, "SELECT * FROM ((SELECT 1 UNION SELECT 2) EXCEPT SELECT 3) s;", cfg)
+	exceptLine := false
+	for _, ln := range strings.Split(got, "\n") {
+		exceptLine = exceptLine || strings.TrimSpace(ln) == "EXCEPT"
+	}
+	if strings.Contains(got, "((") || !exceptLine {
+		t.Errorf("outer subquery not opened:\n%s", got)
+	}
+	got = applyIdem(t, "SELECT ((SELECT 1) + 1) AS x;", cfg)
+	if !strings.Contains(got, "((") {
+		t.Errorf("expression around a subquery taken for a query:\n%s", got)
+	}
 }

@@ -252,6 +252,12 @@ var singleShortToLong = map[string]string{
 	"timestamptz": "timestamp with time zone",
 }
 
+// noModifierTypes are the long type names the grammar gives no modifier list: `int2('x')` (a type
+// name with a modifier, as in CREATE TYPE … (default = int2('x')) or `int4(5)`) has no long spelling.
+var noModifierTypes = map[string]bool{
+	"integer": true, "smallint": true, "bigint": true, "boolean": true, "real": true, "double precision": true,
+}
+
 // singleLongToShort maps long single-word type names to their shortest alias.
 var singleLongToShort = map[string]string{
 	"integer":   "int",
@@ -324,6 +330,7 @@ const (
 type pendingAlias struct {
 	exprStart int
 	name      string
+	table     bool // the alias of a table name (exprStart is the name): it follows the name directly
 }
 
 // astPositions holds byte offsets of tokens identified by the parser as
@@ -341,6 +348,7 @@ type astPositions struct {
 	functionAliases      map[string]bool // lower-cased aliases of table functions (FROM unnest(…) AS a(x, y))
 	sortByDefaultLocs    []int
 	castFuncLocs         []int
+	castKeepParens       map[int]bool    // CAST(x AS t) at these offsets: x is no operand :: binds to as a whole
 	funcParams           map[string]bool // lower-cased parameter names of CREATE FUNCTION / PROCEDURE
 	sql                  string
 }
@@ -364,11 +372,50 @@ func newASTPositions() *astPositions {
 // scan forward to find the alias NAME token.
 func (p *astPositions) resolveAliases(tokens []rawToken) {
 	for _, pa := range p.pendingAliases {
-		idx := findAliasToken(tokens, pa.exprStart, pa.name)
+		var idx int
+		if pa.table {
+			idx = findTableAliasToken(tokens, pa.exprStart, pa.name)
+		} else {
+			idx = findAliasToken(tokens, pa.exprStart, pa.name)
+		}
 		if idx >= 0 {
 			p.aliases[tokens[idx].start] = true
 		}
 	}
+}
+
+// findTableAliasToken returns the index of the alias of the table name at nameStart (`t a`,
+// `s.t AS a`, `t * a`), or -1: it is the token right after the (qualified) name and an AS, comments
+// aside. Searching on like findAliasToken does took a later token of the same name for it when no
+// separator follows the alias (`UPDATE t b SET x = b` → `SET x = AS b`).
+func findTableAliasToken(tokens []rawToken, nameStart int, aliasName string) int {
+	i := 0
+	for i < len(tokens) && tokens[i].start < nameStart {
+		i++
+	}
+	if i >= len(tokens) {
+		return -1
+	}
+	next := func(k int) int {
+		for k++; k < len(tokens) && (strings.HasPrefix(tokens[k].text, "--") || strings.HasPrefix(tokens[k].text, "/*")); k++ {
+		}
+		return k
+	}
+	j := next(i)
+	for j+1 < len(tokens) && tokens[j].text == "." {
+		i = next(j)
+		j = next(i)
+	}
+	if j < len(tokens) && tokens[j].text == "*" {
+		j = next(j)
+	}
+	if j < len(tokens) && strings.EqualFold(tokens[j].text, "as") {
+		j = next(j)
+	}
+	if j < len(tokens) && (strings.EqualFold(tokens[j].text, aliasName) || unquoteIdent(tokens[j].text) == aliasName) {
+		return j
+	}
+	return -1
 }
 
 // findAliasToken locates the alias name token in tokens, starting from the
@@ -406,10 +453,14 @@ func findAliasToken(tokens []rawToken, exprStart int, aliasName string) int {
 				continue
 			}
 			lower := strings.ToLower(text)
-			if lower == "as" {
+			if lower == "as" && !(i > 0 && tokens[i-1].text == ".") { // (t.as is a column)
 				// The next token at depth 0 is the alias.
 				// If the very next token is '(' it's a function call, not an alias.
-				if j := i + 1; j < len(tokens) && tokens[j].text != "(" {
+				j := i + 1
+				for j < len(tokens) && isCommentText(tokens[j].text) {
+					j++ // (AS -- note ⏎ alias)
+				}
+				if j < len(tokens) && tokens[j].text != "(" {
 					return j
 				}
 				return -1
@@ -520,8 +571,12 @@ func resolveOnConflictCols(tokens []rawToken, pos *astPositions) {
 		if strings.ToLower(tok.text) != "conflict" {
 			continue
 		}
-		// Must be immediately preceded by ON.
-		if i == 0 || strings.ToLower(tokens[i-1].text) != "on" {
+		// Must be preceded by ON (comments aside: ON -- note ⏎ CONFLICT).
+		p := i - 1
+		for p >= 0 && isCommentText(tokens[p].text) {
+			p--
+		}
+		if p < 0 || strings.ToLower(tokens[p].text) != "on" {
 			continue
 		}
 		// Must be followed by '(' — ON CONFLICT ON CONSTRAINT has no paren.
@@ -1010,7 +1065,7 @@ func normalizeType(tokens []rawToken, i int, skip map[int]bool, form config.Type
 		if long, ok := singleShortToLong[lower]; ok {
 			// timestamptz(3) has no long spelling that keeps the precision after the name
 			// ("timestamp with time zone(3)" is not SQL; it is timestamp(3) with time zone).
-			if next := nextIndices(1); (lower == "timestamptz" || lower == "timetz") && len(next) == 1 && tokens[next[0]].text == "(" {
+			if next := nextIndices(1); (lower == "timestamptz" || lower == "timetz" || noModifierTypes[long]) && len(next) == 1 && tokens[next[0]].text == "(" {
 				return applyCase(text, caseRule), nil
 			}
 			return applyCase(long, caseRule), nil
@@ -1031,6 +1086,9 @@ func normalizeType(tokens []rawToken, i int, skip map[int]bool, form config.Type
 		}
 		// Single-token aliases: use long form only if it has no space.
 		if long, ok := singleShortToLong[lower]; ok {
+			if next := nextIndices(1); noModifierTypes[long] && len(next) == 1 && tokens[next[0]].text == "(" {
+				return applyCase(text, caseRule), nil
+			}
 			if !strings.Contains(long, " ") {
 				return applyCase(long, caseRule), nil
 			}
@@ -1107,6 +1165,13 @@ func isKeywordName(name string) bool {
 	return err == nil && len(res.Tokens) == 1 && res.Tokens[0].KeywordKind != pg_query.KeywordKind_NO_KEYWORD
 }
 
+// blankRunRe[n] matches a line break followed by n or more lines of nothing but blanks.
+var blankRunRe = map[int]*regexp.Regexp{
+	2: regexp.MustCompile(`\n(?:[ \t\f\v]*\n){2,}`),
+	3: regexp.MustCompile(`\n(?:[ \t\f\v]*\n){3,}`),
+	4: regexp.MustCompile(`\n(?:[ \t\f\v]*\n){4,}`),
+}
+
 // collapseBlankLines replaces runs of excess consecutive newlines. The text of string
 // constants that span lines (also inside dollar-quoted bodies) is data and stays as it is.
 func collapseBlankLines(s string, mode config.BlankLinesMode) string {
@@ -1122,14 +1187,13 @@ func collapseBlankLines(s string, mode config.BlankLinesMode) string {
 		return s
 	}
 	target := strings.Repeat("\n", max)
-	excess := strings.Repeat("\n", max+1)
+	// (a line of nothing but blanks is a blank line too: a later step that trims it — the layout,
+	// inside a block comment — left more blank lines than allowed for the next run)
+	excess := blankRunRe[max]
 	collapse := func(part string) string {
-		for strings.Contains(part, excess) {
-			part = strings.ReplaceAll(part, excess, target)
-		}
-		return part
+		return excess.ReplaceAllString(part, target)
 	}
-	if !strings.Contains(s, excess) {
+	if !excess.MatchString(s) {
 		return s
 	}
 	var b strings.Builder
@@ -1147,7 +1211,7 @@ func collapseBlankLines(s string, mode config.BlankLinesMode) string {
 // of text that contain a line break — '…', E'…', U&'…', B'…', X'…' — in order, looking inside
 // dollar-quoted bodies too. Rules that rewrite whitespace must leave these ranges alone.
 func multilineStringRanges(text string, base int) [][2]int {
-	if !strings.Contains(text, "\n") || !strings.ContainsAny(text, "'$") {
+	if !strings.ContainsAny(text, "\n\r") || !strings.ContainsAny(text, "'$") {
 		return nil
 	}
 	res, err := pg_query.Scan(text)
@@ -1161,7 +1225,7 @@ func multilineStringRanges(text string, base int) [][2]int {
 	}
 	for k, t := range res.Tokens {
 		tok := text[t.Start:t.End]
-		if !strings.Contains(tok, "\n") {
+		if !strings.ContainsAny(tok, "\n\r") { // (a lone \r is a line break too)
 			continue
 		}
 		if strings.HasPrefix(tok, "$") {
@@ -1196,7 +1260,9 @@ func multilineStringRanges(text string, base int) [][2]int {
 // spacing, and trailing-whitespace rules. nextText is the text of the token
 // that follows the gap; prevText is the text of the token that precedes it.
 func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) string {
-	hasNL := strings.ContainsRune(gap, '\n')
+	// (a lone \r ends a line too — and the `--` comment before it: replaced by a blank, the
+	// comment swallowed the rest of the line)
+	hasNL := strings.ContainsAny(gap, "\n\r")
 
 	// "<>" written as "!=" (inequality_op: c) must not touch a sign: "!=+" is one operator, "<>+"
 	// is not (a trailing + / - belongs to an operator only if it has one of ~!@#%^&|`).
@@ -1388,7 +1454,7 @@ func semicolonInsertPos(s string) int {
 	for i := len(lines) - 1; i >= 0; i-- {
 		li := lines[i]
 		lineStr := s[li.start:li.end]
-		trimmedLine := strings.TrimSpace(lineStr)
+		trimmedLine := trimSQLSpace(lineStr)
 		if trimmedLine == "" {
 			continue
 		}
@@ -1416,7 +1482,7 @@ func semicolonInsertPos(s string) int {
 // stripTrailingFromGap removes whitespace immediately before each newline
 // within a gap string. String literal content never passes through here.
 func stripTrailingFromGap(s string) string {
-	if !strings.ContainsAny(s, " \t\r\n") {
+	if !strings.ContainsAny(s, " \t\r\n\f\v") {
 		return s
 	}
 	var b strings.Builder
@@ -1427,7 +1493,7 @@ func stripTrailingFromGap(s string) string {
 		case ch == '\n':
 			pending = ""
 			b.WriteByte('\n')
-		case ch == ' ' || ch == '\t' || ch == '\r':
+		case ch == ' ' || ch == '\t' || ch == '\r' || ch == '\f' || ch == '\v': // (a form feed line, a page break of old files, is blank)
 			pending += string(ch)
 		default:
 			b.WriteString(pending)
@@ -1464,7 +1530,7 @@ func formatParsed(sql string, cfg *config.Config, parsed *pg_query.ParseResult) 
 // the blanks before the first token are then
 // the indentation of that line and stay as they are.
 func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResult, vars map[string]bool, lineStart bool) (string, error) {
-	if strings.TrimSpace(sql) == "" {
+	if trimSQLSpace(sql) == "" {
 		return sql, nil
 	}
 
@@ -1568,7 +1634,8 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			if skip[i] {
 				continue
 			}
-			if strings.ToLower(tok.text) == "as" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD && !isInsertTargetAs(tokens, i) {
+			if strings.ToLower(tok.text) == "as" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD && !isInsertTargetAs(tokens, i) &&
+				!(i > 0 && tokens[i-1].text == ".") { // (public.as a: a table named as)
 				if j := nextVisible(i); j >= 0 && pos.aliases[tokens[j].start] && canOmitAs(tokens[j]) {
 					dropText[i] = true
 					suppressGap[j] = true
@@ -1581,6 +1648,17 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 	if cfg.OrderAsc == config.OrderAscRemove {
 		for i, tok := range tokens {
 			if strings.ToLower(tok.text) == "asc" && tok.kind == pg_query.KeywordKind_RESERVED_KEYWORD {
+				// (a name spelled asc is no sort direction: an operator class s.asc, a label AS asc / asc)
+				prev := ""
+				for k := i - 1; k >= 0; k-- {
+					if !isCommentText(tokens[k].text) {
+						prev = strings.ToLower(tokens[k].text)
+						break
+					}
+				}
+				if prev == "." || prev == "as" || pos.aliases[tok.start] || pos.columns[tok.start] {
+					continue // (select 1 asc: a column label)
+				}
 				dropText[i] = true
 				suppressGap[i] = true // don't write gap before ASC either
 				// no suppressGap on next — comma/next token gets natural spacing
@@ -1706,19 +1784,56 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 					break
 				}
 			}
+			// x::t binds :: to the operand right before it: an argument that is an expression of
+			// operators (a + 1, NOT a, a IS NULL, -1) keeps the parentheses of the CAST — (a + 1)::t;
+			// a + 1::t casts only the 1
+			keepParens := pos.castKeepParens[loc] || firstArgIdx >= 0 && (tokens[firstArgIdx].text == "-" || tokens[firstArgIdx].text == "+")
+			if keepParens && firstArgIdx >= 0 && tokens[firstArgIdx].text == "(" {
+				// the argument has parentheses of its own around all of it: CAST((a + 1) AS t) → (a + 1)::t
+				d, last := 0, -1
+				for j := firstArgIdx; j < asIdx; j++ {
+					switch tokens[j].text {
+					case "(":
+						d++
+					case ")":
+						d--
+					}
+					if d == 0 {
+						last = j
+						break
+					}
+				}
+				wrapped := last >= 0
+				for j := last + 1; wrapped && j < asIdx; j++ {
+					if !isCommentText(tokens[j].text) {
+						wrapped = false
+					}
+				}
+				keepParens = !wrapped
+			}
 			dropText[castIdx] = true
-			dropText[openIdx] = true
 			suppressGap[openIdx] = true
+			if !keepParens {
+				dropText[openIdx] = true
+			}
 			if firstArgIdx >= 0 {
 				suppressGap[firstArgIdx] = true
 			}
 			suppressGap[asIdx] = true
 			replaceWith[asIdx] = "::"
+			if keepParens {
+				replaceWith[asIdx] = ")::"
+			}
 			if typeIdx >= 0 {
 				suppressGap[typeIdx] = true
 			}
 			dropText[closeIdx] = true
 			suppressGap[closeIdx] = true
+			if next := closeIdx + 1; next < len(tokens) && tokens[next].start == tokens[closeIdx].end && isIdentByte(tokens[next].text[0]) {
+				// `CAST(0 AS int)AND x`: the ")" separated the type from the word after it
+				dropText[closeIdx] = false
+				replaceWith[closeIdx] = " "
+			}
 		}
 	}
 
@@ -1829,11 +1944,19 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 				continue
 			}
 			if pos.schemas[tok.start] && strings.ToLower(tok.text) == "public" {
+				if i > 0 && tokens[i-1].text == "." {
+					continue // db.public.t: without it the database would be read as the schema
+				}
 				dotIdx := nextVisible(i)
 				if dotIdx < 0 || tokens[dotIdx].text != "." {
 					continue
 				}
 				nameIdx := nextVisible(dotIdx)
+				if nameIdx >= 0 && tokens[nameIdx].kind != 0 && tokens[nameIdx].kind != pg_query.KeywordKind_UNRESERVED_KEYWORD {
+					// a name spelled like a keyword that is no name on its own (public.as, public.user,
+					// public.char(…)): only the schema makes it one
+					continue
+				}
 				dropText[i] = true
 				suppressGap[dotIdx] = true
 				dropText[dotIdx] = true
@@ -1845,6 +1968,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 	}
 
 	// ── Main loop ─────────────────────────────────────────────────────────────
+	layoutOn := !layout.IsNoop(&cfg.Layout)
 	var buf strings.Builder
 	buf.Grow(len(sql) + len(sql)/4)
 
@@ -1869,6 +1993,11 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			gap := ""
 			if tok.start > cur {
 				gap = sql[cur:tok.start]
+			}
+			if layoutOn && strings.ContainsAny(gap, "\v\f") {
+				// (a vertical tab or form feed between tokens is a blank to the layout, which re-indents
+				// the lines: left in place it stood in front of a line's code, not in its indent)
+				gap = strings.NewReplacer("\v", " ", "\f", " ").Replace(gap)
 			}
 			if !suppressGap[i] {
 				g := processGap(gap, prevTokenText, tok.text, arithStart[tok.start] || arithEnd[cur], cfg)
@@ -1933,13 +2062,25 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			// cased — as that on the next run: its quotes stay.
 			// (a name after AS that no tree located — the name in XMLFOREST(a AS "x") — keeps its quotes: the next run would
 			// read it as a column and case it)
-			if safeToUnquote(inner) && (located || !isKeywordName(inner) && !dataTypeNames[inner] && !literalNames[inner] && !strings.EqualFold(prevTokenText, "as")) {
+			// ("a"b: a word right behind the closing quote would be glued to the name: a blank follows it)
+			gluedNext := i+1 < len(tokens) && tokens[i+1].start == tok.end && isIdentByte(tokens[i+1].text[0])
+			keepQuotes := false
+			if located && pos.aliases[tok.start] && cfg.Aliases.As != config.AliasAsAdd && !bareLabelOK(inner) {
+				// an alias that stands without AS (or loses it to aliases.as: remove) must be a word that
+				// can be a bare label: select 1 at is no SQL, select 1 "at" is
+				k := i - 1
+				for k >= 0 && isCommentText(tokens[k].text) {
+					k--
+				}
+				keepQuotes = !(asKeywordBefore(tokens, i) && k >= 0 && !dropText[k])
+			}
+			if !keepQuotes && safeToUnquote(inner) && (located || !isKeywordName(inner) && !dataTypeNames[inner] && !literalNames[inner] && !strings.EqualFold(prevTokenText, "as")) {
 				// select"a" → SELECT a, not SELECTa: keep a separator after a word.
 				// An unquoted alias still follows aliases.as / aliases.case; other
 				// identifiers follow their own section's case rule when the AST located them.
 				switch {
 				case pos.aliases[tok.start]:
-					if cfg.Aliases.As == config.AliasAsAdd && strings.ToLower(prevTokenText) != "as" {
+					if cfg.Aliases.As == config.AliasAsAdd && !asKeywordBefore(tokens, i) {
 						ensureSeparatorBeforeAS(&buf, prevTokenText)
 						buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
 						buf.WriteByte(' ')
@@ -1956,8 +2097,11 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 					// column once it is unquoted)
 					inner = applyCaseEx(inner, cfg.Columns.Case, cfg.Columns.Exceptions)
 				}
-				ensureSeparator(&buf)
+				ensureSeparatorBeforeAS(&buf, prevTokenText) // (also after a number ending in a dot: 0."a" → 0. a)
 				buf.WriteString(inner)
+				if gluedNext {
+					buf.WriteByte(' ')
+				}
 				prevTokenText = tokenText
 				prevIsCall, prevIsKeyword = false, false
 				cur = tok.end
@@ -2031,6 +2175,12 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 		// replaceWith: if this token has a replacement, write it and skip normal output.
 		if s, ok := replaceWith[i]; ok {
 			buf.WriteString(s)
+			if strings.Trim(s, " ") == "" {
+				// a blank in place of a token (the ")" of a CAST that became ::): the rules for the next
+				// token see the one before it, not the dropped ")"
+				cur = tok.end
+				continue
+			}
 			prevTokenText = tokenText
 			// (a replacement that is a keyword phrase, `NOT IN` for `<> ALL`, is the keyword before its "(")
 			prevIsCall, prevIsKeyword = false, s != "" && strings.Trim(s, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ") == ""
@@ -2040,7 +2190,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 
 		// ── AS insertion (add mode) ───────────────────────────────────────────
 		if class == classAlias && cfg.Aliases.As == config.AliasAsAdd {
-			if strings.ToLower(prevTokenText) != "as" {
+			if !asKeywordBefore(tokens, i) {
 				collapsePaddingBeforeAS(&buf)
 				ensureSeparatorBeforeAS(&buf, prevTokenText)
 				buf.WriteString(applyCase("as", cfg.ReservedKeywords.Case))
@@ -2140,8 +2290,18 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 				} else {
 					buf.WriteString(tokenText)
 				}
-			case cfg.Comments.SpaceAfterMarker == config.CommentSpaceAdd && strings.HasPrefix(tokenText, "--"):
-				buf.WriteString(spaceAfterLineCommentMarker(tokenText))
+			case strings.HasPrefix(tokenText, "--"):
+				t := tokenText
+				if cfg.TrailingWhitespace == config.TrailingWSStrip {
+					// the blanks at the end of a -- comment are trailing white space of its line too (they
+					// are part of the token, so the gaps between tokens do not hold them; once the comment
+					// ended the text, the next run cut them off there)
+					t = strings.TrimRight(t, " \t\r\f\v")
+				}
+				if cfg.Comments.SpaceAfterMarker == config.CommentSpaceAdd {
+					t = spaceAfterLineCommentMarker(t)
+				}
+				buf.WriteString(t)
 			default:
 				buf.WriteString(tokenText)
 			}
@@ -2166,7 +2326,7 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 	}
 
 	if cfg.TrailingWhitespace == config.TrailingWSStrip {
-		result = strings.TrimRight(result, " \t\r")
+		result = strings.TrimRight(result, " \t\r\f\v")
 	}
 
 	result = finishWholeText(result, cfg, true)
@@ -2395,10 +2555,16 @@ func (p *astPositions) mergeShifted(src *astPositions, off int) {
 	shift(p.aliases, src.aliases)
 	shift(p.columns, src.columns)
 	for _, pa := range src.pendingAliases {
-		p.pendingAliases = append(p.pendingAliases, pendingAlias{exprStart: pa.exprStart + off, name: pa.name})
+		p.pendingAliases = append(p.pendingAliases, pendingAlias{exprStart: pa.exprStart + off, name: pa.name, table: pa.table})
 	}
 	for _, l := range src.sortByDefaultLocs {
 		p.sortByDefaultLocs = append(p.sortByDefaultLocs, l+off)
+	}
+	for l := range src.castKeepParens {
+		if p.castKeepParens == nil {
+			p.castKeepParens = map[int]bool{}
+		}
+		p.castKeepParens[l+off] = true
 	}
 	for _, l := range src.castFuncLocs {
 		p.castFuncLocs = append(p.castFuncLocs, l+off)
@@ -2714,6 +2880,12 @@ func walkNode(node *pg_query.Node, pos *astPositions) {
 		loc := int(tc.Location)
 		if loc >= 0 && loc+4 <= len(pos.sql) && strings.EqualFold(pos.sql[loc:loc+4], "cast") {
 			pos.castFuncLocs = append(pos.castFuncLocs, loc)
+			if !castOperand(tc.Arg) {
+				if pos.castKeepParens == nil {
+					pos.castKeepParens = map[int]bool{}
+				}
+				pos.castKeepParens[loc] = true
+			}
 		}
 		walkNode(tc.Arg, pos)
 
@@ -2829,7 +3001,13 @@ func addTableRangeVar(rv *pg_query.RangeVar, pos *astPositions) {
 		return
 	}
 	loc := int(rv.Location)
-	if rv.Schemaname != "" && rv.Relname != "" {
+	if rv.Catalogname != "" && rv.Schemaname != "" && rv.Relname != "" {
+		// db.schema.table: the location is the database's name, which is no schema (remove_public
+		// must not drop a database named public)
+		at := tableAfterSchema(pos.sql, loc, rv.Catalogname)
+		pos.schemas[at] = true
+		pos.tables[tableAfterSchema(pos.sql, at, rv.Schemaname)] = true
+	} else if rv.Schemaname != "" && rv.Relname != "" {
 		pos.schemas[loc] = true
 		pos.tables[tableAfterSchema(pos.sql, loc, rv.Schemaname)] = true
 	} else {
@@ -2845,8 +3023,33 @@ func addTableRangeVar(rv *pg_query.RangeVar, pos *astPositions) {
 		pos.pendingAliases = append(pos.pendingAliases, pendingAlias{
 			exprStart: loc,
 			name:      rv.Alias.Aliasname,
+			table:     true,
 		})
 	}
+}
+
+// castOperand reports whether n can stand before :: as it is (a name, a constant, a call, a
+// subscript, CASE, ARRAY[…], a subquery, another cast): x::t then casts the same value as CAST(x AS t).
+func castOperand(n *pg_query.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch v := n.Node.(type) {
+	case *pg_query.Node_ColumnRef, *pg_query.Node_AConst, *pg_query.Node_ParamRef,
+		*pg_query.Node_AIndirection, *pg_query.Node_TypeCast, *pg_query.Node_CaseExpr, *pg_query.Node_AArrayExpr,
+		*pg_query.Node_RowExpr, *pg_query.Node_CoalesceExpr, *pg_query.Node_MinMaxExpr, *pg_query.Node_SqlvalueFunction:
+		return true
+	case *pg_query.Node_FuncCall:
+		// (not the calls written as SQL syntax: a AT TIME ZONE b, a IS NORMALIZED)
+		return v.FuncCall.Funcformat != pg_query.CoercionForm_COERCE_SQL_SYNTAX
+	case *pg_query.Node_SubLink:
+		// EXISTS (…), (SELECT …), ARRAY(…) — not a IN (SELECT …) / a = ANY (…)
+		switch v.SubLink.SubLinkType {
+		case pg_query.SubLinkType_EXISTS_SUBLINK, pg_query.SubLinkType_EXPR_SUBLINK, pg_query.SubLinkType_ARRAY_SUBLINK:
+			return true
+		}
+	}
+	return false
 }
 
 // tableAfterSchema is the offset of the name that follows the schema at loc and its dot: the schema
@@ -2867,7 +3070,38 @@ func tableAfterSchema(sql string, loc int, schema string) int {
 		}
 		end = i + 1
 	}
-	return end + 1 // +1 for the dot
+	// the dot, with white space or comments around it maybe (`public. t`, `s /* x */ . t`)
+	end = skipSQLGap(sql, end)
+	if end < len(sql) && sql[end] == '.' {
+		end++
+	}
+	return skipSQLGap(sql, end)
+}
+
+// skipSQLGap returns the offset of the first byte at or after i that is neither SQL white space
+// nor part of a comment.
+func skipSQLGap(sql string, i int) int {
+	for i < len(sql) {
+		switch {
+		case strings.IndexByte(sqlSpace, sql[i]) >= 0:
+			i++
+		case strings.HasPrefix(sql[i:], "--"):
+			nl := strings.IndexAny(sql[i:], "\n\r")
+			if nl < 0 {
+				return len(sql)
+			}
+			i += nl
+		case strings.HasPrefix(sql[i:], "/*"):
+			n := blockCommentLen(sql[i:])
+			if n < 0 {
+				return len(sql)
+			}
+			i += n
+		default:
+			return i
+		}
+	}
+	return i
 }
 
 // walkSetTargetList walks a SET assignment list (UPDATE … SET or ON CONFLICT DO
@@ -2909,9 +3143,9 @@ func isDollarQuoted(s string) bool {
 func applySectionIndent(content, indentUnit string, mode config.BodyIndentMode) string {
 	nl := strings.IndexByte(content, '\n')
 	switch {
-	case nl < 0 && strings.TrimSpace(content) != "":
+	case nl < 0 && trimSQLSpace(content) != "":
 		return content // all on the line of the keyword
-	case nl > 0 && strings.TrimSpace(content[:nl]) != "":
+	case nl > 0 && trimSQLSpace(content[:nl]) != "":
 		return content[:nl] + applyBodyIndent(content[nl:], indentUnit, mode)
 	}
 	return applyBodyIndent(content, indentUnit, mode)
@@ -2935,7 +3169,7 @@ func applyBodyIndent(content, indentUnit string, mode config.BodyIndentMode) str
 		switch {
 		case inside[i]:
 			result[i] = line
-		case strings.TrimSpace(line) == "":
+		case trimSQLSpace(line) == "":
 			result[i] = ""
 		case mode == config.BodyIndentNone:
 			result[i] = trimIndent(line, minIndent)
@@ -2964,9 +3198,9 @@ func reindentContinuation(seg, oldIndent, newIndent string) string {
 	spacesOnly := strings.Trim(oldIndent, " ") == "" && strings.Trim(newIndent, " ") == "" && subqueryOpen.MatchString(seg)
 	for i := 1; i < len(lines); i++ {
 		last := i == len(lines)-1 // (the indent of the keyword that ends the segment)
-		if !inside[i] && strings.HasPrefix(lines[i], oldIndent) && (last && lines[i] != "" || strings.TrimSpace(lines[i]) != "") {
+		if !inside[i] && strings.HasPrefix(lines[i], oldIndent) && (last && lines[i] != "" || trimSQLSpace(lines[i]) != "") {
 			lines[i] = newIndent + lines[i][len(oldIndent):]
-		} else if !inside[i] && !last && spacesOnly && strings.TrimSpace(lines[i]) != "" {
+		} else if !inside[i] && !last && spacesOnly && trimSQLSpace(lines[i]) != "" {
 			// a line that stood left of the old indent (hand-aligned `AND`) moves by the same distance, or
 			// the lines of a subquery opened in the condition would move without it and meet it differently
 			// on the next run
@@ -3034,7 +3268,7 @@ func findMinIndent(lines []string) string {
 	// `        x` and `\ty` lose one character each, whatever it is — see trimIndent)
 	minLen := -1
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
+		if trimSQLSpace(line) == "" {
 			continue
 		}
 		j := 0
@@ -3063,7 +3297,7 @@ func trimIndent(line, indent string) string {
 var leadingBlankLines = regexp.MustCompile(`^(?:[ \t]*\n)+`)
 
 func applyDollarBoundary(body string, afterOpen, beforeClose config.BlankLineAction) string {
-	if strings.TrimSpace(body) == "" && (afterOpen == config.BlankLineAdd || afterOpen == config.BlankLineRemove ||
+	if trimSQLSpace(body) == "" && (afterOpen == config.BlankLineAdd || afterOpen == config.BlankLineRemove ||
 		beforeClose == config.BlankLineAdd || beforeClose == config.BlankLineRemove) {
 		// nothing in it: one line break, or a blank line when one is to be added
 		if afterOpen == config.BlankLineAdd || beforeClose == config.BlankLineAdd {
@@ -3131,7 +3365,7 @@ func formatDollarQuoted(s string, cfg *config.Config, vars map[string]bool) (str
 	cfgInner.BlankLinesBetweenStatements = "preserve"
 	// A PL/pgSQL body written on one line (do $$ begin perform 1; end $$) stays compact: there
 	// is no structure to lay out, and breaking its statements would leave it half-formatted.
-	oneLineBody := isPLpgSQLBody(body) && !strings.Contains(strings.TrimSpace(body), "\n")
+	oneLineBody := isPLpgSQLBody(body) && !strings.Contains(trimSQLSpace(body), "\n")
 	if oneLineBody {
 		cfgInner.StatementBreak = config.StatementBreakPreserve
 	}
@@ -3408,7 +3642,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 		} else if !hasDeclare {
 			// BEGIN is the first keyword: its indent is the blanks of the last line before it
 			lead := body[:leadingEnd]
-			if nl := strings.LastIndexByte(lead, '\n'); nl >= 0 && strings.TrimSpace(lead[nl+1:]) == "" {
+			if nl := strings.LastIndexByte(lead, '\n'); nl >= 0 && trimSQLSpace(lead[nl+1:]) == "" {
 				kwIndent = lead[nl+1:] // (on a line of its own; after `$$ ` it has no indent)
 			}
 		}
@@ -3437,7 +3671,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 	// DECLARE section.
 	if hasDeclare {
 		declBody := body[declareBodyStart:beginKwStart]
-		trimmedDecl := strings.TrimSpace(declBody)
+		trimmedDecl := trimSQLSpace(declBody)
 		showDeclare := true
 		switch plCfg.DeclareEmpty {
 		case config.WhenEmptyRemove:
@@ -3514,7 +3748,7 @@ func restructurePLpgSQL(body string, cfg *config.Config) (string, bool) {
 // isPLpgSQLBody returns true when the dollar-quoted body looks like a PL/pgSQL block
 // (starts with BEGIN or DECLARE) rather than a plain SQL statement.
 func isPLpgSQLBody(body string) bool {
-	lower := strings.ToLower(strings.TrimSpace(body))
+	lower := strings.ToLower(trimSQLSpace(body))
 	// comments in front of the block (a /*DOCU … */ header) are no part of it
 	for {
 		switch {
@@ -3523,13 +3757,13 @@ func isPLpgSQLBody(body string) bool {
 			if nl < 0 {
 				return false
 			}
-			lower = strings.TrimSpace(lower[nl+1:])
+			lower = trimSQLSpace(lower[nl+1:])
 		case strings.HasPrefix(lower, "/*"):
-			end := strings.Index(lower, "*/")
+			end := blockCommentLen(lower)
 			if end < 0 {
 				return false
 			}
-			lower = strings.TrimSpace(lower[end+2:])
+			lower = trimSQLSpace(lower[end:])
 		default:
 			return strings.HasPrefix(lower, "begin") || strings.HasPrefix(lower, "declare")
 		}
@@ -3600,7 +3834,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	applyLayoutToSQL := func(prefix, sqlText string) (out string, ok bool, drop int) {
 		baseIndent := lastLineIndent(prefix)
 		lc := bodyLayoutConfig(cfg)
-		if lc.Clauses.Align == config.AlignRight && strings.TrimSpace(prefix[strings.LastIndexByte(prefix, '\n')+1:]) != "" &&
+		if lc.Clauses.Align == config.AlignRight && trimSQLSpace(prefix[strings.LastIndexByte(prefix, '\n')+1:]) != "" &&
 			!caseBranchMovesBody(body[:lastEnd+len(prefix)], body[lastEnd+len(prefix):], cfg) {
 			// RETURN QUERY SELECT …: the statement does not start its line, so there is no
 			// edge to pad its keyword to
@@ -3613,7 +3847,7 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			sqlLines := strings.Split(sqlText, "\n")
 			sqlInside := linesInsideTokens(sqlText, len(sqlLines)) // (lines of a string constant are data)
 			for li, ln := range sqlLines[1:] {
-				if strings.TrimSpace(ln) == "" || sqlInside[li+1] {
+				if trimSQLSpace(ln) == "" || sqlInside[li+1] {
 					continue
 				}
 				ind := ln[:len(ln)-len(strings.TrimLeft(ln, " \t"))]
@@ -3783,6 +4017,11 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			if reformatted, ok, drop := applyLayoutToSQL(prefix, sqlText); ok && !runsIntoBlockEnd(sqlText) {
 				result.WriteString(prefix[:len(prefix)-drop])
 				result.WriteString(reformatted)
+				if endsInLineComment(sqlText) {
+					// (a `;` on a line of its own below a `--` comment: written right after the comment it
+					// became part of it and the statement ran on into the next one)
+					result.WriteString(body[sqlStart+len(sqlText) : tokStart])
+				}
 				result.WriteByte(';')
 			} else {
 				result.WriteString(body[lastEnd:tokEnd])
@@ -3805,6 +4044,16 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 	// Flush any remaining body content.
 	result.WriteString(body[lastEnd:])
 	return result.String(), nil
+}
+
+// endsInLineComment reports whether the last token of sqlText is a `--` comment.
+func endsInLineComment(sqlText string) bool {
+	res, err := pg_query.Scan(sqlText)
+	if err != nil || len(res.Tokens) == 0 {
+		return false
+	}
+	last := res.Tokens[len(res.Tokens)-1]
+	return strings.HasPrefix(sqlText[last.Start:last.End], "--")
 }
 
 // runsIntoBlockEnd reports whether the SQL text ends in an END that closes no CASE of its own (it is the
@@ -3832,7 +4081,7 @@ func runsIntoBlockEnd(sqlText string) bool {
 // endsWithOpenerWord reports whether a line of a PL/pgSQL body ends with THEN, ELSE or LOOP followed by
 // nothing else (a statement that follows it is on the line of its opener: `if a then select …;`).
 func endsWithOpenerWord(line string) bool {
-	t := strings.ToLower(strings.TrimSpace(line))
+	t := strings.ToLower(trimSQLSpace(line))
 	for _, w := range []string{"then", "else", "loop"} {
 		if t == w || strings.HasSuffix(t, " "+w) || strings.HasSuffix(t, "\t"+w) {
 			return true
@@ -4255,7 +4504,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		}
 		minInd := findMinIndent(codeLines)
 		for i, line := range lines {
-			if i == 0 || strings.TrimSpace(line) == "" || inside[i] {
+			if i == 0 || trimSQLSpace(line) == "" || inside[i] {
 				continue
 			}
 			stripped := trimIndent(line, minInd)
@@ -4297,18 +4546,18 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 		// are those after it
 		head := ""
 		if nl := strings.IndexByte(following, '\n'); nl >= 0 {
-			if t := strings.TrimSpace(following[:nl]); strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*") {
+			if t := trimSQLSpace(following[:nl]); strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*") {
 				head, following = following[:nl], following[nl:]
 			}
 		}
-		if head == "" && !strings.HasPrefix(strings.TrimLeft(following, " \t"), "\n") && strings.TrimSpace(following) != "" {
+		if head == "" && !strings.HasPrefix(strings.TrimLeft(following, " \t"), "\n") && trimSQLSpace(following) != "" {
 			return following // a statement on the line of the keyword (`then x := 1;`): no blank lines to adjust
 		}
 		if t := strings.TrimLeft(following, " \t"); strings.HasPrefix(t, "\n") {
 			following = t // (blanks left behind on the keyword's line)
 		}
 		stripped := leadingBlankLines.ReplaceAllString(following, "") // (a line of blanks is a blank line)
-		if strings.TrimSpace(following) == "" {
+		if trimSQLSpace(following) == "" {
 			// nothing but blanks up to the next keyword: its indent is what stays
 			stripped = following[strings.LastIndexByte(following, '\n')+1:]
 		}
@@ -4433,7 +4682,7 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 					// Measure: indent + "WHEN" + val + " THEN" + " " + firstBodyLine
 					whenDepth := kwDepthForEvent(whenEv)
 					firstLine := strings.TrimLeft(strings.SplitN(strings.TrimLeft(bodySeg, " \t\n"), "\n", 2)[0], " \t")
-					lineW := whenDepth*len(indentUnit) + 4 + len(strings.TrimSpace(valSeg)) + 5 + 1 + len(firstLine)
+					lineW := whenDepth*len(indentUnit) + 4 + len(trimSQLSpace(valSeg)) + 5 + 1 + len(firstLine)
 					if lineW > lineLength {
 						dec.breakBefore = true
 					} else {
@@ -4850,12 +5099,24 @@ func canOmitAs(tok rawToken) bool {
 	}
 	// (`SELECT 1 isnull` parses too, but as the postfix operator: the word must come back as the
 	// name of the column, or dropping the AS would change the query)
-	ok := false
-	if res, err := pg_query.Parse("SELECT 1 " + tok.text); err == nil && len(res.Stmts) == 1 {
-		if sel := res.Stmts[0].Stmt.GetSelectStmt(); sel != nil && len(sel.TargetList) == 1 {
-			if rt := sel.TargetList[0].GetResTarget(); rt != nil && strings.EqualFold(rt.Name, tok.text) {
-				ok = true
-			}
+	// (and in other places an expression can end: `SELECT 1 at` parses, `SELECT !1 at` does not —
+	// the parser reads AT as the start of AT TIME ZONE there; `f() over` / `f() filter` start a window
+	// or a filter)
+	ok := true
+	for _, q := range []string{"SELECT 1 %s", "SELECT 1 %s, 2", "SELECT 1 %s FROM t", "SELECT !1 %s", "SELECT -1 %s", "SELECT f() %s"} {
+		res, err := pg_query.Parse(fmt.Sprintf(q, tok.text))
+		if err != nil || len(res.Stmts) != 1 {
+			ok = false
+			break
+		}
+		sel := res.Stmts[0].Stmt.GetSelectStmt()
+		if sel == nil || len(sel.TargetList) == 0 {
+			ok = false
+			break
+		}
+		if rt := sel.TargetList[0].GetResTarget(); rt == nil || !strings.EqualFold(rt.Name, tok.text) {
+			ok = false
+			break
 		}
 	}
 	bareLabelCache.Store(key, ok)
@@ -4894,10 +5155,13 @@ func layoutConfig(cfg *config.Config) *config.LayoutConfig {
 func collapsePaddingBeforeAS(buf *strings.Builder) {
 	out := buf.String()
 	i := len(out)
-	for i > 0 && (out[i-1] == ' ' || out[i-1] == '\t') {
+	for i > 0 && (out[i-1] == ' ' || out[i-1] == '\t' || out[i-1] == '\v' || out[i-1] == '\f') {
 		i--
 	}
-	if len(out)-i < 2 || i == 0 || out[i-1] == '\n' {
+	// (a lone \v or \f is replaced as well: it separates like a blank, but later rules drop it and
+	// left the AS glued to the token before it)
+	// (and a lone tab: it ended up between the token and AS, where inline_spacing makes it a blank)
+	if len(out)-i < 2 && (i == len(out) || out[i] == ' ') || i == 0 || out[i-1] == '\n' {
 		return
 	}
 	buf.Reset()
@@ -5020,7 +5284,8 @@ func capitalizeWords(s string) string {
 // between tokens of sql, leaving string literals and comments untouched.
 func stripTrailingOutsideTokens(sql string) string {
 	// Scanning is comparatively expensive; most bodies have nothing to strip.
-	if !strings.Contains(sql, " \n") && !strings.Contains(sql, "\t\n") && !strings.Contains(sql, " \r") && !strings.Contains(sql, "\t\r") {
+	if !strings.Contains(sql, " \n") && !strings.Contains(sql, "\t\n") && !strings.Contains(sql, " \r") && !strings.Contains(sql, "\t\r") &&
+		!strings.Contains(sql, "\f") && !strings.Contains(sql, "\v") {
 		return sql
 	}
 	res, err := pg_query.Scan(sql)
@@ -5035,7 +5300,11 @@ func stripTrailingOutsideTokens(sql string) string {
 			return sql
 		}
 		b.WriteString(stripTrailingFromGap(sql[cur:start]))
-		b.WriteString(sql[start:end])
+		if tok := sql[start:end]; strings.HasPrefix(tok, "--") {
+			b.WriteString(strings.TrimRight(tok, " \t\r\f\v")) // (the blanks a -- comment ends with)
+		} else {
+			b.WriteString(tok)
+		}
 		cur = end
 	}
 	b.WriteString(stripTrailingFromGap(sql[cur:]))
@@ -5139,15 +5408,36 @@ func bodyIsSQLOrPLpgSQL(tokens []rawToken, i int) bool {
 	return true
 }
 
+// isCommentText reports whether a token is a comment.
 func isCommentText(t string) bool { return strings.HasPrefix(t, "--") || strings.HasPrefix(t, "/*") }
 
-func isOnlyWhitespace(s string) bool { return strings.TrimSpace(s) == "" }
+// bareLabelOK reports whether word, unquoted, can stand as a column label without AS.
+func bareLabelOK(word string) bool {
+	res, err := pg_query.Scan(word)
+	if err != nil || len(res.Tokens) != 1 {
+		return false
+	}
+	return canOmitAs(rawToken{text: word, kind: res.Tokens[0].KeywordKind})
+}
+
+// asKeywordBefore reports whether the token before tokens[i], comments aside, is the keyword AS
+// (AS /* x */ b) — not a name spelled as behind a dot (s.as x, "t".as "a").
+func asKeywordBefore(tokens []rawToken, i int) bool {
+	for k := i - 1; k >= 0; k-- {
+		if !isCommentText(tokens[k].text) {
+			return strings.EqualFold(tokens[k].text, "as") && !(k > 0 && tokens[k-1].text == ".")
+		}
+	}
+	return false
+}
+
+func isOnlyWhitespace(s string) bool { return trimSQLSpace(s) == "" }
 
 // joinIsOptionName reports whether the JOIN at tokens[i] is a name, not a join
 // (CREATE OPERATOR (… JOIN = f), ALTER OPERATOR … SET (JOIN = f)).
 func joinIsOptionName(tokens []rawToken, i int) bool {
 	for j := i + 1; j < len(tokens); j++ {
-		if strings.TrimSpace(tokens[j].text) == "" {
+		if trimSQLSpace(tokens[j].text) == "" {
 			continue
 		}
 		return tokens[j].text == "="

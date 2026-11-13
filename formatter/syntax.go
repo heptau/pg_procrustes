@@ -96,12 +96,19 @@ func shiftForBOM(diags []SyntaxError, err error) {
 }
 
 func formatWithDiagnostics(sql string, cfg *config.Config) (string, []SyntaxError, error) {
-	if strings.TrimSpace(sql) == "" {
+	if trimSQLSpace(sql) == "" {
 		return sql, nil, nil
 	}
 	// The formatter works on LF only; the requested line ending is applied at the end.
 	eol := detectEOL(sql)
-	masked, regions := maskVerbatimRegions(normalizeEOL(sql))
+	in := normalizeEOL(sql)
+	if cfg.LineEndings == config.LineEndingLF || cfg.LineEndings == config.LineEndingCRLF {
+		// these convert the line breaks inside string constants as well: the layout has to see the
+		// strings as they come out (a lone \r that becomes \n makes a string a multi-line one, which the
+		// next run would lay out differently)
+		in = eolToLF(sql)
+	}
+	masked, regions := maskVerbatimRegions(in)
 	out, diags, err := formatDiagnostics(masked, cfg)
 	if err != nil || out == "" {
 		// The positions of a fatal error are positions in the masked text as well.
@@ -253,11 +260,11 @@ func startsOnFirstLine(text string) bool {
 		case text[i] == ' ' || text[i] == '\t' || text[i] == '\r':
 			i++
 		case strings.HasPrefix(text[i:], "/*"):
-			end := strings.Index(text[i+2:], "*/")
-			if end < 0 || strings.Contains(text[i:i+2+end], "\n") {
+			end := blockCommentLen(text[i:]) // (nested comments included)
+			if end < 0 || strings.Contains(text[i:i+end], "\n") {
 				return false
 			}
-			i += 2 + end + 2
+			i += end
 		default:
 			return text[i] != '\n' && !strings.HasPrefix(text[i:], "--")
 		}

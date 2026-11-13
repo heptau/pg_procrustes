@@ -1,0 +1,2 @@
+go test fuzz v1
+string("CreAte tABle A(--0000000\rA A[]defAult'',\"0000000\"A0(\n0))")

@@ -24,7 +24,7 @@ UPDATE public.orders
    AND created_at < now() - interval '2 days'
 RETURNING id, status, shipped_at;
 
-UPDATE public.accounts a
+UPDATE public.accounts AS a
    SET balance = a.balance - o.total,
        updated_at = now()
   FROM public.orders AS o

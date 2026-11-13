@@ -3,9 +3,11 @@ package formatter_test
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
+	"github.com/heptau/pg_procrustes/config"
 	"github.com/heptau/pg_procrustes/formatter"
 )
 
@@ -66,6 +68,46 @@ func FuzzFormat(f *testing.F) {
 			out2, err := formatter.Format(out, cfg)
 			if err != nil || out2 != out {
 				t.Fatalf("%s: not idempotent (err=%v)\n--- first ---\n%s\n--- second ---\n%s", v.name, err, out, out2)
+			}
+		}
+	})
+}
+
+// FuzzTemplates checks, for inputs PostgreSQL can parse, that the shipped templates keep the SQL
+// parseable and are idempotent (FuzzFormat covers a few single options instead).
+//
+//	go test ./formatter -run '^$' -fuzz FuzzTemplates -fuzztime 60s
+func FuzzTemplates(f *testing.F) {
+	for _, s := range matrixInline {
+		f.Add(s)
+	}
+	var cfgs []*config.Config
+	for _, n := range []string{"postgresql", "ai", "modern"} {
+		c, err := config.Load("../templates/" + n + ".yaml")
+		if err != nil {
+			f.Fatal(err)
+		}
+		cfgs = append(cfgs, c)
+	}
+	f.Fuzz(func(t *testing.T, src string) {
+		if len(src) > 2000 || strings.Contains(src, "$") || strings.ContainsRune(src, 0) || !utf8.ValidString(src) {
+			// (dollar-quoted bodies as for FuzzFormat; the parser stops reading at a NUL byte)
+			t.Skip()
+		}
+		if _, err := pg_query.Parse(src); err != nil {
+			t.Skip()
+		}
+		for i, cfg := range cfgs {
+			out, err := formatter.Format(src, cfg)
+			if err != nil {
+				t.Skip()
+			}
+			if _, err := pg_query.Parse(out); err != nil {
+				t.Fatalf("%d: output does not parse: %v\n--- in ---\n%q\n--- out ---\n%s", i, err, src, out)
+			}
+			out2, err := formatter.Format(out, cfg)
+			if err != nil || out2 != out {
+				t.Fatalf("%d: not idempotent\n--- in ---\n%q\n--- first ---\n%s\n--- second ---\n%s", i, src, out, out2)
 			}
 		}
 	})

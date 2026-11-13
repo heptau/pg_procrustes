@@ -128,7 +128,7 @@ func topLevelSeparator(item, sep string) int {
 // comma_position), so it must not decide whether the item takes part in the alignment.
 func splitCommentLines(item string) (lead, body, trail string) {
 	lead, rest := splitLeadingCommentLines(item)
-	if strings.TrimSpace(rest) == "" {
+	if trimSQLSpace(rest) == "" {
 		return "", item, ""
 	}
 	body, trail = splitTrailingCommentLines(rest)

@@ -502,7 +502,9 @@ statement_break: preserve                 # preserve | always
                              #           separates them and takes precedence)
 
 line_endings: preserve       # preserve | lf | crlf
-                             #   preserve: keep the input's style (CRLF if most line breaks are CRLF)
+                             #   preserve: keep the input's style (CRLF if most line breaks are CRLF, CR if most
+                             #             are a lone CR); line breaks inside string literals
+                             #             stay exactly as written
                              #   lf / crlf: convert — also inside multi-line string literals
 
 comments:

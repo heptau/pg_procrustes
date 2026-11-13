@@ -34,7 +34,7 @@ func formatRange(sql string, cfg *config.Config, startLine, endLine int) (string
 	if startLine < 1 || endLine < startLine {
 		return "", nil, fmt.Errorf("invalid line range %d:%d", startLine, endLine)
 	}
-	if strings.TrimSpace(sql) == "" {
+	if trimSQLSpace(sql) == "" {
 		return sql, nil, nil
 	}
 	eol := detectEOL(sql)

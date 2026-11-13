@@ -111,6 +111,11 @@ func resolveContentAlign(mode config.AlignMode, sql string, tokens []rawTok, kwT
 	if !tokenStartsLine(sql, tokens[kwTok]) {
 		return config.AlignIndent // keyword shares its line with another statement: no reliable indent
 	}
+	if !hasCodeTokens(tokens, from, to) {
+		// comments and no item (`select --`): there is no item whose place shows the style, and the
+		// comment, once it has a line of its own, would show one the next run
+		return config.AlignIndent
+	}
 	kwIndent := lineIndent(sql, tokens[kwTok].start)
 	isInsert := strings.EqualFold(tokens[kwTok].text, "insert")
 	depth := 0

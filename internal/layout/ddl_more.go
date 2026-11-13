@@ -297,7 +297,7 @@ func viewHeader(sql string, tokens []rawTok, from, to int, cfg *config.LayoutCon
 		return "", false
 	}
 	flat := flatLength(sql, tokens, from, to)
-	rest := strings.TrimSpace(originalText(sql, tokens, closeIdx+1, to))
+	rest := trimSQLSpace(originalText(sql, tokens, closeIdx+1, to))
 	var sb strings.Builder
 	sb.WriteString(sql[tokens[from].start:tokens[open].end])
 	if !shouldBreak(flat, mode, cfg.LineLength) {

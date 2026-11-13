@@ -1,6 +1,8 @@
 package formatter_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -753,5 +755,30 @@ func TestPLpgSQLCaseBodyBreakCollapseKeepsNestedBlock(t *testing.T) {
 				t.Errorf("%s/%s: not idempotent:\n%s\n---\n%s", name, mode, got, again)
 			}
 		}
+	}
+}
+
+// A `;` on a line of its own below a `--` comment that ends a SQL statement of a body (a commented-out
+// VALUES row) was written right after the comment: it became part of the comment and the statement
+// ran on into the next one.
+func TestPLpgSQLSemicolonAfterLineCommentStaysOutOfIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.yaml")
+	if err := os.WriteFile(path, []byte("layout:\n  paren_indent:\n    mode: none\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := wrap("BEGIN\n    INSERT INTO t (a)\n    VALUES (1)\n         , (2)\n--       , (3)\n    ;\n    PERFORM 1;\nEND")
+	got, err := formatter.Format(src, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "(3);") || !strings.Contains(got, "\n    ;\n") {
+		t.Errorf("the `;` went into the comment:\n%s", got)
+	}
+	if again, _ := formatter.Format(got, c); again != got {
+		t.Errorf("not idempotent:\n%s\n---\n%s", got, again)
 	}
 }

@@ -231,7 +231,7 @@ func reindentContinuation(item, indent string) string {
 	parts := strings.Split(item, "\n")
 	least := -1
 	for _, ln := range parts[1:] {
-		if strings.TrimSpace(ln) == "" {
+		if trimSQLSpace(ln) == "" {
 			continue
 		}
 		w := len(ln) - len(strings.TrimLeft(ln, " \t"))
@@ -244,7 +244,7 @@ func reindentContinuation(item, indent string) string {
 	}
 	shift := indent[:len(indent)-least]
 	for j := 1; j < len(parts); j++ {
-		if strings.TrimSpace(parts[j]) != "" {
+		if trimSQLSpace(parts[j]) != "" {
 			parts[j] = shift + parts[j]
 		}
 	}
@@ -271,7 +271,7 @@ func rebuildParenList(sql string, tokens []rawTok, stmt statement, open int, mod
 		return "", false
 	}
 	flat := flatLength(sql, tokens, codeStart(tokens, stmt), stmt.endTok)
-	tail := strings.TrimSpace(originalText(sql, tokens, closeIdx+1, stmt.endTok))
+	tail := trimSQLSpace(originalText(sql, tokens, closeIdx+1, stmt.endTok))
 
 	var sb strings.Builder
 	if !shouldBreak(flat, mode, cfg.LineLength) {
@@ -297,7 +297,7 @@ func rebuildParenList(sql string, tokens []rawTok, stmt statement, open int, mod
 
 	baseIndent := strings.Repeat(indentUnit, depth)
 	itemIndent := baseIndent + indentUnit
-	items = alignColumns(items, align)
+	items = alignColumns(items, align, cfg.ParenSpacing)
 	sb.WriteString(ddlHead(sql, tokens, stmt, open))
 	emitDDLItems(&sb, items, resolveCommaStart(cfg.Content.CommaPosition, sql, tokens, open+1, closeIdx), itemIndent)
 	sb.WriteByte('\n')
@@ -422,7 +422,7 @@ type columnParts struct {
 
 // splitColumn splits a column definition; ok is false for table constraints and for
 // anything that does not look like "name type …" (those are left as written).
-func splitColumn(item string) (columnParts, bool) {
+func splitColumn(item string, parenMode config.ParenSpacingMode) (columnParts, bool) {
 	var cp columnParts
 	res, err := pg_query.Scan(item)
 	if err != nil || len(res.Tokens) == 0 {
@@ -445,7 +445,19 @@ func splitColumn(item string) (columnParts, bool) {
 		return cp, false
 	}
 	if i > 0 {
-		cp.lead = strings.TrimSpace(item[:toks[i].start])
+		cp.lead = trimSQLSpace(item[:toks[i].start])
+		// The name comes out at the start of its line, without the indent its line has: the lines of
+		// the comments above lose that indent too, or the item looked indented less than they and the
+		// re-indentation moved them further on every run.
+		ls := strings.LastIndexByte(item[:toks[i].start], '\n') + 1
+		lineLead := item[ls:toks[i].start]
+		if ws := lineLead[:len(lineLead)-len(strings.TrimLeft(lineLead, " \t"))]; ws == lineLead && ws != "" {
+			parts := strings.Split(cp.lead, "\n")
+			for k := 1; k < len(parts); k++ {
+				parts[k] = strings.TrimPrefix(parts[k], ws)
+			}
+			cp.lead = strings.Join(parts, "\n")
+		}
 	}
 	body := toks[i:]
 	// Trailing line comment.
@@ -488,9 +500,11 @@ func splitColumn(item string) (columnParts, bool) {
 	if restAt >= 0 {
 		typeEnd = restAt
 	}
-	cp.typ = collapseGaps(item, body[1].start, body[typeEnd-1].end, config.ParenSpacingPreserve)
+	// (with the paren_spacing of the formatter: a line break after "(" that becomes a blank here is
+	// one the next run takes off with paren_spacing: remove)
+	cp.typ = collapseGaps(item, body[1].start, body[typeEnd-1].end, parenMode)
 	if restAt >= 0 {
-		cp.rest = collapseGaps(item, body[restAt].start, body[len(body)-1].end, config.ParenSpacingPreserve)
+		cp.rest = collapseGaps(item, body[restAt].start, body[len(body)-1].end, parenMode)
 	}
 	if cp.typ == "" {
 		return cp, false
@@ -503,7 +517,7 @@ func splitColumn(item string) (columnParts, bool) {
 func collapseGaps(item string, from, to int, parenMode config.ParenSpacingMode) string {
 	res, err := pg_query.Scan(item[from:to])
 	if err != nil {
-		return strings.TrimSpace(item[from:to])
+		return trimSQLSpace(item[from:to])
 	}
 	text := item[from:to]
 	var b strings.Builder
@@ -511,7 +525,10 @@ func collapseGaps(item string, from, to int, parenMode config.ParenSpacingMode) 
 	for _, t := range res.Tokens {
 		gap := text[cur:t.Start]
 		afterOpen := cur > 0 && text[cur-1] == '('
-		if gap != "" && !(parenMode == config.ParenSpacingRemove && (afterOpen || text[t.Start] == ')')) {
+		// (a line break before a comma joins it without a blank: `0` / `, 0` is `0, 0`, which comma
+		// spacing gives it on the next run anyway)
+		breakBeforeComma := text[t.Start] == ',' && strings.ContainsAny(gap, "\n\r")
+		if gap != "" && !breakBeforeComma && !(parenMode == config.ParenSpacingRemove && (afterOpen || text[t.Start] == ')')) {
 			b.WriteByte(' ')
 		}
 		b.WriteString(text[t.Start:t.End])
@@ -522,7 +539,7 @@ func collapseGaps(item string, from, to int, parenMode config.ParenSpacingMode) 
 
 // alignColumns applies create_table.align to the column definitions in items; table
 // constraints and definitions that cannot be split are returned unchanged.
-func alignColumns(items []string, mode config.ColumnAlignMode) []string {
+func alignColumns(items []string, mode config.ColumnAlignMode, parenMode config.ParenSpacingMode) []string {
 	if mode == "" || mode == config.ColumnAlignPreserve {
 		return items
 	}
@@ -530,7 +547,7 @@ func alignColumns(items []string, mode config.ColumnAlignMode) []string {
 	ok := make([]bool, len(items))
 	maxName, maxType := 0, 0
 	for i, it := range items {
-		parts[i], ok[i] = splitColumn(it)
+		parts[i], ok[i] = splitColumn(it, parenMode)
 		if !ok[i] {
 			continue
 		}

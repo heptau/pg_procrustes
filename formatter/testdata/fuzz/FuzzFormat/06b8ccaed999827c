@@ -1,0 +1,2 @@
+go test fuzz v1
+string("insert into A(A)vAlues(0)on--\nConfliCt(A)do updAte set A=0")

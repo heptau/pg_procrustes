@@ -46,6 +46,11 @@ func findSubqueries(tokens []rawTok) []subqueryParen {
 		}
 		switch strings.ToLower(tokens[n].text) {
 		case "select", "with", "values":
+		case "(":
+			// a query that opens with a parenthesized one: ((select …) except select …)
+			if !opensWithParenQuery(tokens, n) {
+				continue
+			}
 		default:
 			continue
 		}
@@ -80,6 +85,49 @@ func findSubqueries(tokens []rawTok) []subqueryParen {
 		i = closeIdx
 	}
 	return out
+}
+
+// opensWithParenQuery reports whether the "(" at tokens[n] encloses a query (after more "(" maybe)
+// that a set operation, ORDER BY, LIMIT, OFFSET or FETCH continues: the text from it on is a query
+// (`(select 1) union select 2`), not an expression (`(select 1) + 1`). (A group around a lone
+// subquery, `((select 1))`, is left to the inner one.)
+func opensWithParenQuery(tokens []rawTok, n int) bool {
+	k := n
+	for k < len(tokens) && (tokens[k].text == "(" || isCommentTok(tokens[k].text)) {
+		k++
+	}
+	if k >= len(tokens) {
+		return false
+	}
+	switch strings.ToLower(tokens[k].text) {
+	case "select", "with", "values":
+	default:
+		return false
+	}
+	depth := 0
+	for j := n; j < len(tokens); j++ {
+		switch tokens[j].text {
+		case "(":
+			depth++
+		case ")":
+			depth--
+		}
+		if depth == 0 {
+			next := j + 1
+			for next < len(tokens) && isCommentTok(tokens[next].text) {
+				next++
+			}
+			if next >= len(tokens) {
+				return false
+			}
+			switch strings.ToLower(tokens[next].text) {
+			case "union", "intersect", "except", "order", "limit", "offset", "fetch":
+				return true
+			}
+			return false
+		}
+	}
+	return false
 }
 
 func flattenSubqueries(sql string, cfg *config.LayoutConfig) string {
@@ -185,7 +233,7 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 		if mode == config.BreakAuto && !subqueryLineTooLong(sql, tokens[sq.open].start, tokens[sq.close].end, cfg.LineLength, cfg.ParenIndent.Open == config.ParenOpenOwnLine, indentUnit, cfg.CommaSpacing == config.CommaSpacingCompact, cfg.IndentSetLater || cfg.ParenIndent.Mode != config.ParenIndentPreserve && cfg.ParenIndent.Mode != "") {
 			continue
 		}
-		inner := strings.TrimSpace(sql[openEnd:tokens[sq.close].start])
+		inner := trimSQLSpace(sql[openEnd:tokens[sq.close].start])
 		if inner == "" {
 			continue
 		}
@@ -202,7 +250,7 @@ func expandSubqueries(sql string, cfg *config.LayoutConfig, indentUnit string) s
 			if i > 0 {
 				sb.WriteByte('\n')
 			}
-			if strings.TrimSpace(ln) != "" {
+			if trimSQLSpace(ln) != "" {
 				sb.WriteString(bodyIndent)
 				sb.WriteString(ln)
 			}
@@ -244,9 +292,9 @@ func afterExpanded(seg, indent string, expanded bool) string {
 func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bool, indentUnit string, commaCompact, setLater bool) bool {
 	ls := strings.LastIndexByte(sql[:start], '\n') + 1
 	front := sql[ls:start]
-	if ownLineParen && strings.TrimSpace(front) == "" && ls > 0 {
+	if ownLineParen && trimSQLSpace(front) == "" && ls > 0 {
 		pl := strings.LastIndexByte(sql[:ls-1], '\n') + 1
-		if prev := strings.TrimRight(sql[pl:ls-1], " \t"); strings.TrimSpace(prev) != "" && !strings.Contains(prev, "--") && !strings.HasSuffix(prev, "(") {
+		if prev := strings.TrimRight(sql[pl:ls-1], " \t"); trimSQLSpace(prev) != "" && !strings.Contains(prev, "--") && !strings.HasSuffix(prev, "(") {
 			front = prev + " " + strings.TrimLeft(front, " \t")
 			front = strings.TrimRight(front, " \t") + " "
 		}
@@ -259,7 +307,7 @@ func subqueryLineTooLong(sql string, start, end, lineLength int, ownLineParen bo
 	// (the next join, WHERE …) goes to lines of its own, or stays, depending on the clause layout;
 	// and what stands before it is measured after the last `)` (an earlier subquery that was
 	// expanded, ending a line the other run put in front of this one)
-	if m := aliasTail.FindString(rest); (m != "" && !aliasIsKeyword(m)) || strings.TrimSpace(rest) == "" {
+	if m := aliasTail.FindString(rest); (m != "" && !aliasIsKeyword(m)) || trimSQLSpace(rest) == "" {
 		rest = m
 	} else {
 		rest = ""
@@ -322,7 +370,7 @@ func unspaceCommas(s string) string {
 // the next clause or set operation (it goes to a line of its own, so it is no part of the line
 // of the subquery).
 func aliasIsKeyword(m string) bool {
-	w := strings.ToLower(strings.TrimRight(strings.TrimSpace(m), ",;"))
+	w := strings.ToLower(strings.TrimRight(trimSQLSpace(m), ",;"))
 	if i := strings.IndexAny(w, " \t\n("); i >= 0 {
 		w = w[:i]
 	}
@@ -344,7 +392,7 @@ var aliasTail = regexp.MustCompile(`(?i)^\s*(?:as\s+)?(?:"[^"]+"|[a-z_][a-z0-9_$
 // collapseBlanks reduces the runs of blanks inside s (not those that open it) to one.
 func collapseBlanks(s string) string {
 	t := strings.TrimLeft(s, " \t")
-	return s[:len(s)-len(t)] + strings.Join(strings.Fields(t), " ") + func() string {
+	return s[:len(s)-len(t)] + strings.Join(sqlFields(t), " ") + func() string {
 		if strings.HasSuffix(t, " ") {
 			return " "
 		}

@@ -1,0 +1,2 @@
+go test fuzz v1
+string("CreAte unique indeX ConCurrentlY if not eXists A0 on puBliC. A(A0)")

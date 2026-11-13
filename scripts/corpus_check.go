@@ -217,7 +217,7 @@ func firstDiff(a, b string) string {
 	return fmt.Sprintf("length %d → %d lines", len(al), len(bl))
 }
 
-// badBodyQueries counts the SQL fragments inside PL/pgSQL function bodies of sql that do not
+// badBodyQueries counts the SQL fragments inside PL/pgSQL function bodies and DO blocks of sql that do not
 // parse on their own (a body is an opaque string to the SQL parser, so a statement that was
 // commented out or cut in half by the formatter would otherwise go unnoticed).
 func badBodyQueries(sql string) int {
@@ -227,12 +227,16 @@ func badBodyQueries(sql string) int {
 	}
 	bad := 0
 	for _, stmt := range tree.Stmts {
-		cf := stmt.Stmt.GetCreateFunctionStmt()
-		if cf == nil {
+		var opts []*pg_query.Node
+		lang, body := "", ""
+		if cf := stmt.Stmt.GetCreateFunctionStmt(); cf != nil {
+			opts = cf.Options
+		} else if do := stmt.Stmt.GetDoStmt(); do != nil {
+			opts, lang = do.Args, "plpgsql" // (a DO block is PL/pgSQL unless it says otherwise)
+		} else {
 			continue
 		}
-		lang, body := "", ""
-		for _, o := range cf.Options {
+		for _, o := range opts {
 			de := o.GetDefElem()
 			if de == nil {
 				continue
@@ -243,6 +247,8 @@ func badBodyQueries(sql string) int {
 			case "as":
 				if l := de.Arg.GetList(); l != nil && len(l.Items) > 0 {
 					body = l.Items[0].GetString_().GetSval()
+				} else {
+					body = de.Arg.GetString_().GetSval() // (DO: the body is a plain string)
 				}
 			}
 		}

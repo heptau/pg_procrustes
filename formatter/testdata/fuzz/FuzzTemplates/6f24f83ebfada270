@@ -1,0 +1,2 @@
+go test fuzz v1
+string("seleCt A(A00!00,A000!00)!A0::A00! CAst(0 As A000)And 00")

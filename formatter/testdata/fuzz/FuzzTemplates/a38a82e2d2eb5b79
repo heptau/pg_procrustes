@@ -1,0 +1,2 @@
+go test fuzz v1
+string("seleCt A(A=>1,A:=1),A::int%CAst(0 As A000)!'0'!'0'A where 0X0 And 0X00")

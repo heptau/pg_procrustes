@@ -384,6 +384,17 @@ func TestTypeFormLongSingleAlias(t *testing.T) {
 	assertFormat(t, got, want, err)
 }
 
+// A type name with a modifier list whose long form takes none (int2('x') as a CREATE TYPE default,
+// int4(5) as a column type) keeps its spelling: smallint('x') / integer(5) do not parse.
+func TestTypeFormLongKeepsNameWithModifier(t *testing.T) {
+	for _, form := range []config.TypeForm{config.TypeFormLong, config.TypeFormLongNoSpace} {
+		got, err := formatter.Format("CREATE TYPE a (a = int2(''), b = float8(1), c = int4); CREATE TABLE t (a int4(5), b bool)",
+			dtCfg(form, lower))
+		want := "CREATE TYPE a (a = int2(''), b = float8(1), c = integer); CREATE TABLE t (a int4(5), b boolean)"
+		assertFormat(t, got, want, err)
+	}
+}
+
 func TestTypeFormLongVarchar(t *testing.T) {
 	// varchar → character varying
 	got, err := formatter.Format("CREATE TABLE t (a varchar(100), b varbit(8))",
@@ -536,6 +547,26 @@ func TestTrailingWhitespaceStrip(t *testing.T) {
 		})
 	want := "SELECT id\nFROM t\nWHERE id = 1"
 	assertFormat(t, got, want, err)
+}
+
+// The blanks a -- comment ends with are trailing white space of its line: they were kept (they are
+// part of the comment token) until the comment ended the text, where the next run cut them off.
+func TestTrailingWhitespaceStripsLineCommentEnd(t *testing.T) {
+	c := newFeatureCfg()
+	c.TrailingWhitespace = config.TrailingWSStrip
+	got, err := formatter.Format("-- a \nSELECT 1; -- b  \n", c)
+	assertFormat(t, got, "-- a\nSELECT 1; -- b\n", err)
+	got, err = formatter.Format("DO $$\nBEGIN\n  -- x  \n  PERFORM 1;\nEND\n$$;\n", c)
+	assertFormat(t, got, "DO $$\nBEGIN\n  -- x\n  PERFORM 1;\nEND\n$$;\n", err)
+}
+
+// A line holding only a form feed (a page break of old files) is blank for trailing_whitespace:
+// strip; kept, it separated blank lines that blank_lines merged only on the next run.
+func TestTrailingWhitespaceStripsFormFeedLines(t *testing.T) {
+	c := newFeatureCfg()
+	c.TrailingWhitespace = config.TrailingWSStrip
+	got, err := formatter.Format("SELECT 1;\n\f\nSELECT 2;\f\n", c)
+	assertFormat(t, got, "SELECT 1;\n\nSELECT 2;\n", err)
 }
 
 func TestTrailingWhitespacePreservesStringContent(t *testing.T) {
@@ -749,6 +780,17 @@ func TestBlankLinesMax1(t *testing.T) {
 	assertFormat(t, got, "SELECT 1;\n\nSELECT 2;", err)
 }
 
+// A line of nothing but blanks is a blank line for blank_lines: counted as text it kept the run
+// apart, and once a later step had trimmed it (inside a block comment, say) the next run merged them.
+func TestBlankLinesCountLinesOfBlanks(t *testing.T) {
+	input := "SELECT 1;\n  \n\t\n\nSELECT 2;"
+	got, err := formatter.Format(input,
+		p3cfg(config.SemicolonPreserve, config.InequalityPreserve, config.JoinFormPreserve,
+			config.OperatorSpacingPreserve, config.BlankLinesMax1,
+			config.ParenSpacingPreserve, config.QuotedIdentPreserve))
+	assertFormat(t, got, "SELECT 1;\n\nSELECT 2;", err)
+}
+
 func TestBlankLinesMax2(t *testing.T) {
 	input := "SELECT 1;\n\n\n\nSELECT 2;"
 	got, err := formatter.Format(input,
@@ -891,6 +933,15 @@ func TestOrderAscRemove(t *testing.T) {
 	assertFormat(t, got, "SELECT * FROM t ORDER BY a, b DESC", err)
 }
 
+// A name spelled asc is no sort direction: the operator class s.asc of an index column, a column
+// label (AS asc, or the bare label of select 1 asc) — removing it broke or changed the statement.
+func TestOrderAscRemoveKeepsNamesSpelledAsc(t *testing.T) {
+	c := newFeatureCfg()
+	c.OrderAsc = config.OrderAscRemove
+	got, err := formatter.Format("CREATE INDEX ON a ((0) s.asc); SELECT 1 AS asc, 2 asc FROM t ORDER BY a ASC", c)
+	assertFormat(t, got, "CREATE INDEX ON a ((0) s.asc); SELECT 1 AS asc, 2 asc FROM t ORDER BY a", err)
+}
+
 func TestOrderAscAdd(t *testing.T) {
 	c := newFeatureCfg()
 	c.OrderAsc = config.OrderAscAdd
@@ -951,6 +1002,36 @@ func TestSchemaQualRemovePublicFunction(t *testing.T) {
 	c.SchemaQual = config.SchemaQualRemovePublic
 	got, err := formatter.Format("SELECT public.my_func(x) FROM t", c)
 	assertFormat(t, got, "SELECT my_func(x) FROM t", err)
+}
+
+// A name spelled like a keyword that is no name on its own keeps its schema: `public.as` without it
+// does not parse, `public.char(1)` would be a cast to char.
+func TestSchemaQualRemovePublicKeepsKeywordNames(t *testing.T) {
+	c := newFeatureCfg()
+	c.SchemaQual = config.SchemaQualRemovePublic
+	got, err := formatter.Format("SELECT public.char(1) FROM public.as, public.event", c)
+	assertFormat(t, got, "SELECT public.char(1) FROM public.as, event", err)
+}
+
+// A table name with white space or a comment between it, the dot and the schema (`public. T`) was
+// not found (its offset was taken to follow the dot directly): tables.case left it as written, and
+// once remove_public had joined it to the keyword before it the next run changed it.
+func TestTableAfterSchemaWithBlanksAroundDot(t *testing.T) {
+	c := newFeatureCfg()
+	c.Tables.Case = config.CaseLower
+	got, err := formatter.Format("SELECT * FROM S . T, s./*x*/T2", c)
+	assertFormat(t, got, "SELECT * FROM S . t, s./*x*/t2", err)
+}
+
+// db.schema.table: the database's name was taken for the schema — remove_public dropped a database
+// named public (or the schema public after a database, which made the database the schema) and the
+// table was not found for tables.case.
+func TestThreePartNameHasTheSchemaInTheMiddle(t *testing.T) {
+	c := newFeatureCfg()
+	c.SchemaQual = config.SchemaQualRemovePublic
+	c.Tables.Case = config.CaseLower
+	got, err := formatter.Format("SELECT * FROM public.S.T, Db.public.T2, public.T3", c)
+	assertFormat(t, got, "SELECT * FROM public.S.t, Db.public.t2, t3", err)
 }
 
 func TestSchemaQualRemovePublicMultiple(t *testing.T) {
@@ -1081,6 +1162,20 @@ func TestArithmeticSpacingNormalize(t *testing.T) {
 	got := fmtOnce(t, arithSQL, c)
 	want := "SELECT a + 1, b - 2, c * d, -1, x = -1, a - -1, count(*), t.*, (a + b) * (c - d), f(x) - 1 FROM t WHERE q * 2 > 1;"
 	if got != want {
+		t.Fatalf("got:  %s\nwant: %s", got, want)
+	}
+	if again := fmtOnce(t, got, c); again != got {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", got, again)
+	}
+}
+
+// CAST(…) starts an operand: a%CAST(0 AS t) was no arithmetic for the first run, and with
+// cast_style: operator the next found a%0::t and spaced it.
+func TestArithmeticSpacingBeforeCast(t *testing.T) {
+	c := arithCfg(t, config.ArithmeticSpacingNormalize)
+	c.CastStyle = config.CastStyleOperator
+	got := fmtOnce(t, "SELECT a%CAST(0 AS t) FROM x;", c)
+	if want := "SELECT a % 0::t FROM x;"; got != want {
 		t.Fatalf("got:  %s\nwant: %s", got, want)
 	}
 	if again := fmtOnce(t, got, c); again != got {

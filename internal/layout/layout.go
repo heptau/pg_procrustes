@@ -78,7 +78,7 @@ func Apply(sql string, cfg *config.LayoutConfig) (result string, err error) {
 	if IsNoop(cfg) {
 		return sql, nil
 	}
-	if strings.TrimSpace(sql) == "" {
+	if trimSQLSpace(sql) == "" {
 		return sql, nil
 	}
 	indentUnit := indentUnitStr(cfg)
@@ -448,6 +448,14 @@ func detectClause(tokens []rawTok, i int) (clauseKind, int) {
 		if next() == "conflict" {
 			return clauseOnConflict, 2
 		}
+		// (ON -- note ⏎ CONFLICT: a comment between the words)
+		k := i + 1
+		for k < n && isCommentTok(tokens[k].text) {
+			k++
+		}
+		if k > i+1 && k < n && strings.EqualFold(tokens[k].text, "conflict") {
+			return clauseOnConflict, k - i + 1
+		}
 		return clauseMergeOn, 1 // only accepted inside MERGE (see clauseAllowed)
 	case "merge":
 		if next() == "into" {
@@ -720,43 +728,52 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if blankLine == "" {
 				blankLine = config.UnionBlankLinePreserve
 			}
+			if ci == 0 && cl.kwTok > kwStart && blankLine != config.UnionBlankLinePreserve {
+				// a statement that opens with a parenthesis (`(…) EXCEPT …`): the group is written first, and
+				// the operator gets the line breaks around it like after any other operand
+				if lead := trimSQLSpace(originalText(sql, tokens, kwStart, cl.kwTok)); lead != "" {
+					sb.WriteString(baseIndent)
+					sb.WriteString(lead)
+					unionText = originalText(sql, tokens, cl.kwTok, kwEnd)
+				}
+			}
 			startLen := sb.Len()
 			switch blankLine {
 			case config.UnionBlankLineNone:
 				sb.WriteByte('\n')
 				sb.WriteString(baseIndent)
-				sb.WriteString(strings.TrimSpace(unionText))
-				if strings.TrimSpace(contentText) != "" {
+				sb.WriteString(trimSQLSpace(unionText))
+				if trimSQLSpace(contentText) != "" {
 					sb.WriteByte('\n')
 					sb.WriteString(baseIndent)
-					sb.WriteString(strings.TrimSpace(contentText))
+					sb.WriteString(trimSQLSpace(contentText))
 				}
 			case config.UnionBlankLineBefore:
 				sb.WriteString("\n\n")
 				sb.WriteString(baseIndent)
-				sb.WriteString(strings.TrimSpace(unionText))
-				if strings.TrimSpace(contentText) != "" {
+				sb.WriteString(trimSQLSpace(unionText))
+				if trimSQLSpace(contentText) != "" {
 					sb.WriteByte('\n')
 					sb.WriteString(baseIndent)
-					sb.WriteString(strings.TrimSpace(contentText))
+					sb.WriteString(trimSQLSpace(contentText))
 				}
 			case config.UnionBlankLineAfter:
 				sb.WriteByte('\n')
 				sb.WriteString(baseIndent)
-				sb.WriteString(strings.TrimSpace(unionText))
-				if strings.TrimSpace(contentText) != "" {
+				sb.WriteString(trimSQLSpace(unionText))
+				if trimSQLSpace(contentText) != "" {
 					sb.WriteString("\n\n")
 					sb.WriteString(baseIndent)
-					sb.WriteString(strings.TrimSpace(contentText))
+					sb.WriteString(trimSQLSpace(contentText))
 				}
 			case config.UnionBlankLineBoth:
 				sb.WriteString("\n\n")
 				sb.WriteString(baseIndent)
-				sb.WriteString(strings.TrimSpace(unionText))
-				if strings.TrimSpace(contentText) != "" {
+				sb.WriteString(trimSQLSpace(unionText))
+				if trimSQLSpace(contentText) != "" {
 					sb.WriteString("\n\n")
 					sb.WriteString(baseIndent)
-					sb.WriteString(strings.TrimSpace(contentText))
+					sb.WriteString(trimSQLSpace(contentText))
 				}
 			default:
 				// Preserve the source gap before the set operator; without it the
@@ -823,8 +840,8 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				sb.WriteString(originalText(sql, tokens, kwStart, conEnd))
 			} else {
 				// Write clause keyword verbatim, reformat CASE within the content.
-				sb.WriteString(strings.TrimSpace(originalText(sql, tokens, kwStart, kwEnd)))
-				content := strings.TrimSpace(originalText(sql, tokens, kwEnd, conEnd))
+				sb.WriteString(trimSQLSpace(originalText(sql, tokens, kwStart, kwEnd)))
+				content := trimSQLSpace(originalText(sql, tokens, kwEnd, conEnd))
 				if content != "" {
 					// (the gap between the keyword and its content is the one it has, a blank at least: the
 					// keyword_paren_spacing: remove of the token pass took it off before a "(")
@@ -867,7 +884,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		// comment lines in front of the query stay in front of the keyword on the river
 		leadComment := ""
 		if riverKw != "" && ci == 0 && !prefixed {
-			leadComment = strings.TrimSpace(originalText(sql, tokens, kwStart, cl.kwTok))
+			leadComment = trimSQLSpace(originalText(sql, tokens, kwStart, cl.kwTok))
 		}
 
 		if ci > 0 {
@@ -887,7 +904,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if viewHdrOK {
 				sb.WriteString(viewHdr)
 			} else {
-				sb.WriteString(strings.TrimSpace(originalText(sql, tokens, kwStart, cl.kwTok)))
+				sb.WriteString(trimSQLSpace(originalText(sql, tokens, kwStart, cl.kwTok)))
 			}
 			sb.WriteByte('\n')
 			sb.WriteString(clauseIndent)
@@ -899,7 +916,20 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if prefixed {
 			kwFrom = cl.kwTok
 		}
-		kwText := strings.TrimSpace(originalText(sql, tokens, kwFrom, kwEnd))
+		kwText := trimSQLSpace(originalText(sql, tokens, kwFrom, kwEnd))
+		if kwEnd-cl.kwTok > 1 && allWordToks(tokens, cl.kwTok, kwEnd) && strings.Contains(originalText(sql, tokens, cl.kwTok, kwEnd), "\n") {
+			// a keyword of several words (ORDER BY, INSERT INTO) broken over lines in the source is
+			// written on one line: its line break made the content hang from the wrong line
+			words := make([]string, 0, kwEnd-cl.kwTok)
+			for k := cl.kwTok; k < kwEnd; k++ {
+				words = append(words, tokens[k].text)
+			}
+			head := ""
+			if kwFrom < cl.kwTok {
+				head = sql[tokens[kwFrom].start:tokens[cl.kwTok].start] // (with the gap before the keyword: a comment line ends there)
+			}
+			kwText = trimSQLSpace(head + strings.Join(words, " "))
+		}
 		if riverKw != "" {
 			kwText = riverKw
 		}
@@ -1017,7 +1047,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		if cl.kind == clauseInsert {
 			openIdx, closeIdx := findInsertColumnParen(tokens, kwEnd, conEnd)
 			if openIdx >= 0 {
-				prefix := strings.TrimSpace(inlineContent(sql, tokens, kwEnd, openIdx, cfg.ParenSpacing))
+				prefix := trimSQLSpace(inlineContent(sql, tokens, kwEnd, openIdx, cfg.ParenSpacing))
 				if riverHang != "" { // river: the columns stand below the first one, not below the keyword
 					contentIndent = riverHang + " "
 					if prefix != "" {
@@ -1028,7 +1058,13 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				sb.WriteByte(' ')
 				if prefix != "" {
 					sb.WriteString(prefix)
-					sb.WriteByte(' ')
+					if endsInLineComment(prefix[strings.LastIndexByte(prefix, '\n')+1:]) {
+						// (INSERT INTO t -- note: the column list goes below the comment, not into it)
+						sb.WriteByte('\n')
+						sb.WriteString(clauseIndent + indentUnit)
+					} else {
+						sb.WriteByte(' ')
+					}
 				}
 				if len(colItems) <= 1 {
 					sb.WriteByte('(')
@@ -1102,7 +1138,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					sb.WriteByte(')')
 				}
 				if closeIdx+1 < conEnd {
-					trailing := strings.TrimSpace(inlineContent(sql, tokens, closeIdx+1, conEnd, cfg.ParenSpacing))
+					trailing := trimSQLSpace(inlineContent(sql, tokens, closeIdx+1, conEnd, cfg.ParenSpacing))
 					if trailing != "" {
 						sb.WriteByte(' ')
 						sb.WriteString(trailing)
@@ -1149,24 +1185,28 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 		}
 		reindentItemLines = func(item string) string {
 			lead, body := splitLeadingCommentLines(item)
-			if strings.Count(lead, "\n") > 1 && !commaStart {
+			if strings.Count(lead, "\n") > 1 {
 				// the comment lines below the first one stand at the item's indent like it (their own
 				// indent was cut off with the common indent of the item, or is the one of the source)
 				parts := strings.SplitAfter(lead, "\n")
 				for k := 1; k < len(parts); k++ {
-					if strings.TrimSpace(parts[k]) != "" {
+					if trimSQLSpace(parts[k]) != "" {
 						parts[k] = contentIndent + strings.TrimLeft(parts[k], " \t")
 					}
 				}
 				lead = strings.Join(parts, "")
 			}
-			if lead == "" || strings.TrimSpace(body) == "" {
+			if lead == "" || trimSQLSpace(body) == "" {
 				return reindentBody(item)
 			}
-			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; ws != "" && strings.Trim(ws, "\t") == "" && !strings.Contains(contentIndent, "\t") {
-				// tabs in front of the first line below the comments, for an indent made of spaces: they
-				// are no indent this item can be judged by (the line stands at the margin as far as the
-				// others are concerned), or the next run finds it differently placed
+			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; strings.Contains(ws, "\t") && !strings.Contains(contentIndent, "\t") ||
+				strings.Count(body, "\n") > 0 && len(ws) > len(contentIndent) && strings.Trim(ws, " ") == "" {
+				// tabs (alone or mixed with blanks) in front of the first line below the comments, for an
+				// indent made of spaces: they are no indent this item can be judged by (the line stands at
+				// the margin as far as the others are concerned), or the next run finds it differently
+				// placed. So are blanks beyond the item's indent that a line below it does not have (the
+				// common indent was taken off already): the next run found the first line at the item's
+				// indent and moved it there.
 				body = body[len(ws):]
 			}
 			// (the first line below the comments starts a line of its own: blanks it has left of the
@@ -1178,13 +1218,13 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				parts := strings.Split(body, "\n")
 				parts[0] = contentIndent + parts[0][len(ws):]
 				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" && strings.HasPrefix(parts[j], ws) {
+					if trimSQLSpace(parts[j]) != "" && strings.HasPrefix(parts[j], ws) {
 						parts[j] = pad + parts[j]
 					}
 				}
 				body = strings.Join(parts, "\n")
 			}
-			if !commaStart && strings.TrimSpace(body[:strings.IndexByte(body+"\n", '\n')]) != "" && strings.Contains(body, "\n") &&
+			if !commaStart && trimSQLSpace(body[:strings.IndexByte(body+"\n", '\n')]) != "" && strings.Contains(body, "\n") &&
 				!strings.HasPrefix(body, " ") && !strings.HasPrefix(body, "\t") {
 				// The lines below the comments stand as they did relative to each other (the common indent
 				// was taken off): they are moved to the item's indent first, all of them, and what the
@@ -1192,7 +1232,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				// much indent as the item says nothing about the lines before it being placed).
 				parts := strings.Split(body, "\n")
 				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" {
+					if trimSQLSpace(parts[j]) != "" {
 						parts[j] = contentIndent + parts[j]
 					}
 				}
@@ -1223,7 +1263,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				parts := strings.Split(item, "\n")
 				outer := outsideOpenParen(item, cfg.ParenIndent.Mode == config.ParenIndentIndent)
 				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" && !outer[j] {
+					if trimSQLSpace(parts[j]) != "" && !outer[j] {
 						parts[j] = pad + parts[j]
 					}
 				}
@@ -1250,7 +1290,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				parts := strings.Split(item, "\n")
 				outer := outsideOpenParen(item, cfg.ParenIndent.Mode == config.ParenIndentIndent)
 				for j := 1; j < len(parts); j++ {
-					if strings.TrimSpace(parts[j]) != "" && !outer[j] {
+					if trimSQLSpace(parts[j]) != "" && !outer[j] {
 						// after the blanks it has (not before them): with tabs for the indent unit
 						// and spaces right-aligned under the keyword, "<spaces><tab>" is the order
 						// a second pass finds again.
@@ -1272,7 +1312,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 				depth, _ := parenScanLine(item[:firstNewline])
 				first, closer := "", ""
 				for _, ln := range strings.Split(item[firstNewline+1:], "\n") {
-					if closer == "" && depth == 1 && strings.HasPrefix(strings.TrimSpace(ln), ")") {
+					if closer == "" && depth == 1 && strings.HasPrefix(trimSQLSpace(ln), ")") {
 						closer = ln
 					}
 					inner := depth > 0
@@ -1280,7 +1320,7 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 					if depth += d; depth < 0 {
 						depth = 0
 					}
-					t := strings.TrimSpace(ln)
+					t := trimSQLSpace(ln)
 					if t == "" || onlyOuter && inner || skipComments && isCommentLine(ln) {
 						continue
 					}
@@ -1317,14 +1357,14 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if judge != "" && strings.HasPrefix(judge, contentIndent) {
 				return indentAfterComments(item, contentIndent)
 			}
-			if cfg.ParenIndent.Open == config.ParenOpenOwnLine && strings.HasPrefix(strings.TrimSpace(judge), "(") {
+			if cfg.ParenIndent.Open == config.ParenOpenOwnLine && strings.HasPrefix(trimSQLSpace(judge), "(") {
 				// own_line puts such a "(" at the indent of the line it came from, not of the items
 				return item
 			}
 			parts := strings.Split(item, "\n")
 			for j := 1; j < len(parts); j++ {
 				switch {
-				case strings.TrimSpace(parts[j]) == "":
+				case trimSQLSpace(parts[j]) == "":
 				case isCommentLine(parts[j]):
 					// a comment line gets the indent itself, not one more level on top of what
 					// it has: its old indent says nothing about the item, and adding to it made
@@ -1459,14 +1499,14 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 	bodyFrom := 1
 	switch d, _ := parenScanLine(lines[0]); {
 	case d > 0:
-	case d == 0 && strings.TrimSpace(lines[1]) == "(":
+	case d == 0 && trimSQLSpace(lines[1]) == "(":
 		bodyFrom = 2
 	default:
 		return item, false
 	}
 	minInd, have2 := "", false
 	for j := bodyFrom; j < closeAt; j++ {
-		if strings.TrimSpace(lines[j]) == "" {
+		if trimSQLSpace(lines[j]) == "" {
 			continue
 		}
 		if ind := lead(lines[j]); !have2 || len(ind) < len(minInd) {
@@ -1475,7 +1515,7 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 	}
 	allTabs := have2
 	for j := bodyFrom; j < closeAt; j++ {
-		if strings.TrimSpace(lines[j]) != "" && !strings.HasPrefix(lines[j], "\t") {
+		if trimSQLSpace(lines[j]) != "" && !strings.HasPrefix(lines[j], "\t") {
 			allTabs = false
 		}
 	}
@@ -1491,7 +1531,7 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 	// first move together.
 	bodyDeep := have2 && strings.HasPrefix(minInd, want)
 	for j := 1; j < len(lines); j++ {
-		if strings.TrimSpace(lines[j]) == "" || bodyDeep && j >= bodyFrom && j < closeAt {
+		if trimSQLSpace(lines[j]) == "" || bodyDeep && j >= bodyFrom && j < closeAt {
 			continue
 		}
 		switch {
@@ -1503,7 +1543,7 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 		default:
 			lines[j] = closeShift + lines[j]
 		}
-		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && strings.TrimSpace(lines[j]) != "" {
+		if j > closeAt && !strings.HasPrefix(lead(lines[j]), indent) && trimSQLSpace(lines[j]) != "" {
 			// what follows the closing parenthesis (`) AS f` / `USING (id)`) belongs to the item
 			// and stands at its indent at least; a line left of it would be what the next run
 			// judges the whole item by, and move the item once more
@@ -1516,7 +1556,7 @@ func shiftClosedParenItem(item, indent, unit string, holdAfter bool) (string, bo
 		if len(min2) < len(want) && strings.HasPrefix(want, min2) {
 			extra := want[len(min2):]
 			for j := bodyFrom; j < closeAt; j++ {
-				if strings.TrimSpace(lines[j]) != "" {
+				if trimSQLSpace(lines[j]) != "" {
 					if strings.HasPrefix(lines[j], min2) {
 						// (behind the blanks the body already has, not in front of them)
 						lines[j] = min2 + extra + lines[j][len(min2):]
@@ -1538,7 +1578,7 @@ func blankLinesEmpty(s string) string {
 	}
 	lines := strings.Split(s, "\n")
 	for i, ln := range lines {
-		if ln != "" && strings.TrimSpace(ln) == "" {
+		if ln != "" && trimSQLSpace(ln) == "" {
 			lines[i] = ""
 		}
 	}
@@ -1557,7 +1597,7 @@ func indentAfterComments(item, indent string) string {
 	lines := strings.Split(item, "\n")
 	changed := false
 	for j := 1; j < len(lines); j++ {
-		if strings.TrimSpace(lines[j]) == "" || isCommentLine(lines[j]) || strings.HasPrefix(lines[j], indent) || !endsInLineComment(lines[j-1]) {
+		if trimSQLSpace(lines[j]) == "" || isCommentLine(lines[j]) || strings.HasPrefix(lines[j], indent) || !endsInLineComment(lines[j-1]) {
 			continue
 		}
 		lines[j] = indent + strings.TrimLeft(lines[j], " \t")
@@ -1609,7 +1649,7 @@ func openParenBodyIndent(item string) (string, bool) {
 	seen := false
 	for _, ln := range lines[1:] {
 		t := strings.TrimLeft(ln, " \t")
-		if strings.TrimSpace(ln) == "" || isCommentLine(ln) {
+		if trimSQLSpace(ln) == "" || isCommentLine(ln) {
 			continue
 		}
 		if depth <= 0 || depth == 1 && strings.HasPrefix(t, ")") {
@@ -1753,17 +1793,17 @@ func splitContent(sql string, tokens []rawTok, from, to int, kind clauseKind, jo
 		}
 		prefix := ""
 		if onIdx > from {
-			prefix = strings.TrimSpace(originalText(sql, tokens, from, onIdx))
+			prefix = trimSQLSpace(originalText(sql, tokens, from, onIdx))
 			// inline: ON follows the table on the same line, whatever the input did
 			// (a line comment right before ON must keep its newline, or it would swallow ON)
 			if onTok > from && !strings.HasPrefix(tokens[onTok-1].text, "--") {
-				prefix = strings.TrimSpace(originalText(sql, tokens, from, onTok)) + " " + tokens[onTok].text
+				prefix = trimSQLSpace(originalText(sql, tokens, from, onTok)) + " " + tokens[onTok].text
 			}
 		}
 		conds := splitAtAndOr(sql, tokens, onIdx, to)
 		if joinOnNewline && onTok >= 0 && len(conds) > 0 {
 			// JOIN t / ON a = b / AND c — the table stays on the keyword line.
-			table := strings.TrimSpace(originalText(sql, tokens, from, onTok))
+			table := trimSQLSpace(originalText(sql, tokens, from, onTok))
 			conds[0] = tokens[onTok].text + " " + conds[0]
 			return append([]string{table}, conds...)
 		}
@@ -1815,10 +1855,33 @@ func splitAtComma(sql string, tokens []rawTok, from, to int) []string {
 					itemEnd = cut
 				}
 			}
-			item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, itemEnd)))
+			item := trimLeadingCommentIndent(trimSQLSpace(originalText(sql, tokens, itemStart, itemEnd)))
 			if strings.HasPrefix(tokens[itemEnd-1].text, "--") && itemEnd != i && cut == i {
 				// originalText included the comma token; drop it from the item text
-				item = trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, i))) + " " + tokens[itemEnd-1].text
+				// (without the white space at the end of the comment, \v and \f too: at the end of the
+				// item the next run trims it off)
+				code := trimLeadingCommentIndent(trimSQLSpace(originalText(sql, tokens, itemStart, i)))
+				// (comment lines above the comma lose the indent of the source, as they do when they are
+				// read back as the line the comment after the comma joined: `0` / ` -- a -- b`; and the
+				// blank lines between them, which that reading does not keep either)
+				lines := strings.Split(code, "\n")
+				n := len(lines)
+				for n > 1 && (isCommentLine(lines[n-1]) || trimSQLSpace(lines[n-1]) == "") {
+					n--
+				}
+				if n < len(lines) {
+					var trail []string
+					for _, ln := range lines[n:] {
+						if t := trimSQLSpace(ln); t != "" {
+							trail = append(trail, t)
+						}
+					}
+					code = strings.TrimRight(strings.Join(lines[:n], "\n"), sqlSpace)
+					if len(trail) > 0 {
+						code += "\n" + strings.Join(trail, "\n")
+					}
+				}
+				item = code + " " + trimSQLSpace(tokens[itemEnd-1].text)
 			}
 			if carry != "" {
 				item = carry + "\n" + item
@@ -1829,11 +1892,11 @@ func splitAtComma(sql string, tokens []rawTok, from, to int) []string {
 			}
 			itemStart = next
 			if cut != i {
-				carry = trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, cut, i)))
+				carry = trimLeadingCommentIndent(trimSQLSpace(originalText(sql, tokens, cut, i)))
 			}
 		}
 	}
-	item := trimLeadingCommentIndent(strings.TrimSpace(originalText(sql, tokens, itemStart, to)))
+	item := trimLeadingCommentIndent(trimSQLSpace(originalText(sql, tokens, itemStart, to)))
 	if carry != "" {
 		item = carry + "\n" + item
 	}
@@ -1867,13 +1930,13 @@ func splitAtAndOr(sql string, tokens []rawTok, from, to int) []string {
 		} else if lower == "and" && between > 0 && parenDepth == 0 && caseDepth == 0 {
 			between-- // the AND of "x BETWEEN a AND b" is part of the predicate
 		} else if (lower == "and" || lower == "or") && parenDepth == 0 && caseDepth == 0 {
-			if item := strings.TrimSpace(originalText(sql, tokens, itemStart, i)); item != "" {
+			if item := trimSQLSpace(originalText(sql, tokens, itemStart, i)); item != "" {
 				items = append(items, joinLeadingOperator(sql, tokens, itemStart, i))
 			}
 			itemStart = i
 		}
 	}
-	if item := strings.TrimSpace(originalText(sql, tokens, itemStart, to)); item != "" {
+	if item := trimSQLSpace(originalText(sql, tokens, itemStart, to)); item != "" {
 		items = append(items, joinLeadingOperator(sql, tokens, itemStart, to))
 	}
 	return items
@@ -1883,11 +1946,11 @@ func splitAtAndOr(sql string, tokens []rawTok, from, to int) []string {
 // AND/OR and a line break separates it from its condition ("AND\n x = 1", as written in
 // the operator-at-end style) the break is replaced by a space.
 func joinLeadingOperator(sql string, tokens []rawTok, from, to int) string {
-	item := strings.TrimSpace(originalText(sql, tokens, from, to))
+	item := trimSQLSpace(originalText(sql, tokens, from, to))
 	if from+1 < to {
 		if l := strings.ToLower(tokens[from].text); (l == "and" || l == "or") && !strings.HasPrefix(tokens[from+1].text, "--") &&
 			strings.Contains(gapBetween(sql, tokens, from, from+1), "\n") {
-			item = tokens[from].text + " " + strings.TrimSpace(originalText(sql, tokens, from+1, to))
+			item = tokens[from].text + " " + trimSQLSpace(originalText(sql, tokens, from+1, to))
 		}
 	}
 	return item
@@ -1955,7 +2018,7 @@ func foldTrailingComments(items []string) []string {
 	// original blanks made every run indent them once more)
 	lines := strings.Split(items[n-1], "\n")
 	for i := range lines {
-		lines[i] = strings.TrimSpace(lines[i])
+		lines[i] = trimSQLSpace(lines[i])
 	}
 	items[n-2] += "\n" + strings.Join(lines, "\n")
 	return items[:n-1]
@@ -1984,10 +2047,10 @@ func valuesItemText(sql string, tokens []rawTok, from, to int) string {
 		k++
 	}
 	if k >= to || tokens[k].text != "," {
-		return strings.TrimSpace(originalText(sql, tokens, from, to))
+		return trimSQLSpace(originalText(sql, tokens, from, to))
 	}
-	lead := strings.TrimSpace(originalText(sql, tokens, from, k))
-	rest := strings.TrimSpace(originalText(sql, tokens, k+1, to))
+	lead := trimSQLSpace(originalText(sql, tokens, from, k))
+	rest := trimSQLSpace(originalText(sql, tokens, k+1, to))
 	if lead == "" {
 		return rest
 	}
@@ -2163,7 +2226,7 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 	if firstWhen > caseIdx+1 {
 		// (on one line: lines of a parenthesised operand kept their old indent while the rest
 		// moved, and the next run moved them again)
-		expr := strings.TrimSpace(inlineContent(item, toks, caseIdx+1, firstWhen, caseParen))
+		expr := trimSQLSpace(inlineContent(item, toks, caseIdx+1, firstWhen, caseParen))
 		if expr != "" {
 			sb.WriteByte(' ')
 			sb.WriteString(expr)
@@ -2214,8 +2277,8 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 			// Find boundary of the result (next WHEN/ELSE/END at case-depth 0).
 			nextIdx := findCaseKeywordAny(toks, thenIdx+1, endIdx)
 
-			cond := strings.TrimSpace(originalText(item, toks, i+1, thenIdx))
-			body := strings.TrimSpace(originalText(item, toks, thenIdx+1, nextIdx))
+			cond := trimSQLSpace(originalText(item, toks, i+1, thenIdx))
+			body := trimSQLSpace(originalText(item, toks, thenIdx+1, nextIdx))
 
 			sb.WriteByte('\n')
 			sb.WriteString(whenIndent)
@@ -2232,7 +2295,7 @@ func expandCaseExpr(item string, toks []rawTok, caseIdx, endIdx int, baseIndent,
 		}
 
 		if lower == "else" {
-			body := strings.TrimSpace(originalText(item, toks, i+1, endIdx))
+			body := trimSQLSpace(originalText(item, toks, i+1, endIdx))
 			sb.WriteByte('\n')
 			sb.WriteString(whenIndent)
 			sb.WriteString(toks[i].text) // ELSE
@@ -2503,11 +2566,11 @@ func parenScanLine(line string) (int, string) {
 
 		// Block comment: skip to closing */.
 		if ch == '/' && i+1 < len(line) && line[i+1] == '*' {
-			end := strings.Index(line[i+2:], "*/")
+			end := blockCommentLen(line[i:]) // (nested comments included)
 			if end < 0 {
 				break // comment runs to end of line (or next line)
 			}
-			i += 2 + end + 2
+			i += end
 			continue
 		}
 
@@ -2646,8 +2709,11 @@ func appendBeforeComment(item, suffix string) string {
 // does not start with AND/OR followed by more text.
 func splitLeadingOperator(item string) (op, rest string, ok bool) {
 	for _, w := range []string{"and", "or"} {
-		if len(item) > len(w) && strings.EqualFold(item[:len(w)], w) && (item[len(w)] == ' ' || item[len(w)] == '\t' || item[len(w)] == '\n') {
-			return item[:len(w)], strings.TrimLeft(item[len(w):], " \t\n"), true
+		// (a comment glued to the operator, `or--c`, separates it as well: the formatter writes it
+		// `or --c`, which the next run would have split)
+		if len(item) > len(w) && strings.EqualFold(item[:len(w)], w) && (strings.IndexByte(sqlSpace, item[len(w)]) >= 0 ||
+			strings.HasPrefix(item[len(w):], "--") || strings.HasPrefix(item[len(w):], "/*")) {
+			return item[:len(w)], strings.TrimLeft(item[len(w):], sqlSpace), true
 		}
 	}
 	return "", item, false
@@ -2689,18 +2755,18 @@ func moveOperatorsToEnd(items []string) []string {
 // isCommentLine reports whether the line holds nothing but a comment (a -- comment, or block
 // comments that start and end on it).
 func isCommentLine(line string) bool {
-	t := strings.TrimSpace(line)
+	t := trimSQLSpace(line)
 	if strings.HasPrefix(t, "--") {
 		return true
 	}
 	for strings.HasPrefix(t, "/*") {
-		end := strings.Index(t, "*/")
+		end := blockCommentLen(t)
 		if end < 0 {
 			return false
 		}
-		t = strings.TrimSpace(t[end+2:])
+		t = trimSQLSpace(t[end:])
 	}
-	return t == "" && strings.HasPrefix(strings.TrimSpace(line), "/*")
+	return t == "" && strings.HasPrefix(trimSQLSpace(line), "/*")
 }
 
 // trimLines trims the blanks around every line of s (each line keeps its line break).
@@ -2713,7 +2779,7 @@ func trimLines(s string) string {
 		if ln == "" {
 			continue
 		}
-		sb.WriteString(strings.TrimSpace(ln))
+		sb.WriteString(trimSQLSpace(ln))
 		if strings.HasSuffix(ln, "\n") {
 			sb.WriteByte('\n')
 		}
@@ -2737,7 +2803,7 @@ func splitTrailingCommentLines(item string) (rest, trail string) {
 	}
 	var sb strings.Builder
 	for _, ln := range strings.Split(item[cut+1:], "\n") {
-		sb.WriteString(strings.TrimSpace(ln)) // the indent of the line they leave is not theirs
+		sb.WriteString(trimSQLSpace(ln)) // the indent of the line they leave is not theirs
 		sb.WriteByte('\n')
 	}
 	return item[:cut], sb.String()
@@ -2752,8 +2818,8 @@ func splitLeadingCommentLines(item string) (lead, rest string) {
 		if nl < 0 {
 			break
 		}
-		if !isCommentLine(item[pos : pos+nl]) {
-			break
+		if !isCommentLine(item[pos:pos+nl]) && !(pos > 0 && trimSQLSpace(item[pos:pos+nl]) == "") {
+			break // (a blank line below a comment line belongs to the comments)
 		}
 		pos += nl + 1
 	}
@@ -2804,9 +2870,17 @@ func trimLeadingCommentIndent(item string) string {
 		return item
 	}
 	lines := strings.Split(item, "\n")
+	// (further comment lines right below the first one are left out of the common indent: they
+	// stand where the first one stood, often at the margin, and are given the item's indent
+	// later anyway; counted in, they kept the indent of the code below and the next run, which
+	// finds them indented, took it off)
+	leading := 1
+	for leading < len(lines) && isCommentLine(lines[leading]) {
+		leading++
+	}
 	minIndent := -1
-	for _, ln := range lines[1:] {
-		if strings.TrimSpace(ln) == "" {
+	for _, ln := range lines[leading:] {
+		if trimSQLSpace(ln) == "" {
 			continue
 		}
 		n := len(ln) - len(strings.TrimLeft(ln, " \t"))
@@ -2814,12 +2888,12 @@ func trimLeadingCommentIndent(item string) string {
 			minIndent = n
 		}
 	}
-	if minIndent <= 0 {
-		return item
-	}
 	for i := 1; i < len(lines); i++ {
-		if len(lines[i]) >= minIndent {
-			lines[i] = lines[i][minIndent:]
+		ws := len(lines[i]) - len(strings.TrimLeft(lines[i], " \t"))
+		if i < leading {
+			lines[i] = lines[i][ws:] // (the comment lines lose all of it: they get the item's indent)
+		} else if minIndent > 0 {
+			lines[i] = lines[i][min(ws, minIndent):]
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -2833,6 +2907,18 @@ func opensStatement(k clauseKind) bool {
 		return true
 	}
 	return false
+}
+
+// allWordToks reports whether tokens[from:to] are all words (no comment, punctuation or name).
+func allWordToks(tokens []rawTok, from, to int) bool {
+	for i := from; i < to && i < len(tokens); i++ {
+		for _, c := range tokens[i].text {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // hasCodeTokens reports whether tokens[from:to] contain anything besides comments.
@@ -2889,6 +2975,26 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 	if prev == "," {
 		return false
 	}
+	switch prev {
+	case "=", "<>", "!=", "<", ">", "<=", ">=", "+", "-", "/", "%", "^", "||", "::", ":=", "=>":
+		// nor an operator: the word is its operand (update t set a = set, a = 0)
+		return false
+	case "on":
+		// nor ON: what follows is the join condition (on join(0), a function), the event of a
+		// rule (on select) or an action (on update cascade)
+		return false
+	}
+	// In a select list or RETURNING a word after AS is a column label, whatever keyword it is spelled
+	// like (select 1 as from, 2 as limit), and so is SELECT itself as a bare label (select 0 select):
+	// a query has no second SELECT clause without UNION / INTERSECT / EXCEPT in between.
+	if n := len(stmt.clauses); n > 0 {
+		switch stmt.clauses[n-1].kind {
+		case clauseSelect, clauseReturning:
+			if prev == "as" || kind == clauseSelect && stmt.clauses[n-1].kind == clauseSelect {
+				return false
+			}
+		}
+	}
 	switch kind {
 	case clauseUpdate, clauseInsert, clauseDelete, clauseValues, clauseMerge:
 		if prev == "select" || prev == "distinct" {
@@ -2898,7 +3004,18 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 	switch kind {
 	case clauseSelect:
 		if prev == "for" {
-			return false
+			// CREATE POLICY … FOR SELECT names a command; DECLARE c [SCROLL] CURSOR [WITH HOLD] FOR
+			// SELECT is a query
+			before := ""
+			for k := i - 2; k >= stmt.startTok; k-- {
+				if t := tokens[k].text; !strings.HasPrefix(t, "--") && !strings.HasPrefix(t, "/*") {
+					before = strings.ToLower(t)
+					break
+				}
+			}
+			if before != "cursor" && before != "hold" {
+				return false
+			}
 		}
 	case clauseValues:
 		if prev == "for" {
@@ -3064,17 +3181,17 @@ func writeLeadingComments(sb *strings.Builder, item, indent string) string {
 	if cut <= 0 {
 		return item
 	}
-	lead := strings.TrimSpace(item[:cut])
+	lead := trimSQLSpace(item[:cut])
 	if lead == "" {
 		return item
 	}
 	for _, ln := range strings.Split(lead, "\n") {
-		if strings.TrimSpace(ln) == "" {
+		if trimSQLSpace(ln) == "" {
 			continue
 		}
 		sb.WriteByte('\n')
 		sb.WriteString(indent)
-		sb.WriteString(strings.TrimSpace(ln))
+		sb.WriteString(trimSQLSpace(ln))
 	}
 	return item[cut:]
 }
@@ -3194,7 +3311,7 @@ func dedentStatements(sql string, river bool) (string, []string, bool) {
 func commonIndent(first, text string, base int, inside map[int]bool) string {
 	common := first
 	mapLinesBelowFirst(text, base, inside, func(line string) string {
-		if strings.TrimSpace(line) == "" {
+		if trimSQLSpace(line) == "" {
 			return line
 		}
 		ind := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
@@ -3228,7 +3345,7 @@ func reindentStatements(sql string, indents []string) (string, bool) {
 		b.WriteString(sql[cur:start])
 		b.WriteString(indents[i])
 		b.WriteString(mapLinesBelowFirst(sql[start:end], start, inside, func(line string) string {
-			if strings.TrimSpace(line) == "" {
+			if trimSQLSpace(line) == "" {
 				return line
 			}
 			return indents[i] + line

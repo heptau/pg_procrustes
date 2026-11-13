@@ -1,0 +1,2 @@
+go test fuzz v1
+string("seleCt from A join A on 0 or \f0 or\r0")

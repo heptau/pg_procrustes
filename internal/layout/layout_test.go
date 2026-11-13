@@ -651,7 +651,7 @@ func TestTabAfterCommentInSpaceIndentIsStable(t *testing.T) {
 	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
 	cfg.Clauses.Break = config.BreakAlways
 	cfg.Content.Break = config.BreakAlways
-	for _, in := range []string{"select -- c\n\ta\n+ 1", "select--\n\t!\n0"} {
+	for _, in := range []string{"select -- c\n\ta\n+ 1", "select--\n\t!\n0", "select--\n\t !\n0", "select--\n \t!\n0", "select --\n      a\n+ 1", " select --\n      0!\n0", "select --\n\n  a +\n --\n1"} {
 		got, err := layout.Apply(in, cfg)
 		if err != nil {
 			t.Fatal(err)
@@ -669,11 +669,14 @@ func TestColumnNamedLikeStatementKeywordIsNoClause(t *testing.T) {
 	cfg.Clauses.Break = config.BreakAlways
 	cfg.Content.Break = config.BreakAlways
 	for in, want := range map[string]string{
-		"select 0 o, update;":     "select\n  0 o,\n  update;",
-		"select a, update from t": "select\n  a,\n  update\nfrom\n  t",
-		"select update, a from t": "select\n  update,\n  a\nfrom\n  t",
-		"select a, values from t": "select\n  a,\n  values\nfrom\n  t",
-		"select a, insert from t": "select\n  a,\n  insert\nfrom\n  t",
+		"select 0 o, update;":             "select\n  0 o,\n  update;",
+		"select a, update from t":         "select\n  a,\n  update\nfrom\n  t",
+		"select update, a from t":         "select\n  update,\n  a\nfrom\n  t",
+		"select a, values from t":         "select\n  a,\n  values\nfrom\n  t",
+		"update t set a = set, b = 0":     "update\n  t\nset\n  a = set,\n  b = 0",
+		"select a - set from t":           "select\n  a - set\nfrom\n  t",
+		"select from a join b on join(0)": "select\nfrom\n  a\njoin b on join(0)",
+		"select a, insert from t":         "select\n  a,\n  insert\nfrom\n  t",
 	} {
 		got, err := layout.Apply(in, cfg)
 		if err != nil {
@@ -696,8 +699,8 @@ func TestLeadingCommentLinesShareTheItemIndent(t *testing.T) {
 	cfg.Content.Break = config.BreakAlways
 	for in, want := range map[string]string{
 		"select -- c\n  /* x */\n  a from t": "select\n  -- c\n  /* x */\n  a\nfrom\n  t",
-		"select--\n /* x */\n0":             "select\n  --\n  /* x */\n  0",
-		"select--\n /*/\n*/0":               "select\n  --\n  /*/\n  */0",
+		"select--\n /* x */\n0":              "select\n  --\n  /* x */\n  0",
+		"select--\n /*/\n*/0":                "select\n  --\n  /*/\n  */0",
 	} {
 		got, err := layout.Apply(in, cfg)
 		if err != nil {
@@ -708,6 +711,167 @@ func TestLeadingCommentLinesShareTheItemIndent(t *testing.T) {
 		}
 		if again, _ := layout.Apply(got, cfg); again != got {
 			t.Errorf("%q: not idempotent: %q → %q", in, got, again)
+		}
+	}
+}
+
+// Several comment lines at the margin in front of an indented item: they took no part in
+// the common indent of the item, so its first run kept the source indent of the code below
+// them and the second run took it off (not idempotent).
+func TestCommentLinesAtMarginBeforeIndentedItem(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	in := "select\n    a,\n-- x\n-- y\n    b\nfrom t"
+	want := "select\n  a,\n  -- x\n  -- y\n  b\nfrom\n  t"
+	got, err := layout.Apply(in, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	if again, _ := layout.Apply(got, cfg); again != got {
+		t.Errorf("not idempotent: %q → %q", got, again)
+	}
+}
+
+// A keyword after AS in a select list or RETURNING is a column label (select 1 as from), and so is
+// a bare SELECT after a select item (select 0 select): the layout took them for clauses and broke
+// the line there, so the output was a different query or did not parse.
+func TestKeywordAsColumnLabelIsNoClause(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"select 1 as from, 2 as where from t":        "select\n  1 as from,\n  2 as where\nfrom\n  t",
+		"select a as limit from t":                   "select\n  a as limit\nfrom\n  t",
+		"select 0 select, 0":                         "select\n  0 select,\n  0",
+		"insert into t select 1 returning a as from": "insert into\n  t\nselect\n  1\nreturning\n  a as from",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+	}
+}
+
+// The query of DECLARE … CURSOR FOR is laid out like any other (it was left as written, because a
+// SELECT after FOR is a command name in CREATE POLICY … FOR SELECT, which stays so).
+func TestDeclareCursorQueryIsLaidOut(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"declare c scroll cursor with hold for select a, b from t": "declare c scroll cursor with hold for\nselect\n  a,\n  b\nfrom\n  t",
+		"create policy p on t for select using (a = 1)":            "create policy p on t for select using (a = 1)",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent: %q", in, again)
+		}
+	}
+}
+
+// U+0085 and U+00A0 are white space to Go's strings.TrimSpace but part of an identifier in SQL:
+// trimmed off an item, the column `select \u0085` disappeared.
+func TestNonASCIISpaceIsPartOfAName(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"select \u0085":           "select\n  \u0085",
+		"select \u00a0, a from t": "select\n  \u00a0,\n  a\nfrom\n  t",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+	}
+}
+
+// A type modifier broken after its "(" (`numeric(` / `10)`): the column alignment joined the line
+// break into a blank whatever paren_spacing says, and with paren_spacing: remove the next run took it
+// off (`numeric( 10)` → `numeric(10)`).
+func TestCreateTableTypeModifierAcrossLinesFollowsParenSpacing(t *testing.T) {
+	for _, align := range []config.ColumnAlignMode{config.ColumnAlignNone, config.ColumnAlignTypes, config.ColumnAlignAll} {
+		cfg := ddlCfg(config.BreakAlways, align, config.BreakPreserve)
+		cfg.ParenSpacing = config.ParenSpacingRemove
+		got, err := layout.Apply("CREATE TABLE t (b numeric(\n10), c int DEFAULT (\n1), d numeric(1\n, 0));", cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got, "( ") || strings.Contains(got, " ,") {
+			t.Errorf("align %s: blank after (:\n%s", align, got)
+		}
+		assertIdempotent(t, cfg, got)
+	}
+}
+
+// comma_position: start — an indented comment line below a comment after the keyword kept the
+// indent of the source (or stood at the margin): the next run placed it differently.
+func TestLeadingCommentLinesWithLeadingCommas(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	cfg.Content.CommaPosition = config.CommaStart
+	got, err := layout.Apply("select--\n --\n0, 1", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "select\n  --\n  --\n  0\n, 1"; got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	if again, _ := layout.Apply(got, cfg); again != got {
+		t.Errorf("not idempotent: %q", again)
+	}
+}
+
+// A block comment of several lines above a column of CREATE TABLE (create_table.align): the name
+// lost the indent of its line but the comment lines kept it, so each run moved them one level further.
+func TestCreateTableBlockCommentAboveColumnIsStable(t *testing.T) {
+	cfg := ddlCfg(config.BreakAlways, config.ColumnAlignNone, config.BreakPreserve)
+	for _, in := range []string{"CREATE TABLE a (/*\n*/a int);", "CREATE TABLE a (\n   /* x\n    * y\n    */\n   a int\n);"} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertIdempotent(t, cfg, got)
+	}
+}
+
+// A clause keyword of several words broken over lines (`insert` / ` into`, `order` / `by`) is
+// written on one line: its line break made the content hang from the wrong line (not idempotent).
+// A comment line before it stays a line of its own.
+func TestKeywordOfSeveralWordsIsJoined(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"select a from t order\n by a": "select\n  a\nfrom\n  t\norder by\n  a",
+		"-- c\ndelete\n  from t":       "-- c\ndelete from\n  t",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent: %q", in, again)
 		}
 	}
 }

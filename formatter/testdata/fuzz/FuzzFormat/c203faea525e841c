@@ -1,0 +1,2 @@
+go test fuzz v1
+string("seleCt from(seleCt)join(seleCt)on join(0)")

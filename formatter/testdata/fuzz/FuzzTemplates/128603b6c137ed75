@@ -1,0 +1,2 @@
+go test fuzz v1
+string("updAte A set A=set,A=0")

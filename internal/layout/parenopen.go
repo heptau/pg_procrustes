@@ -61,7 +61,7 @@ func moveOpenParens(text string) string {
 		}
 		// something precedes it on its line
 		lineStart := strings.LastIndexByte(text[:t.start], '\n') + 1
-		before := strings.TrimSpace(text[lineStart:t.start])
+		before := trimSQLSpace(text[lineStart:t.start])
 		if before == "" || strings.HasSuffix(before, ",") || strings.HasSuffix(before, "(") || strings.HasSuffix(before, "[") {
 			continue
 		}

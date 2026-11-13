@@ -95,10 +95,10 @@ func wrapLongItem(item, indent, unit string, lineLen int) string {
 		var parts []string
 		from := int(toks[open].End)
 		for _, c := range commas {
-			parts = append(parts, strings.TrimSpace(item[from:toks[c].Start]))
+			parts = append(parts, trimSQLSpace(item[from:toks[c].Start]))
 			from = int(toks[c].End)
 		}
-		parts = append(parts, strings.TrimSpace(item[from:toks[closeIdx].Start]))
+		parts = append(parts, trimSQLSpace(item[from:toks[closeIdx].Start]))
 		inner := indent + unit
 		var sb strings.Builder
 		sb.WriteString(item[:toks[open].End])
@@ -152,7 +152,7 @@ func windowSegments(item string, toks []*pg_query.ScanToken) []string {
 	var segs []string
 	// anything before the first keyword is an existing window name: (w partition by …)
 	if int(toks[starts[0]].Start) > int(toks[0].Start) {
-		segs = append(segs, strings.TrimSpace(item[toks[0].Start:toks[starts[0]].Start]))
+		segs = append(segs, trimSQLSpace(item[toks[0].Start:toks[starts[0]].Start]))
 	}
 	for k, st := range starts {
 		var end int
@@ -161,7 +161,7 @@ func windowSegments(item string, toks []*pg_query.ScanToken) []string {
 		} else {
 			end = int(toks[len(toks)-1].End)
 		}
-		segs = append(segs, strings.TrimSpace(item[toks[st].Start:end]))
+		segs = append(segs, trimSQLSpace(item[toks[st].Start:end]))
 	}
 	return segs
 }

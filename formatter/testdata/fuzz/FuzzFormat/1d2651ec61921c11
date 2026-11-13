@@ -1,0 +1,2 @@
+go test fuzz v1
+string("insert into A--\n(A)vAlues(0)")

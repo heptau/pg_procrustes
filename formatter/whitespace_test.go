@@ -37,6 +37,16 @@ func TestLineEndings(t *testing.T) {
 		{"preserve keeps LF", config.LineEndingPreserve, lf, "SELECT a,\n  b\nFROM t;\n"},
 		{"lf converts CRLF", config.LineEndingLF, crlf, "SELECT a,\n  b\nFROM t;\n"},
 		{"crlf converts LF", config.LineEndingCRLF, lf, "SELECT a,\r\n  b\r\nFROM t;\r\n"},
+		// the line breaks inside a string constant are data: preserve leaves them as written
+		{"preserve keeps LF in a string of a CRLF file", config.LineEndingPreserve, "select 'x\ny'\r\nfrom t;\r\n", "SELECT 'x\ny'\r\nFROM t;\r\n"},
+		{"preserve keeps CRLF in a string of an LF file", config.LineEndingPreserve, "\nselect 'x\r\r\ny'\nfrom t;\n", "\nSELECT 'x\r\r\ny'\nFROM t;\n"},
+		// a lone CR ends a line (and a -- comment) as well: CR-only files keep CR, strings keep theirs
+		{"preserve keeps CR", config.LineEndingPreserve, "select a -- c\rfrom t\rwhere b = 'x\ny';\r", "SELECT a -- c\rFROM t\rWHERE b = 'x\ny';\r"},
+		{"preserve: breaks in strings do not count", config.LineEndingPreserve, "select 1,\r'\n\n';\r", "SELECT 1,\r'\n\n';\r"},
+		{"lf converts CR", config.LineEndingLF, "select a -- c\rfrom t;\r", "SELECT a -- c\nFROM t;\n"},
+		{"lf converts a lone CR in a string too", config.LineEndingLF, "select 'x\r\r\ny';\n", "SELECT 'x\n\ny';\n"},
+		{"crlf converts a lone CR in a string too", config.LineEndingCRLF, "select 'x\r\r\ny';\n", "SELECT 'x\r\n\r\ny';\r\n"},
+		{"lf converts inside strings", config.LineEndingLF, "select 'x\r\ny'\r\nfrom t;\r\n", "SELECT 'x\ny'\nFROM t;\n"},
 	} {
 		c := wsCfg(t, func(c *config.Config) { c.LineEndings = tc.mode })
 		got, err := formatter.Format(tc.in, c)
@@ -782,5 +792,29 @@ func TestIfBlankLineAfterKeepsCommentOnKeywordLine(t *testing.T) {
 	}
 	if again, _ := formatter.Format(got, c); again != got {
 		t.Errorf("not idempotent:\n%s\n--\n%s", got, again)
+	}
+}
+
+// A nested block comment after the ';' (PostgreSQL nests /* … */) ended at its first "*/" for the
+// statement separation: the line break went into the middle of the comment and the rest of it
+// became code (`select 1; /* x /* y */` / `z */`, which does not parse).
+func TestNestedBlockCommentAfterSemicolonStaysWhole(t *testing.T) {
+	for _, set := range []func(*config.Config){
+		func(c *config.Config) { c.BlankLinesBetweenStatements = "1" },
+		func(c *config.Config) { c.StatementBreak = config.StatementBreakAlways },
+	} {
+		c := wsCfg(t, set)
+		for _, in := range []string{"select 1; /* x /* y */ z */\n", "select 1; /* x /* y */ z */ select 2;\n"} {
+			got, err := formatter.Format(in, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(got, "/* x /* y */ z */") {
+				t.Errorf("%q: comment cut: %q", in, got)
+			}
+			if _, err := pg_query.Parse(got); err != nil {
+				t.Errorf("%q: output does not parse: %v\n%s", in, err, got)
+			}
+		}
 	}
 }

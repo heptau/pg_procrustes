@@ -1,0 +1,2 @@
+go test fuzz v1
+string("seleCt from A join A on 0 And 0 or--0000000000\r!0!0!000!000!0!000000 or 00000 or 0!0000000000000 And 0!0")
