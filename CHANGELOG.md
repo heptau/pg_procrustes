@@ -12,6 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The case rules (`upper`, `lower`, `capitalize`) changed non-ASCII letters of unquoted names too (`ü` → `Ü`, Greek `μ` → `Μ`), which renames the identifier: PostgreSQL folds only `A`–`Z` in an unquoted name of a UTF-8 database. Only ASCII letters are re-cased now. Found by `FuzzFormat`; test `TestIdentifierCaseChangesAsciiLettersOnly`
+- `layout.content.break: always` with a comment right after the keyword and a tab-indented line below it (`select -- c` / `<tab>a` / `+ 1`) in a config that indents with spaces: the tab line stayed where it was and the next run moved the item, so the output was not idempotent. Found by `FuzzFormat`; test `TestTabAfterCommentInSpaceIndentIsStable`
 - A blank line below a comment inside a broken content item (`where --` / blank / `a = 1` with `layout.content.break: always`) got the item's indent as trailing blanks, which the next run took off again (not idempotent); it stays empty. Found by `FuzzFormat`; test `TestBlankLineAfterCommentHasNoIndent`
 - `inequality_op: c` turned `a<>+1` / `a<>-1` (written without spaces) into `a!=+1`, which PostgreSQL reads as the single operator `!=+`; a `<>` with a sign glued to it is kept. Found by `FuzzFormat`; test `TestInequalityCKeepsGluedSignSeparate`
 - A quoted identifier that spans several lines (`"a⏎b"`) had its continuation lines indented by the layout, which renames the identifier; like multi-line string constants it is now left exactly as written. Found by `FuzzFormat`; test `TestMultiLineQuotedIdentifierIsData`

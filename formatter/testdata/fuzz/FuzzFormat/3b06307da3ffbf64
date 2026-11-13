@@ -1,0 +1,2 @@
+go test fuzz v1
+string("grAnt A(A)on μ to A")

@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"unicode"
-	"unicode/utf8"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
@@ -907,14 +905,35 @@ func applyCase(s string, rule config.CaseRule) string {
 	}
 	switch rule {
 	case config.CaseUpper:
-		return strings.ToUpper(s)
+		return asciiUpper(s)
 	case config.CaseLower:
-		return strings.ToLower(s)
+		return asciiLower(s)
 	case config.CaseCapitalize:
 		return capitalizeWords(s)
 	default:
 		return s
 	}
+}
+
+// asciiUpper / asciiLower change the case of the letters A–Z only: PostgreSQL folds nothing else
+// in an unquoted name (in a UTF-8 database ü and Ü are different identifiers), so a name that is
+// not ASCII must keep its other letters as written.
+func asciiUpper(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' {
+			return r - 'a' + 'A'
+		}
+		return r
+	}, s)
+}
+
+func asciiLower(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r - 'A' + 'a'
+		}
+		return r
+	}, s)
 }
 
 // applyCaseEx is like applyCase but skips transformation when s (case-insensitively)
@@ -4975,13 +4994,14 @@ func resolveDDLColumns(tokens []rawToken, pos *astPositions) {
 // lower-cases the rest. Underscores are left alone: capitalize never renames an
 // identifier, it only changes the case of its letters.
 func capitalizeWords(s string) string {
-	words := strings.Split(strings.ToLower(s), " ")
+	words := strings.Split(asciiLower(s), " ")
 	for i, w := range words {
 		if w == "" {
 			continue
 		}
-		r, size := utf8.DecodeRuneInString(w)
-		words[i] = string(unicode.ToUpper(r)) + w[size:]
+		if w[0] >= 'a' && w[0] <= 'z' {
+			words[i] = string(w[0]-'a'+'A') + w[1:]
+		}
 	}
 	return strings.Join(words, " ")
 }

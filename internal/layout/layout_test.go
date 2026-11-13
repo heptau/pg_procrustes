@@ -644,3 +644,20 @@ func TestBlankLineAfterCommentHasNoIndent(t *testing.T) {
 		}
 	}
 }
+
+// Tabs in front of the first line below a comment, for an indent made of spaces, must not make
+// the next run place the item differently (not idempotent).
+func TestTabAfterCommentInSpaceIndentIsStable(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for _, in := range []string{"select -- c\n\ta\n+ 1", "select--\n\t!\n0"} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent:\n%q\n%q", in, got, again)
+		}
+	}
+}

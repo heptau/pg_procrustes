@@ -1152,6 +1152,12 @@ func rebuildStatement(sql string, tokens []rawTok, stmt statement, cfg *config.L
 			if lead == "" || strings.TrimSpace(body) == "" {
 				return reindentBody(item)
 			}
+			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; ws != "" && strings.Trim(ws, "\t") == "" && !strings.Contains(contentIndent, "\t") {
+				// tabs in front of the first line below the comments, for an indent made of spaces: they
+				// are no indent this item can be judged by (the line stands at the margin as far as the
+				// others are concerned), or the next run finds it differently placed
+				body = body[len(ws):]
+			}
 			// (the first line below the comments starts a line of its own: blanks it has left of the
 			// item's indent, from the keyword line, are brought to it)
 			if ws := body[:len(body)-len(strings.TrimLeft(body, " \t"))]; ws != "" && len(ws) < len(contentIndent) && strings.HasPrefix(contentIndent, ws) {
