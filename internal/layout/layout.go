@@ -2873,6 +2873,17 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 			}
 		}
 	}
+	// A clause never follows a comma, and the word that opens a data-changing statement or VALUES
+	// never follows SELECT / DISTINCT: it is a column named like it (select a, update from t).
+	if prev == "," {
+		return false
+	}
+	switch kind {
+	case clauseUpdate, clauseInsert, clauseDelete, clauseValues, clauseMerge:
+		if prev == "select" || prev == "distinct" {
+			return false
+		}
+	}
 	switch kind {
 	case clauseSelect:
 		if prev == "for" {
@@ -2888,7 +2899,18 @@ func clauseAllowed(kind clauseKind, tokens []rawTok, i int, stmt *statement) boo
 		}
 	case clauseFrom:
 		if prev == "distinct" || prev == "values" {
-			return false // IS DISTINCT FROM; FOR VALUES FROM (…) TO (…)
+			// IS DISTINCT FROM; FOR VALUES FROM (…) TO (…) — but not a column named values
+			// (select a, values from t) or distinct (select distinct from t)
+			before := ""
+			for k := i - 2; k >= stmt.startTok; k-- {
+				if t := tokens[k].text; !strings.HasPrefix(t, "--") && !strings.HasPrefix(t, "/*") {
+					before = strings.ToLower(t)
+					break
+				}
+			}
+			if (prev == "values" && before == "for") || (prev == "distinct" && before != "select" && before != ",") {
+				return false
+			}
 		}
 		if first := firstCodeTok(tokens, stmt.startTok, i); first >= 0 && strings.EqualFold(tokens[first].text, "copy") {
 			return false

@@ -661,3 +661,29 @@ func TestTabAfterCommentInSpaceIndentIsStable(t *testing.T) {
 		}
 	}
 }
+
+// A column named like a clause or a statement keyword (update, insert, values) is no clause:
+// the layout dropped the comma before it and started a clause (select a, update from t).
+func TestColumnNamedLikeStatementKeywordIsNoClause(t *testing.T) {
+	cfg := caseCfg(config.BreakPreserve, config.BodyIndentIndent, 128)
+	cfg.Clauses.Break = config.BreakAlways
+	cfg.Content.Break = config.BreakAlways
+	for in, want := range map[string]string{
+		"select 0 o, update;":     "select\n  0 o,\n  update;",
+		"select a, update from t": "select\n  a,\n  update\nfrom\n  t",
+		"select update, a from t": "select\n  update,\n  a\nfrom\n  t",
+		"select a, values from t": "select\n  a,\n  values\nfrom\n  t",
+		"select a, insert from t": "select\n  a,\n  insert\nfrom\n  t",
+	} {
+		got, err := layout.Apply(in, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+		if again, _ := layout.Apply(got, cfg); again != got {
+			t.Errorf("%q: not idempotent: %q → %q", in, got, again)
+		}
+	}
+}
