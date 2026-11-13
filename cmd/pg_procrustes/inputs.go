@@ -53,6 +53,12 @@ func expandInputs(args []string) ([]input, error) {
 			}
 			continue
 		}
+		if info, err := os.Stat(arg); err == nil && !info.IsDir() {
+			// An existing file is that file, even if its name looks like a pattern
+			// (v[1].sql would otherwise match v1.sql instead).
+			add(arg, filepath.Base(arg))
+			continue
+		}
 		if strings.Contains(filepath.ToSlash(arg), "**") {
 			base, files, err := globStar(arg)
 			if err != nil {

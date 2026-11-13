@@ -71,6 +71,18 @@ func TestExpandInputs(t *testing.T) {
 	}
 }
 
+func TestExpandInputsExistingFileWithPatternCharacters(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "v[1].sql", "v1.sql")
+	got, err := expandInputs([]string{filepath.Join(root, "v[1].sql")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := paths(got, root); !reflect.DeepEqual(p, []string{"v[1].sql"}) {
+		t.Errorf("got %v, want only v[1].sql", p)
+	}
+}
+
 func TestExpandInputsRelativeOutputPaths(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root, "sql/a/one.sql", "sql/top.sql")

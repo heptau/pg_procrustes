@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A file argument whose name contains glob characters (`v[1].sql`) was treated as a pattern, so with `v1.sql` next to it the wrong file was formatted (and the named one skipped); an existing file is now always taken literally. Test `TestExpandInputsExistingFileWithPatternCharacters`
 - Neovim plugin (`:PgProcrustesFormat`): blank lines at the start of the buffer and the blank line at its end were deleted (the output was split with `trimempty`), so the buffer differed from what `pg_procrustes -w` writes and `--check` failed on a file just formatted in the editor; the buffer is now exactly the output of the command line
 - `--out-dir` with inputs that land on the same file (`--out-dir out a/x.sql b/x.sql`, or two directories that both hold `x.sql`) silently wrote only the last one; this is now an error that names both inputs. `--out-dir` without files (stdin) is an error too instead of being ignored. Test `TestOutDirClash`
 - LSP server: a relative `configPath` in the initialization options (`pgProcrustes.configPath` in VS Code, `lsp.pg_procrustes.initialization_options` in Zed) is looked up below the workspace root, not in the directory the editor started the server in. Test `TestRelativeConfigPathIsBelowTheWorkspaceRoot`
