@@ -306,6 +306,8 @@ pg_procrustes --list-templates
 
 Everything between `-- pg_procrustes: off` and `-- pg_procrustes: on` is copied to the output exactly as written (the two comments included); `/* pg_procrustes: off */` works too. Each directive goes on a line of its own. Without a closing `on` the region runs to the end of the file, and a stray `on` is just a comment. A directive-looking line inside a multi-line string constant or `/* … */` comment is not a directive.
 
+The data of `COPY … FROM stdin` (the lines after the statement up to the `\.` line) is no SQL and is copied as it is as well, so a `pg_dump` file can be formatted; the formatter keeps it directly below its `COPY` statement.
+
 ```sql
 select a, b from t;
 

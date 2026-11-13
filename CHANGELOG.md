@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The data lines of `COPY … FROM stdin` (a `pg_dump` file) were parsed as SQL, so such a file failed with a syntax error (or, with `syntax_errors: skip`, only warned): the lines up to the `\.` line are now copied verbatim like an `off`/`on` region and stay directly below the `COPY` statement (a `blank_lines_between_statements` blank line would have become a data row). Tests `TestCopyFromStdinDataIsVerbatim`, `TestCopyFromStdinWithoutTerminatorRunsToTheEnd`
 - `--diff` on a large file the formatter changes almost everywhere (20 000 lines) needed about 2.5 GB of memory (quadratic line-comparison table); beyond 16 million cells the differing middle is now shown as removed and added as a whole. Test `TestUnifiedDiffOfHugeChangeIsCheap`
 - A lone `-` as the file argument (`pg_procrustes - < q.sql`) was looked up as a file named `-` (and flags after it were ignored); it now means stdin. Test case in `TestReorderArgsBackup`
 - A file argument whose name contains glob characters (`v[1].sql`) was treated as a pattern, so with `v1.sql` next to it the wrong file was formatted (and the named one skipped); an existing file is now always taken literally. Test `TestExpandInputsExistingFileWithPatternCharacters`

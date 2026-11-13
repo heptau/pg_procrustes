@@ -193,3 +193,43 @@ func TestByteOrderMarkIsKept(t *testing.T) {
 		t.Errorf("a file that is only a byte order mark: %q, %v", got, err)
 	}
 }
+
+func TestCopyFromStdinDataIsVerbatim(t *testing.T) {
+	data := "copy public.t (a, b) from stdin;\n1\tselect   x\n2\tO'Brien\n\\N\t-- pg_procrustes: off\n\\.\n"
+	in := "select  1;\n" + data + "\nselect  2;\n"
+	for name, mod := range map[string]func(c *config.Config){
+		"layout":      func(c *config.Config) {},
+		"blank lines": func(c *config.Config) { c.BlankLinesBetweenStatements = "2" },
+		"statement break": func(c *config.Config) {
+			c.StatementBreak = config.StatementBreakAlways
+		},
+	} {
+		c := verbatimCfg(t)
+		mod(c)
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !strings.Contains(got, data) {
+			t.Errorf("%s: the data lines were changed or separated from COPY:\n%s", name, got)
+		}
+		if !strings.Contains(got, "select\n  1;") && !strings.Contains(got, "select 1;") && !strings.Contains(got, "select\n 1;") {
+			t.Errorf("%s: the statements around the data were not formatted:\n%s", name, got)
+		}
+		if again, _ := formatter.Format(got, c); again != got {
+			t.Errorf("%s: not idempotent:\n%s\n---\n%s", name, got, again)
+		}
+	}
+}
+
+func TestCopyFromStdinWithoutTerminatorRunsToTheEnd(t *testing.T) {
+	c := verbatimCfg(t)
+	in := "copy t from stdin;\nselect   1\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != in {
+		t.Errorf("got %q", got)
+	}
+}
