@@ -4443,6 +4443,15 @@ func reformatControlFlow(body, indentUnit string, cfg config.ControlFlowCfg, lin
 			// preserve: neither — leave original whitespace
 		}
 
+		if dec.collapseAfter && ei+1 < len(events) {
+			// a body that is a nested IF / LOOP / CASE cannot join the keyword's line: collapsing
+			// strips the whitespace between them (WHEN 'a' THENIF …)
+			switch events[ei+1].kind {
+			case evIF, evLOOP, evCASE:
+				dec.collapseAfter, dec.breakAfter = false, true
+			}
+		}
+
 		caseDecisions[ei] = dec
 	}
 

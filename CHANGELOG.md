@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- PL/pgSQL `CASE` with `case.*.body_break: never` (or `auto`): a `WHEN … THEN` whose body is a nested `IF` / loop / `CASE` was joined to the keyword without a space (`WHEN 'a' THENIF y > 0 THEN`), which is no longer valid PL/pgSQL; such a body now stays on its own lines. Found with `scripts/corpus_check.go` on `incremental_sort.sql` (`function-body-broken`). Test `TestPLpgSQLCaseBodyBreakCollapseKeepsNestedBlock`
 - The data lines of `COPY … FROM stdin` (a `pg_dump` file) were parsed as SQL, so such a file failed with a syntax error (or, with `syntax_errors: skip`, only warned): the lines up to the `\.` line are now copied verbatim like an `off`/`on` region and stay directly below the `COPY` statement (a `blank_lines_between_statements` blank line would have become a data row). Tests `TestCopyFromStdinDataIsVerbatim`, `TestCopyFromStdinWithoutTerminatorRunsToTheEnd`
 - `--diff` on a large file the formatter changes almost everywhere (20 000 lines) needed about 2.5 GB of memory (quadratic line-comparison table); beyond 16 million cells the differing middle is now shown as removed and added as a whole. Test `TestUnifiedDiffOfHugeChangeIsCheap`
 - A lone `-` as the file argument (`pg_procrustes - < q.sql`) was looked up as a file named `-` (and flags after it were ignored); it now means stdin. Test case in `TestReorderArgsBackup`

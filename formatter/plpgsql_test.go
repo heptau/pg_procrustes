@@ -728,3 +728,30 @@ func TestPLpgSQLRaiseExceptionAcrossLines(t *testing.T) {
 		t.Fatalf("not idempotent (err=%v):\n%s\n---\n%s", err, got, again)
 	}
 }
+
+// A WHEN branch whose body is a nested IF / LOOP / CASE never joins the THEN line:
+// collapsing used to strip the whitespace between them (WHEN 'a' THENIF …).
+func TestPLpgSQLCaseBodyBreakCollapseKeepsNestedBlock(t *testing.T) {
+	bodies := map[string]string{
+		"if":   "if y > 0 then\n      z := 1;\n    end if;",
+		"loop": "while y > 0 loop\n      y := y - 1;\n    end loop;",
+		"case": "case y\n      when 1 then z := 1;\n    end case;",
+	}
+	for name, nested := range bodies {
+		for _, mode := range []config.BreakMode{config.BreakNever, config.BreakAuto} {
+			c := plCfg()
+			c.Layout.DollarQuote.PLpgSQL.ControlFlow.Case.Simple.BodyBreak = mode
+			src := wrap("begin\n  case x\n  when 'a' then\n    " + nested + "\n  when 'b' then\n    z := 2;\n  end case;\nend")
+			got, err := formatter.Format(src, c)
+			if err != nil {
+				t.Fatalf("%s/%s: %v", name, mode, err)
+			}
+			if strings.Contains(strings.ToLower(got), "thenif") || strings.Contains(strings.ToLower(got), "thenwhile") || strings.Contains(strings.ToLower(got), "thencase") {
+				t.Errorf("%s/%s: THEN glued to the nested block:\n%s", name, mode, got)
+			}
+			if again, _ := formatter.Format(got, c); again != got {
+				t.Errorf("%s/%s: not idempotent:\n%s\n---\n%s", name, mode, got, again)
+			}
+		}
+	}
+}
