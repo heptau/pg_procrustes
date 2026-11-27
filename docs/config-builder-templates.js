@@ -11,7 +11,7 @@ window.CB_PRESETS = {
       "it": "IA compatto",
       "pt": "IA compacto"
     },
-    "description": "Lean for LLM prompts and context: everything lower case, short type names, no padding or alignment, two-space indent, redundant words removed (AS, ASC, public., spaces around operators).",
+    "description": "Lean for LLM prompts and context: everything lower case, short type names, no padding or alignment, two-space indent (function bodies too), redundant words removed (AS, ASC, public., spaces around operators).",
     "settings": {
       "aliases.as": "remove",
       "aliases.case": "lower",

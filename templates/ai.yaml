@@ -7,7 +7,7 @@
 # title.pt: IA compacto
 # title.it: IA compatto
 # description: Lean for LLM prompts and context: everything lower case, short type names, no padding
-#   or alignment, two-space indent, redundant words removed (AS, ASC, public., spaces around operators).
+#   or alignment, two-space indent (function bodies too), redundant words removed (AS, ASC, public., spaces around operators).
 #
 # Use it from a config file with   template: ai   — your own settings in that file win.
 
