@@ -82,6 +82,23 @@ func TestIndentNormalizeLeavesDollarQuotedTextAlone(t *testing.T) {
 	}
 }
 
+// indent.normalize: change with spaces turns the tabs at the start of the lines of a PL/pgSQL
+// body into blanks as well, the first one included (it used to be left as it was).
+func TestIndentNormalizeChangesTabsInFunctionBody(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Indent.Size = 2
+		c.Layout.Indent.Normalize = config.IndentNormalizeChange
+	})
+	in := "create function f() returns void language plpgsql as $$\ndeclare\n\tx int;\nbegin\n\tselect 1\n\tfrom t\n\twhere\n\t\ta = 1;\n\tif x then\n\t\tperform 1;\n\tend if;\nend $$;\n"
+	got := formatTwice(t, c, in)
+	if strings.Contains(got, "\t") {
+		t.Errorf("tabs left at the start of lines:\n%s", got)
+	}
+	if !strings.Contains(got, "\n  x integer;\n") || !strings.Contains(got, "\n    perform 1;\n") {
+		t.Errorf("tabs not turned into two blanks each:\n%s", got)
+	}
+}
+
 func TestCaseStatementCommentBeforeThenStaysOnItsLine(t *testing.T) {
 	in := "create function f(int) returns int language plpgsql as $$\nbegin\n  case $1\n    when 1 -- why\n      then return 1;\n    else -- other\n      return 2;\n  end case;\nend;\n$$;\n"
 	for _, tb := range []config.BreakMode{config.BreakNever, config.BreakAuto, config.BreakAlways} {

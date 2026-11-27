@@ -38,6 +38,7 @@ window.CB_PRESETS = {
       "layout.content.break": "auto",
       "layout.ddl.create_table.align": "none",
       "layout.ddl.create_table.break": "auto",
+      "layout.indent.normalize": "change",
       "layout.indent.size": "2",
       "layout.line_length": "100",
       "line_endings": "lf",

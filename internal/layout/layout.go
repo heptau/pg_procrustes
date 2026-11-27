@@ -2366,31 +2366,9 @@ func findCaseKeywordAny(toks []rawTok, from, to int) int {
 func normalizeIndent(s string, cfg *config.LayoutConfig) string {
 	lines := strings.Split(s, "\n")
 	data := stringDataLines(s)
-	dqDelim := "" // current dollar-quote delimiter; non-empty when inside a dollar-quoted body
 	for i, line := range lines {
-		inDollarBody := dqDelim != ""
-		if dqDelim != "" {
-			if idx := strings.Index(line, dqDelim); idx >= 0 {
-				// Closing delimiter found; check the rest of the line for a new opening.
-				_, dqDelim = parenScanLine(line[idx+len(dqDelim):])
-			}
-		} else {
-			_, dqDelim = parenScanLine(line)
-		}
-
 		if data[i] {
 			continue // a line of a string constant: its blanks are data
-		}
-
-		// Inside a dollar-quoted body, skip normalization for tab-leading lines.
-		// These lines were placed by applyLayoutPerStatement's reindentLines and are
-		// already in the correct relative position. Re-normalizing them would change
-		// the byte sequence of "baseIndent+contentIndent" in a way that breaks
-		// stripLeadingIndent on subsequent passes (non-idempotent).
-		// Lines with pure space indentation (e.g. from a 3-space-indented source body)
-		// are still normalized: they haven't been through reindentLines.
-		if inDollarBody && len(line) > 0 && line[0] == '\t' {
-			continue
 		}
 
 		j := 0

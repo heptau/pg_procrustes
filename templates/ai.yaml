@@ -66,6 +66,7 @@ layout:
   line_length: 100
   indent:
     size: 2
+    normalize: change
   clauses:
     break: always
   content:
