@@ -625,6 +625,26 @@ window.CB_OPTIONS = {
      }
     },
     {
+     "key": "plpgsql_into",
+     "label": "PL/pgSQL SELECT INTO",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Moves the INTO target of a PL/pgSQL SELECT written right after SELECT behind the select list: SELECT INTO x * FROM t → SELECT * INTO x FROM t (INTO STRICT a, b too). A statement with a comment in that part is left as it is.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "after_list",
+       "SELECT * INTO x FROM …"
+      ]
+     ],
+     "sample": {
+      "in": "create function f() returns void language plpgsql as $$\ndeclare\n  r record;\nbegin\n  select into r * from t where id = 1;\n  select into strict a, b x, y from u;\nend\n$$;",
+      "with": {}
+     }
+    },
+    {
      "key": "join_form",
      "label": "JOIN form",
      "type": "select",
@@ -976,6 +996,26 @@ window.CB_OPTIONS = {
      ],
      "sample": {
       "in": "select cast(price as numeric(10,2)), created_at::date from orders;",
+      "with": {}
+     }
+    },
+    {
+     "key": "cast_spacing",
+     "label": "Spaces around ::",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Removes the blanks around the cast operator :: (x :: int → x::int). A blank next to a comment or a line break stays.",
+     "values": [
+      [
+       "preserve"
+      ],
+      [
+       "remove",
+       "no blanks: x::int"
+      ]
+     ],
+     "sample": {
+      "in": "select price :: numeric(10,2), created_at ::date from orders;",
       "with": {}
      }
     },
@@ -3383,6 +3423,110 @@ window.CB_OPTIONS = {
       "with": {
        "layout.clauses.break": "always",
        "layout.subquery.break": "always"
+      }
+     }
+    },
+    {
+     "key": "layout.dollar_quote.plpgsql.declare.indent",
+     "label": "PL/pgSQL — DECLARE section",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Indentation of the declarations between DECLARE and BEGIN of a PL/pgSQL body.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "none",
+       "at the level of DECLARE"
+      ],
+      [
+       "indent",
+       "one level under DECLARE"
+      ]
+     ],
+     "sample": {
+      "in": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n > 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;",
+      "with": {}
+     }
+    },
+    {
+     "key": "layout.dollar_quote.plpgsql.begin_body.indent",
+     "label": "PL/pgSQL — BEGIN section",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Indentation of the statements between BEGIN and END (and EXCEPTION) of a PL/pgSQL body.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "none",
+       "at the level of BEGIN"
+      ],
+      [
+       "indent",
+       "one level under BEGIN"
+      ]
+     ],
+     "sample": {
+      "in": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n > 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;",
+      "with": {}
+     }
+    },
+    {
+     "key": "layout.dollar_quote.plpgsql.control_flow.if.body_indent",
+     "label": "PL/pgSQL — IF body",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Indentation of the statements inside IF / ELSIF / ELSE … END IF of a PL/pgSQL body.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "none",
+       "at the level of IF"
+      ],
+      [
+       "indent",
+       "one level under IF"
+      ]
+     ],
+     "sample": {
+      "in": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n > 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;",
+      "with": {
+       "layout.dollar_quote.plpgsql.begin_body.indent": "indent"
+      }
+     }
+    },
+    {
+     "key": "layout.dollar_quote.plpgsql.control_flow.loop.body_indent",
+     "label": "PL/pgSQL — LOOP body",
+     "type": "select",
+     "def": "preserve",
+     "desc": "Indentation of the statements between LOOP and END LOOP (FOR, WHILE, FOREACH) of a PL/pgSQL body.",
+     "values": [
+      [
+       "preserve",
+       "leave as-is"
+      ],
+      [
+       "none",
+       "at the level of LOOP"
+      ],
+      [
+       "indent",
+       "one level under LOOP"
+      ]
+     ],
+     "sample": {
+      "in": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n > 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;",
+      "with": {
+       "layout.dollar_quote.plpgsql.begin_body.indent": "indent"
       }
      }
     }

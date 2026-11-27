@@ -1,6 +1,10 @@
 window.CB_I18N = window.CB_I18N || {};
 window.CB_I18N.it = {
   "labels": {
+    "layout.dollar_quote.plpgsql.declare.indent": "PL/pgSQL — sezione DECLARE",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "PL/pgSQL — sezione BEGIN",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "PL/pgSQL — corpo di IF",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "PL/pgSQL — corpo di LOOP",
     "reserved_keywords.case": "Parole chiave riservate",
     "keywords.case": "Altre parole chiave",
     "data_types.case": "Tipi di dato — maiuscole/minuscole",
@@ -22,6 +26,7 @@ window.CB_I18N.it = {
     "semicolons": "Punti e virgola",
     "inequality_op": "Operatore di disuguaglianza",
     "plpgsql_assignment": "Assegnazione in PL/pgSQL",
+    "plpgsql_into": "SELECT INTO in PL/pgSQL",
     "join_form": "Forma di JOIN",
     "operator_spacing": "Spaziatura degli operatori",
     "blank_lines": "Limite di righe vuote consecutive",
@@ -39,6 +44,7 @@ window.CB_I18N.it = {
     "comma_spacing": "Spaziatura delle virgole",
     "order_asc": "Parola chiave ASC in ORDER BY",
     "cast_style": "Stile di CAST",
+    "cast_spacing": "Spazi attorno a ::",
     "not_in": "Forma di NOT IN",
     "schema_qualification": "Qualificazione dello schema",
     "inline_spacing": "Spaziatura nella riga",
@@ -126,6 +132,10 @@ window.CB_I18N.it = {
     "statement_break": "Istruzioni su una riga"
   },
   "descs": {
+    "layout.dollar_quote.plpgsql.declare.indent": "Rientro delle dichiarazioni tra DECLARE e BEGIN di un corpo PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "Rientro delle istruzioni tra BEGIN ed END (ed EXCEPTION) di un corpo PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "Rientro delle istruzioni dentro IF / ELSIF / ELSE … END IF di un corpo PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "Rientro delle istruzioni tra LOOP ed END LOOP (FOR, WHILE, FOREACH) di un corpo PL/pgSQL.",
     "reserved_keywords.case": "Controlla le maiuscole/minuscole delle parole chiave SQL riservate: SELECT, FROM, WHERE, JOIN, AND, OR, ecc.",
     "keywords.case": "Controlla le maiuscole/minuscole delle parole chiave non riservate come BEGIN, END, DECLARE, LANGUAGE, RETURNS.",
     "data_types.case": "Controlla le maiuscole/minuscole dei nomi dei tipi di dato: integer, varchar, timestamp, ecc.",
@@ -147,6 +157,7 @@ window.CB_I18N.it = {
     "semicolons": "Controlla se le istruzioni terminano con un punto e virgola.",
     "inequality_op": "Normalizza l'operatore di disuguaglianza in <> (ANSI) oppure != (stile C).",
     "plpgsql_assignment": "Normalizza l'operatore di assegnazione nei corpi PL/pgSQL: istruzioni (x := 1 / x = 1) e valori predefiniti di DECLARE. Argomenti con nome (f(a := 1)), confronti, UPDATE … SET e query di cursore non vengono modificati.",
+    "plpgsql_into": "Sposta la destinazione INTO di una SELECT PL/pgSQL, scritta subito dopo SELECT, dopo la lista di espressioni: SELECT INTO x * FROM t → SELECT * INTO x FROM t (anche INTO STRICT a, b). Un'istruzione con un commento in quella parte non viene modificata.",
     "join_form": "Controlla se le parole chiave JOIN sono scritte in forma breve o estesa.",
     "operator_spacing": "Controlla gli spazi attorno agli operatori simbolici di confronto e concatenazione: =, !=, <>, <, >, <=, >=, ||, più := e =>. Gli operatori aritmetici sono controllati separatamente da arithmetic_spacing.",
     "blank_lines": "Limita le righe vuote consecutive in qualsiasi punto del file (anche dentro le istruzioni); le rimuove soltanto, non ne aggiunge mai. Per un numero esatto tra le istruzioni usa blank_lines_between_statements.",
@@ -164,6 +175,7 @@ window.CB_I18N.it = {
     "comma_spacing": "Controlla gli spazi attorno alle virgole nelle liste SELECT, negli argomenti di funzione, in VALUES, ecc.",
     "order_asc": "Controlla se le colonne di ORDER BY hanno la parola chiave ASC esplicita.",
     "cast_style": "Controlla se i cast di tipo sono scritti come CAST(x AS type) oppure x::type. SQL ha due sintassi equivalenti: la forma di funzione (standard ANSI) e la forma con operatore :: (estensione PostgreSQL).",
+    "cast_spacing": "Rimuove gli spazi attorno all'operatore di cast :: (x :: int → x::int). Uno spazio accanto a un commento o a un a capo resta.",
     "not_in": "Normalizza il predicato NOT IN in NOT IN (…) oppure <> ALL (ARRAY[…]).",
     "schema_qualification": "Rimuove il prefisso di schema public. dai nomi degli oggetti quando è lo schema predefinito.",
     "inline_spacing": "Riduce a un solo spazio due o più spazi orizzontali consecutivi tra i token sulla stessa riga. Non tocca gli a capo né i rientri.",
@@ -251,6 +263,14 @@ window.CB_I18N.it = {
     "statement_break": "always mette ogni istruzione su una riga propria quando più istruzioni condividono una riga (select 1; select 2;). Le righe vuote non vengono toccate; un commento sulla riga di un ';' resta con la sua istruzione. blank_lines_between_statements le separa a sua volta e ha la precedenza."
   },
   "hints": {
+    "at the level of DECLARE": "al livello di DECLARE",
+    "one level under DECLARE": "un livello sotto DECLARE",
+    "at the level of BEGIN": "al livello di BEGIN",
+    "one level under BEGIN": "un livello sotto BEGIN",
+    "at the level of IF": "al livello di IF",
+    "one level under IF": "un livello sotto IF",
+    "at the level of LOOP": "al livello di LOOP",
+    "one level under LOOP": "un livello sotto LOOP",
     "own line, above the \")\"": "su una riga propria, sopra la «)»",
     "First letter only": "Solo la prima lettera",
     "full SQL name": "nome SQL completo",
@@ -290,6 +310,7 @@ window.CB_I18N.it = {
     "always add ASC": "aggiungi sempre ASC",
     "remove explicit ASC": "rimuovi ASC esplicito",
     "use x::type form": "usa la forma x::type",
+    "no blanks: x::int": "senza spazi: x::int",
     "use NOT IN": "usa NOT IN",
     "use <> ALL": "usa <> ALL",
     "drop public. prefix": "elimina il prefisso public.",

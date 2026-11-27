@@ -90,6 +90,9 @@ plpgsql_assignment: preserve # preserve | colon_equals | equals   (PL/pgSQL x :=
                              #   ansi:    always use <>
                              #   c:       always use !=
 
+plpgsql_into: preserve       # preserve | after_list   (PL/pgSQL SELECT INTO target before the select list;
+                             #   after_list: SELECT INTO x * FROM t → SELECT * INTO x FROM t, also INTO STRICT a, b)
+
 join_form: preserve          # preserve | short | long
                              #   short:   JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN
                              #   long:    INNER JOIN, LEFT OUTER JOIN, RIGHT OUTER JOIN, FULL OUTER JOIN
@@ -107,6 +110,9 @@ arithmetic_spacing: preserve # preserve | normalize | compact   (default: preser
 comma_spacing: normalize     # preserve | normalize | compact
                              #   normalize: one space after comma, none before
                              #   compact:   no spaces around commas
+
+cast_spacing: preserve       # preserve | remove
+                             #   remove: no blanks around the cast operator (x :: int → x::int)
 
 blank_lines: preserve        # preserve | max_3 | max_2 | max_1
 

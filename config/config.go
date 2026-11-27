@@ -223,6 +223,22 @@ const (
 	OrderAscRemove   OrderAscMode = "remove"
 )
 
+// CastSpacingMode controls the blanks around the cast operator ::.
+type CastSpacingMode string
+
+const (
+	CastSpacingPreserve CastSpacingMode = "preserve"
+	CastSpacingRemove   CastSpacingMode = "remove" // x :: int → x::int
+)
+
+// PLpgSQLIntoMode controls where the INTO of a PL/pgSQL SELECT stands.
+type PLpgSQLIntoMode string
+
+const (
+	PLpgSQLIntoPreserve  PLpgSQLIntoMode = "preserve"
+	PLpgSQLIntoAfterList PLpgSQLIntoMode = "after_list" // SELECT INTO x * FROM t → SELECT * INTO x FROM t
+)
+
 // CastStyleMode controls CAST(x AS t) vs x::t form.
 type CastStyleMode string
 
@@ -954,6 +970,8 @@ type Config struct {
 	CommaSpacing      CommaSpacingMode      `yaml:"comma_spacing"`
 	OrderAsc          OrderAscMode          `yaml:"order_asc"`
 	CastStyle         CastStyleMode         `yaml:"cast_style"`
+	CastSpacing       CastSpacingMode       `yaml:"cast_spacing"`
+	PLpgSQLInto       PLpgSQLIntoMode       `yaml:"plpgsql_into"`
 	NotIn             NotInMode             `yaml:"not_in"`
 	SchemaQual        SchemaQualMode        `yaml:"schema_qualification"`
 	InlineSpacing     InlineSpacingMode     `yaml:"inline_spacing"`
@@ -1004,6 +1022,8 @@ func defaultConfig() *Config {
 		CommaSpacing:                CommaSpacingPreserve,
 		OrderAsc:                    OrderAscPreserve,
 		CastStyle:                   CastStylePreserve,
+		CastSpacing:                 CastSpacingPreserve,
+		PLpgSQLInto:                 PLpgSQLIntoPreserve,
 		NotIn:                       NotInPreserve,
 		SchemaQual:                  SchemaQualPreserve,
 		Layout:                      defaultLayout(),
@@ -1240,6 +1260,18 @@ func validate(cfg *Config) error {
 	case CastStylePreserve, CastStyleOperator, "":
 	default:
 		return fmt.Errorf("cast_style must be preserve|operator, got %q", cfg.CastStyle)
+	}
+
+	switch cfg.CastSpacing {
+	case CastSpacingPreserve, CastSpacingRemove, "":
+	default:
+		return fmt.Errorf("cast_spacing must be preserve|remove, got %q", cfg.CastSpacing)
+	}
+
+	switch cfg.PLpgSQLInto {
+	case PLpgSQLIntoPreserve, PLpgSQLIntoAfterList, "":
+	default:
+		return fmt.Errorf("plpgsql_into must be preserve|after_list, got %q", cfg.PLpgSQLInto)
 	}
 
 	switch cfg.NotIn {

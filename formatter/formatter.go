@@ -1287,6 +1287,12 @@ func processGap(gap, prevText, nextText string, arith bool, cfg *config.Config) 
 		}
 	}
 
+	// Cast spacing — x :: int → x::int (when the two tokens still read the same glued together).
+	if !hasNL && cfg.CastSpacing == config.CastSpacingRemove && (prevText == "::" || nextText == "::") &&
+		gap != "" && !isCommentText(prevText) && !isCommentText(nextText) && gluesUnchanged(prevText, nextText) {
+		return ""
+	}
+
 	// Operator spacing — single space or no space around symbolic binary ops.
 	if !hasNL && cfg.OperatorSpacing == config.OperatorSpacingNormalize {
 		if (isSymbolicOp(prevText) || isSymbolicOp(nextText)) &&
@@ -3370,6 +3376,7 @@ func formatDollarQuoted(s string, cfg *config.Config, vars map[string]bool) (str
 		cfgInner.StatementBreak = config.StatementBreakPreserve
 	}
 	if isPLpgSQLBody(body) {
+		body = moveSelectInto(body, cfg.PLpgSQLInto)
 		body = normalizeAssignments(body, cfg.PLpgSQLAssignment)
 	}
 	cfgInner.Nested = true

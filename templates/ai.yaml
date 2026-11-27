@@ -43,6 +43,8 @@ plpgsql_keywords:
   case: lower
 inequality_op: c
 cast_style: operator
+cast_spacing: remove
+plpgsql_into: after_list
 join_form: short
 order_asc: remove
 schema_qualification: remove_public
@@ -73,6 +75,10 @@ layout:
     break: auto
     align_aliases: none
     align_set: none
+    where_conds:
+      first_item: inline
+    having_conds:
+      first_item: inline
   ddl:
     create_table:
       break: auto

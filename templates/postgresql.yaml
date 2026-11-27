@@ -41,6 +41,8 @@ aliases:
 plpgsql_assignment: colon_equals
 inequality_op: ansi
 cast_style: operator
+cast_spacing: remove
+plpgsql_into: after_list
 join_form: short
 operator_spacing: normalize
 comma_spacing: normalize

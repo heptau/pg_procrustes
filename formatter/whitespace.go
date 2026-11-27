@@ -427,3 +427,18 @@ func glueSafe(prev, next string) bool {
 	t := res.Tokens
 	return joined[t[0].Start:t[0].End] == prev && joined[t[1].Start:t[1].End] == next
 }
+
+// gluesUnchanged reports whether prev and next written without a blank between them are still
+// the same two tokens (x :: int → x::int; never a :: that would merge with its neighbour).
+func gluesUnchanged(prev, next string) bool {
+	if prev == "" || next == "" {
+		return false
+	}
+	joined := prev + next
+	res, err := pg_query.Scan(joined)
+	if err != nil || len(res.Tokens) != 2 {
+		return false
+	}
+	t := res.Tokens
+	return joined[t[0].Start:t[0].End] == prev && joined[t[1].Start:t[1].End] == next
+}

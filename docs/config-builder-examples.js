@@ -113,6 +113,17 @@ window.CB_EXAMPLES = {
    "t": "select count(*), my_func(b), coalesce(a, b) from t;"
   }
  },
+ "cast_spacing": {
+  "": {
+   "t": "select price :: numeric(10,2), created_at ::date from orders;"
+  },
+  "preserve": {
+   "t": "select price :: numeric(10,2), created_at ::date from orders;"
+  },
+  "remove": {
+   "t": "select price::numeric(10,2), created_at::date from orders;"
+  }
+ },
  "cast_style": {
   "": {
    "t": "select cast(price as numeric(10,2)), created_at::date from orders;"
@@ -129,16 +140,16 @@ window.CB_EXAMPLES = {
    "t": "select u.id, count(*) as cnt, coalesce(u.name, 'x') as nm, current_date as ts, my_func(u.id) as f\nfrom public.users as u\nwhere u.active = true and u.deleted_at is null and u.id not in (1, 2);\n\nSELECT O.ID, COUNT(*) AS CNT, COALESCE(O.NAME, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(O.ID) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE O.ACTIVE = TRUE AND O.DELETED_AT IS NULL AND O.ID NOT IN (1, 2);\n\nSelect I.Id, Count(*) As Cnt, Coalesce(I.Name, 'x') As Nm, Current_Date As Ts, My_Func(I.Id) As F\nFrom Public.Items As I\nWhere I.Active = True And I.Deleted_At Is Null And I.Id Not In (1, 2);"
   },
   "capitalize": {
-   "t": "select U.Id, count(*) as cnt, coalesce(U.Name, 'x') as nm, current_date as ts, my_func(U.Id) as f\nfrom public.users as u\nwhere U.Active = true and u.Deleted_at is null and U.Id not in (1, 2);\n\nSELECT O.Id, COUNT(*) AS CNT, COALESCE(O.Name, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(O.Id) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE O.Active = TRUE AND O.Deleted_at IS NULL AND O.Id NOT IN (1, 2);\n\nSelect I.Id, Count(*) As Cnt, Coalesce(I.Name, 'x') As Nm, Current_Date As Ts, My_Func(I.Id) As F\nFrom Public.Items As I\nWhere I.Active = True And I.Deleted_at Is Null And I.Id Not In (1, 2);"
+   "t": "select U.Id, count(*) as cnt, coalesce(U.Name, 'x') as nm, current_date as ts, my_func(U.Id) as f\nfrom public.users as u\nwhere U.Active = true and U.Deleted_at is null and U.Id not in (1, 2);\n\nSELECT O.Id, COUNT(*) AS CNT, COALESCE(O.Name, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(O.Id) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE O.Active = TRUE AND O.Deleted_at IS NULL AND O.Id NOT IN (1, 2);\n\nSelect I.Id, Count(*) As Cnt, Coalesce(I.Name, 'x') As Nm, Current_Date As Ts, My_Func(I.Id) As F\nFrom Public.Items As I\nWhere I.Active = True And I.Deleted_at Is Null And I.Id Not In (1, 2);"
   },
   "lower": {
-   "t": "select u.id, count(*) as cnt, coalesce(u.name, 'x') as nm, current_date as ts, my_func(u.id) as f\nfrom public.users as u\nwhere u.active = true and u.deleted_at is null and u.id not in (1, 2);\n\nSELECT o.id, COUNT(*) AS CNT, COALESCE(o.name, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(o.id) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE o.active = TRUE AND O.deleted_at IS NULL AND o.id NOT IN (1, 2);\n\nSelect i.id, Count(*) As Cnt, Coalesce(i.name, 'x') As Nm, Current_Date As Ts, My_Func(i.id) As F\nFrom Public.Items As I\nWhere i.active = True And I.deleted_at Is Null And i.id Not In (1, 2);"
+   "t": "select u.id, count(*) as cnt, coalesce(u.name, 'x') as nm, current_date as ts, my_func(u.id) as f\nfrom public.users as u\nwhere u.active = true and u.deleted_at is null and u.id not in (1, 2);\n\nSELECT o.id, COUNT(*) AS CNT, COALESCE(o.name, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(o.id) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE o.active = TRUE AND o.deleted_at IS NULL AND o.id NOT IN (1, 2);\n\nSelect i.id, Count(*) As Cnt, Coalesce(i.name, 'x') As Nm, Current_Date As Ts, My_Func(i.id) As F\nFrom Public.Items As I\nWhere i.active = True And i.deleted_at Is Null And i.id Not In (1, 2);"
   },
   "preserve": {
    "t": "select u.id, count(*) as cnt, coalesce(u.name, 'x') as nm, current_date as ts, my_func(u.id) as f\nfrom public.users as u\nwhere u.active = true and u.deleted_at is null and u.id not in (1, 2);\n\nSELECT O.ID, COUNT(*) AS CNT, COALESCE(O.NAME, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(O.ID) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE O.ACTIVE = TRUE AND O.DELETED_AT IS NULL AND O.ID NOT IN (1, 2);\n\nSelect I.Id, Count(*) As Cnt, Coalesce(I.Name, 'x') As Nm, Current_Date As Ts, My_Func(I.Id) As F\nFrom Public.Items As I\nWhere I.Active = True And I.Deleted_At Is Null And I.Id Not In (1, 2);"
   },
   "upper": {
-   "t": "select U.ID, count(*) as cnt, coalesce(U.NAME, 'x') as nm, current_date as ts, my_func(U.ID) as f\nfrom public.users as u\nwhere U.ACTIVE = true and u.DELETED_AT is null and U.ID not in (1, 2);\n\nSELECT O.ID, COUNT(*) AS CNT, COALESCE(O.NAME, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(O.ID) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE O.ACTIVE = TRUE AND O.DELETED_AT IS NULL AND O.ID NOT IN (1, 2);\n\nSelect I.ID, Count(*) As Cnt, Coalesce(I.NAME, 'x') As Nm, Current_Date As Ts, My_Func(I.ID) As F\nFrom Public.Items As I\nWhere I.ACTIVE = True And I.DELETED_AT Is Null And I.ID Not In (1, 2);"
+   "t": "select U.ID, count(*) as cnt, coalesce(U.NAME, 'x') as nm, current_date as ts, my_func(U.ID) as f\nfrom public.users as u\nwhere U.ACTIVE = true and U.DELETED_AT is null and U.ID not in (1, 2);\n\nSELECT O.ID, COUNT(*) AS CNT, COALESCE(O.NAME, 'x') AS NM, CURRENT_DATE AS TS, MY_FUNC(O.ID) AS F\nFROM PUBLIC.ORDERS AS O\nWHERE O.ACTIVE = TRUE AND O.DELETED_AT IS NULL AND O.ID NOT IN (1, 2);\n\nSelect I.ID, Count(*) As Cnt, Coalesce(I.NAME, 'x') As Nm, Current_Date As Ts, My_Func(I.ID) As F\nFrom Public.Items As I\nWhere I.ACTIVE = True And I.DELETED_AT Is Null And I.ID Not In (1, 2);"
   }
  },
  "comma_spacing": {
@@ -1414,6 +1425,62 @@ window.CB_EXAMPLES = {
    "t": "grant select, insert, update on table orders, items to app_user, reporting with grant option;\n\ngrant select, insert, update\n   on table orders, items\n   to app_user, reporting\n   with grant option;"
   }
  },
+ "layout.dollar_quote.plpgsql.begin_body.indent": {
+  "": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n \u003e 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;"
+  },
+  "indent": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "none": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\nif n \u003e 0 then\nv := n;\nend if;\nfor i in 1..n loop\nv := v + i;\nend loop;\nreturn v;\nend\n$$;"
+  },
+  "preserve": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n \u003e 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;"
+  }
+ },
+ "layout.dollar_quote.plpgsql.control_flow.if.body_indent": {
+  "": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "indent": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n    v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "none": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "preserve": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  }
+ },
+ "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": {
+  "": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "indent": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n    v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "none": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  },
+  "preserve": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n  if n \u003e 0 then\n  v := n;\n  end if;\n  for i in 1..n loop\n  v := v + i;\n  end loop;\n  return v;\nend\n$$;"
+  }
+ },
+ "layout.dollar_quote.plpgsql.declare.indent": {
+  "": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n \u003e 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;"
+  },
+  "indent": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n  v int := 0;\nbegin\n      if n \u003e 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;"
+  },
+  "none": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\nv int := 0;\nbegin\n      if n \u003e 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;"
+  },
+  "preserve": {
+   "t": "create function f(n int) returns int language plpgsql as $$\ndeclare\n      v int := 0;\nbegin\n      if n \u003e 0 then\n      v := n;\n      end if;\n      for i in 1..n loop\n      v := v + i;\n      end loop;\n      return v;\nend\n$$;"
+  }
+ },
  "layout.indent.normalize": {
   "": {
    "t": "select\n  id,\n  name\nfrom users\nwhere\n  active = true;"
@@ -1427,19 +1494,19 @@ window.CB_EXAMPLES = {
  },
  "layout.indent.remainder": {
   "": {
-   "t": "\t select 1;\n\t\t select 2;\n\t\t\t\tselect 3;"
+   "t": "   select 1;\n     select 2;\n        select 3;"
   },
   "add": {
-   "t": "\t\tselect 1;\n\t\t\tselect 2;\n\t\t\t\tselect 3;"
+   "t": "   select 1;\n     select 2;\n        select 3;"
   },
   "keep": {
-   "t": "\t select 1;\n\t\t select 2;\n\t\t\t\tselect 3;"
+   "t": "   select 1;\n     select 2;\n        select 3;"
   },
   "remove": {
-   "t": "\tselect 1;\n\t\tselect 2;\n\t\t\t\tselect 3;"
+   "t": "   select 1;\n     select 2;\n        select 3;"
   },
   "round": {
-   "t": "\t\tselect 1;\n\t\t\tselect 2;\n\t\t\t\tselect 3;"
+   "t": "   select 1;\n     select 2;\n        select 3;"
   }
  },
  "layout.indent.size": {
@@ -1648,6 +1715,17 @@ window.CB_EXAMPLES = {
    "t": "create function f() returns int language plpgsql as $$\ndeclare\n  v int := 0;\n  w text = 'x';\nbegin\n  v := 1;\n  w = 'y';\n  return v;\nend\n$$;"
   }
  },
+ "plpgsql_into": {
+  "": {
+   "t": "create function f() returns void language plpgsql as $$\ndeclare\n  r record;\nbegin\n  select into r * from t where id = 1;\n  select into strict a, b x, y from u;\nend\n$$;"
+  },
+  "after_list": {
+   "t": "create function f() returns void language plpgsql as $$\ndeclare\n  r record;\nbegin\n  select * into r from t where id = 1;\n  select x, y into strict a, b from u;\nend\n$$;"
+  },
+  "preserve": {
+   "t": "create function f() returns void language plpgsql as $$\ndeclare\n  r record;\nbegin\n  select into r * from t where id = 1;\n  select into strict a, b x, y from u;\nend\n$$;"
+  }
+ },
  "plpgsql_keywords.case": {
   "": {
    "t": "create function f() returns integer as $$\nbegin\n  raise notice 'a';\n  RAISE NOTICE 'b';\n  Raise Notice 'c';\n  return 1;\nexception when others then\n  RAISE EXCEPTION 'failed';\nend;\n$$ language plpgsql;"
@@ -1749,7 +1827,7 @@ window.CB_EXAMPLES = {
    "t": "select 1;\nselect 2"
   },
   "remove": {
-   "t": "select 1\nselect 2"
+   "t": "select 1;\nselect 2"
   }
  },
  "statement_break": {

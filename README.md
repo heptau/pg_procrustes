@@ -463,6 +463,9 @@ plpgsql_assignment: preserve # preserve | colon_equals | equals   (PL/pgSQL x :=
                              #   ansi: always use <>
                              #   c:    always use !=
 
+plpgsql_into: preserve       # preserve | after_list   (PL/pgSQL SELECT INTO target before the select list;
+                             #   after_list: SELECT INTO x * FROM t → SELECT * INTO x FROM t, also INTO STRICT a, b)
+
 join_form: preserve          # preserve | short | long
                              #   short: JOIN, LEFT JOIN, FULL JOIN
                              #   long:  INNER JOIN, LEFT OUTER JOIN, FULL OUTER JOIN
@@ -488,6 +491,9 @@ syntax_errors: fail          # fail | skip | ignore
 comma_spacing: normalize     # preserve | normalize | compact
                              #   normalize: one space after comma, none before
                              #   compact:   no spaces around commas
+
+cast_spacing: preserve       # preserve | remove
+                             #   remove: no blanks around the cast operator (x :: int → x::int)
 
 blank_lines: preserve        # preserve | max_3 | max_2 | max_1
 
@@ -524,7 +530,7 @@ quoted_identifiers: remove_safe  # preserve | remove_safe
 schema_qualification: preserve   # preserve | remove_public
 
 cast_style: preserve         # preserve | operator
-                             #   operator: always use CAST(x AS type)
+                             #   operator: always use x::type (CAST(x AS type) → x::type)
 
 order_asc: preserve          # preserve | add | remove
                              #   add:    make ASC explicit in ORDER BY

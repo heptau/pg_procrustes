@@ -1,6 +1,10 @@
 window.CB_I18N = window.CB_I18N || {};
 window.CB_I18N.de = {
   "labels": {
+    "layout.dollar_quote.plpgsql.declare.indent": "PL/pgSQL — DECLARE-Abschnitt",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "PL/pgSQL — BEGIN-Abschnitt",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "PL/pgSQL — IF-Rumpf",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "PL/pgSQL — LOOP-Rumpf",
     "reserved_keywords.case": "Reservierte Schlüsselwörter",
     "keywords.case": "Übrige Schlüsselwörter",
     "data_types.case": "Datentypen — Groß-/Kleinschreibung",
@@ -22,6 +26,7 @@ window.CB_I18N.de = {
     "semicolons": "Semikolons",
     "inequality_op": "Ungleich-Operator",
     "plpgsql_assignment": "Zuweisung in PL/pgSQL",
+    "plpgsql_into": "PL/pgSQL SELECT INTO",
     "join_form": "JOIN-Form",
     "operator_spacing": "Leerzeichen um Operatoren",
     "blank_lines": "Begrenzung aufeinanderfolgender Leerzeilen",
@@ -39,6 +44,7 @@ window.CB_I18N.de = {
     "comma_spacing": "Leerzeichen um Kommas",
     "order_asc": "ORDER BY: Schlüsselwort ASC",
     "cast_style": "CAST-Stil",
+    "cast_spacing": "Leerzeichen um ::",
     "not_in": "NOT-IN-Form",
     "schema_qualification": "Schema-Qualifizierung",
     "inline_spacing": "Leerzeichen innerhalb der Zeile",
@@ -126,6 +132,10 @@ window.CB_I18N.de = {
     "statement_break": "Anweisungen in einer Zeile"
   },
   "descs": {
+    "layout.dollar_quote.plpgsql.declare.indent": "Einrückung der Deklarationen zwischen DECLARE und BEGIN eines PL/pgSQL-Rumpfs.",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "Einrückung der Anweisungen zwischen BEGIN und END (und EXCEPTION) eines PL/pgSQL-Rumpfs.",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "Einrückung der Anweisungen in IF / ELSIF / ELSE … END IF eines PL/pgSQL-Rumpfs.",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "Einrückung der Anweisungen zwischen LOOP und END LOOP (FOR, WHILE, FOREACH) eines PL/pgSQL-Rumpfs.",
     "reserved_keywords.case": "Steuert die Groß-/Kleinschreibung reservierter SQL-Schlüsselwörter: SELECT, FROM, WHERE, JOIN, AND, OR usw.",
     "keywords.case": "Steuert die Groß-/Kleinschreibung nicht reservierter Schlüsselwörter wie BEGIN, END, DECLARE, LANGUAGE, RETURNS.",
     "data_types.case": "Steuert die Groß-/Kleinschreibung von Datentypnamen: integer, varchar, timestamp usw.",
@@ -147,6 +157,7 @@ window.CB_I18N.de = {
     "semicolons": "Steuert, ob Anweisungen mit einem Semikolon enden.",
     "inequality_op": "Vereinheitlicht den Ungleich-Operator auf <> (ANSI) oder != (C-Stil).",
     "plpgsql_assignment": "Vereinheitlicht den Zuweisungsoperator in PL/pgSQL-Rümpfen: Anweisungen (x := 1 / x = 1) und DECLARE-Vorgabewerte. Benannte Argumente (f(a := 1)), Vergleiche, UPDATE … SET und Cursor-Abfragen bleiben unverändert.",
+    "plpgsql_into": "Verschiebt das INTO-Ziel eines PL/pgSQL-SELECT, das direkt nach SELECT steht, hinter die Ausdrucksliste: SELECT INTO x * FROM t → SELECT * INTO x FROM t (auch INTO STRICT a, b). Eine Anweisung mit einem Kommentar in diesem Teil bleibt unverändert.",
     "join_form": "Steuert, ob JOIN-Schlüsselwörter in Kurz- oder Langform geschrieben werden.",
     "operator_spacing": "Steuert Leerzeichen um symbolische Vergleichs- und Verkettungsoperatoren: =, !=, <>, <, >, <=, >=, ||, sowie := und =>. Arithmetische Operatoren werden separat über arithmetic_spacing gesteuert.",
     "blank_lines": "Begrenzt aufeinanderfolgende Leerzeilen an beliebiger Stelle der Datei (auch innerhalb von Anweisungen); es entfernt nur Leerzeilen und fügt nie welche hinzu. Für eine genaue Anzahl zwischen Anweisungen blank_lines_between_statements verwenden.",
@@ -164,6 +175,7 @@ window.CB_I18N.de = {
     "comma_spacing": "Steuert Leerzeichen um Kommas in SELECT-Listen, Funktionsargumenten, VALUES usw.",
     "order_asc": "Steuert, ob ORDER-BY-Spalten ein explizites Schlüsselwort ASC erhalten.",
     "cast_style": "Steuert, ob Typumwandlungen als CAST(x AS type) oder x::type geschrieben werden. SQL kennt zwei gleichwertige Syntaxen: die Funktionsform (ANSI-Standard) und die :: -Operatorform (PostgreSQL-Erweiterung).",
+    "cast_spacing": "Entfernt die Leerzeichen um den Cast-Operator :: (x :: int → x::int). Ein Leerzeichen neben einem Kommentar oder Zeilenumbruch bleibt.",
     "not_in": "Vereinheitlicht das NOT-IN-Prädikat auf NOT IN (…) oder <> ALL (ARRAY[…]).",
     "schema_qualification": "Entfernt das Schemapräfix public. von Objektnamen, wenn es das Standardschema ist.",
     "inline_spacing": "Reduziert zwei oder mehr aufeinanderfolgende horizontale Leerzeichen zwischen Tokens derselben Zeile auf ein einzelnes. Zeilenumbrüche und Einrückungen bleiben unberührt.",
@@ -251,6 +263,14 @@ window.CB_I18N.de = {
     "statement_break": "always beginnt jede Anweisung in einer eigenen Zeile, wenn sich mehrere eine Zeile teilen (select 1; select 2;). Leerzeilen bleiben unverändert; ein Kommentar in der Zeile eines ';' bleibt bei seiner Anweisung. blank_lines_between_statements trennt sie ebenfalls und hat Vorrang."
   },
   "hints": {
+    "at the level of DECLARE": "auf der Ebene von DECLARE",
+    "one level under DECLARE": "eine Ebene unter DECLARE",
+    "at the level of BEGIN": "auf der Ebene von BEGIN",
+    "one level under BEGIN": "eine Ebene unter BEGIN",
+    "at the level of IF": "auf der Ebene von IF",
+    "one level under IF": "eine Ebene unter IF",
+    "at the level of LOOP": "auf der Ebene von LOOP",
+    "one level under LOOP": "eine Ebene unter LOOP",
     "own line, above the \")\"": "eigene Zeile, über der „)“",
     "First letter only": "nur der erste Buchstabe",
     "full SQL name": "voller SQL-Name",
@@ -290,6 +310,7 @@ window.CB_I18N.de = {
     "always add ASC": "ASC immer hinzufügen",
     "remove explicit ASC": "explizites ASC entfernen",
     "use x::type form": "Form x::type verwenden",
+    "no blanks: x::int": "ohne Leerzeichen: x::int",
     "use NOT IN": "NOT IN verwenden",
     "use <> ALL": "<> ALL verwenden",
     "drop public. prefix": "Präfix public. entfernen",

@@ -1,6 +1,10 @@
 window.CB_I18N = window.CB_I18N || {};
 window.CB_I18N.es = {
   "labels": {
+    "layout.dollar_quote.plpgsql.declare.indent": "PL/pgSQL — sección DECLARE",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "PL/pgSQL — sección BEGIN",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "PL/pgSQL — cuerpo de IF",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "PL/pgSQL — cuerpo de LOOP",
     "reserved_keywords.case": "Palabras reservadas",
     "keywords.case": "Otras palabras clave",
     "data_types.case": "Tipos de datos — mayúsculas/minúsculas",
@@ -22,6 +26,7 @@ window.CB_I18N.es = {
     "semicolons": "Punto y coma",
     "inequality_op": "Operador de desigualdad",
     "plpgsql_assignment": "Asignación en PL/pgSQL",
+    "plpgsql_into": "SELECT INTO en PL/pgSQL",
     "join_form": "Forma de JOIN",
     "operator_spacing": "Espaciado de operadores",
     "blank_lines": "Límite de líneas en blanco consecutivas",
@@ -39,6 +44,7 @@ window.CB_I18N.es = {
     "comma_spacing": "Espaciado de comas",
     "order_asc": "Palabra clave ASC en ORDER BY",
     "cast_style": "Estilo de CAST",
+    "cast_spacing": "Espacios alrededor de ::",
     "not_in": "Forma de NOT IN",
     "schema_qualification": "Calificación de esquema",
     "inline_spacing": "Espaciado en línea",
@@ -126,6 +132,10 @@ window.CB_I18N.es = {
     "statement_break": "Sentencias en una línea"
   },
   "descs": {
+    "layout.dollar_quote.plpgsql.declare.indent": "Sangría de las declaraciones entre DECLARE y BEGIN de un cuerpo PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "Sangría de las sentencias entre BEGIN y END (y EXCEPTION) de un cuerpo PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "Sangría de las sentencias dentro de IF / ELSIF / ELSE … END IF de un cuerpo PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "Sangría de las sentencias entre LOOP y END LOOP (FOR, WHILE, FOREACH) de un cuerpo PL/pgSQL.",
     "reserved_keywords.case": "Controla las mayúsculas/minúsculas de las palabras reservadas de SQL: SELECT, FROM, WHERE, JOIN, AND, OR, etc.",
     "keywords.case": "Controla las mayúsculas/minúsculas de las palabras clave no reservadas, como BEGIN, END, DECLARE, LANGUAGE, RETURNS.",
     "data_types.case": "Controla las mayúsculas/minúsculas de los nombres de tipos de datos: integer, varchar, timestamp, etc.",
@@ -147,6 +157,7 @@ window.CB_I18N.es = {
     "semicolons": "Controla si las sentencias terminan con punto y coma.",
     "inequality_op": "Normaliza el operador de desigualdad a <> (ANSI) o != (estilo C).",
     "plpgsql_assignment": "Normaliza el operador de asignación en cuerpos PL/pgSQL: sentencias (x := 1 / x = 1) y valores por defecto de DECLARE. Los argumentos con nombre (f(a := 1)), las comparaciones, UPDATE … SET y las consultas de cursor no se tocan.",
+    "plpgsql_into": "Mueve el destino INTO de un SELECT de PL/pgSQL, escrito justo después de SELECT, detrás de la lista de expresiones: SELECT INTO x * FROM t → SELECT * INTO x FROM t (también INTO STRICT a, b). Una sentencia con un comentario en esa parte no se modifica.",
     "join_form": "Controla si las palabras clave JOIN se escriben en forma corta o larga.",
     "operator_spacing": "Controla los espacios alrededor de los operadores simbólicos de comparación y concatenación: =, !=, <>, <, >, <=, >=, ||, además de := y =>. Los operadores aritméticos se controlan por separado con arithmetic_spacing.",
     "blank_lines": "Limita las líneas en blanco consecutivas en cualquier parte del archivo (también dentro de las sentencias); solo las elimina, nunca las añade. Para fijar un número exacto entre sentencias usa blank_lines_between_statements.",
@@ -164,6 +175,7 @@ window.CB_I18N.es = {
     "comma_spacing": "Controla los espacios alrededor de las comas en listas SELECT, argumentos de funciones, VALUES, etc.",
     "order_asc": "Controla si las columnas de ORDER BY llevan la palabra clave ASC explícita.",
     "cast_style": "Controla si las conversiones de tipo se escriben como CAST(x AS type) o x::type. SQL tiene dos sintaxis equivalentes: la forma de función (estándar ANSI) y la forma con el operador :: (extensión de PostgreSQL).",
+    "cast_spacing": "Elimina los espacios alrededor del operador de conversión :: (x :: int → x::int). Un espacio junto a un comentario o un salto de línea se mantiene.",
     "not_in": "Normaliza el predicado NOT IN a NOT IN (…) o <> ALL (ARRAY[…]).",
     "schema_qualification": "Elimina el prefijo de esquema public. de los nombres de objetos cuando es el esquema por defecto.",
     "inline_spacing": "Reduce a un solo espacio dos o más espacios horizontales consecutivos entre tokens de la misma línea. No toca los saltos de línea ni la sangría.",
@@ -251,6 +263,14 @@ window.CB_I18N.es = {
     "statement_break": "always pone cada sentencia en su propia línea cuando varias comparten línea (select 1; select 2;). No toca las líneas en blanco; un comentario en la misma línea que un ';' se queda con su sentencia. blank_lines_between_statements también las separa y tiene prioridad."
   },
   "hints": {
+    "at the level of DECLARE": "al nivel de DECLARE",
+    "one level under DECLARE": "un nivel bajo DECLARE",
+    "at the level of BEGIN": "al nivel de BEGIN",
+    "one level under BEGIN": "un nivel bajo BEGIN",
+    "at the level of IF": "al nivel de IF",
+    "one level under IF": "un nivel bajo IF",
+    "at the level of LOOP": "al nivel de LOOP",
+    "one level under LOOP": "un nivel bajo LOOP",
     "own line, above the \")\"": "en su propia línea, sobre el «)»",
     "one space before every comment": "un espacio antes de cada comentario",
     "one space, no padding": "un espacio, sin relleno",
@@ -293,6 +313,7 @@ window.CB_I18N.es = {
     "always add ASC": "añadir siempre ASC",
     "remove explicit ASC": "quitar ASC explícito",
     "use x::type form": "usar la forma x::type",
+    "no blanks: x::int": "sin espacios: x::int",
     "use NOT IN": "usar NOT IN",
     "use <> ALL": "usar <> ALL",
     "drop public. prefix": "quitar el prefijo public.",

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `cast_spacing: preserve | remove`: `remove` takes the blanks around the cast operator off (`_year :: varchar` → `_year::varchar`); a blank beside a comment or a line break stays. Test `TestCastSpacingRemove`
+- `plpgsql_into: preserve | after_list`: `after_list` moves the target of a PL/pgSQL `SELECT INTO` written right after `SELECT` behind the select list (`SELECT INTO _period * FROM t` → `SELECT * INTO _period FROM t`, also `INTO STRICT a, b`); a statement with a comment in that part is left alone. Such a statement is then plain SQL, so the rules that need its parse tree (`schema_qualification: remove_public`, …) apply to it too. Tests in `formatter/selectinto_test.go`
+- Config Builder: the options above and the PL/pgSQL indent options (`layout.dollar_quote.plpgsql.declare.indent`, `begin_body.indent`, `control_flow.if.body_indent`, `control_flow.loop.body_indent`), with translations
+
 ### Fixed
 
 - A psql meta-command after SQL (`select … as drift \gset`, or `\g`, `\gexec`, `\gx`, `\watch` on the line after a query) was a syntax error, so the whole file was not formatted; it ends the statement (as in psql, without a semicolon) and is copied verbatim. Test `TestSyntaxErrorsPsqlMetaCommandEndsStatement`
@@ -12,7 +18,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- `templates/ai.yaml` sets `layout.indent.normalize: change` and `indent` for the PL/pgSQL `declare` / `begin_body` sections and `if` / `loop` bodies (`layout.dollar_quote.plpgsql`), so the two-space indent it promises also replaces the tabs and the indent depth of the source, in function bodies too
+- `templates/ai.yaml` sets `layout.indent.normalize: change` and `indent` for the PL/pgSQL `declare` / `begin_body` sections and `if` / `loop` bodies (`layout.dollar_quote.plpgsql`), so the two-space indent it promises also replaces the tabs and the indent depth of the source, in function bodies too; a broken `WHERE` / `HAVING` keeps its first condition on the keyword line (`layout.content.where_conds` / `having_conds.first_item: inline`: `where a=1` / `  and b=2`)
+- `templates/ai.yaml`, `modern.yaml` and `postgresql.yaml` set `cast_spacing: remove` and `plpgsql_into: after_list`
 
 ## [0.6.1] — 2026-11-13
 

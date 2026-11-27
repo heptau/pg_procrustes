@@ -1,6 +1,10 @@
 window.CB_I18N = window.CB_I18N || {};
 window.CB_I18N.cs = {
   "labels": {
+    "layout.dollar_quote.plpgsql.declare.indent": "PL/pgSQL — sekce DECLARE",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "PL/pgSQL — sekce BEGIN",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "PL/pgSQL — tělo IF",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "PL/pgSQL — tělo LOOP",
     "reserved_keywords.case": "Rezervovaná klíčová slova",
     "keywords.case": "Ostatní klíčová slova",
     "data_types.case": "Datové typy — velikost písmen",
@@ -22,6 +26,7 @@ window.CB_I18N.cs = {
     "semicolons": "Středníky",
     "inequality_op": "Operátor nerovnosti",
     "plpgsql_assignment": "Přiřazení v PL/pgSQL",
+    "plpgsql_into": "PL/pgSQL SELECT INTO",
     "join_form": "Tvar JOIN",
     "operator_spacing": "Mezery kolem operátorů",
     "blank_lines": "Omezení po sobě jdoucích prázdných řádků",
@@ -39,6 +44,7 @@ window.CB_I18N.cs = {
     "comma_spacing": "Mezery kolem čárek",
     "order_asc": "Klíčové slovo ASC v ORDER BY",
     "cast_style": "Styl CAST",
+    "cast_spacing": "Mezery kolem ::",
     "not_in": "Tvar NOT IN",
     "schema_qualification": "Kvalifikace schématem",
     "inline_spacing": "Mezery uvnitř řádku",
@@ -126,6 +132,10 @@ window.CB_I18N.cs = {
     "statement_break": "Příkazy na jednom řádku"
   },
   "descs": {
+    "layout.dollar_quote.plpgsql.declare.indent": "Odsazení deklarací mezi DECLARE a BEGIN v těle PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.begin_body.indent": "Odsazení příkazů mezi BEGIN a END (a EXCEPTION) v těle PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.control_flow.if.body_indent": "Odsazení příkazů uvnitř IF / ELSIF / ELSE … END IF v těle PL/pgSQL.",
+    "layout.dollar_quote.plpgsql.control_flow.loop.body_indent": "Odsazení příkazů mezi LOOP a END LOOP (FOR, WHILE, FOREACH) v těle PL/pgSQL.",
     "reserved_keywords.case": "Určuje velikost písmen rezervovaných klíčových slov SQL: SELECT, FROM, WHERE, JOIN, AND, OR atd.",
     "keywords.case": "Určuje velikost písmen nerezervovaných klíčových slov, např. BEGIN, END, DECLARE, LANGUAGE, RETURNS.",
     "data_types.case": "Určuje velikost písmen názvů datových typů: integer, varchar, timestamp atd.",
@@ -147,6 +157,7 @@ window.CB_I18N.cs = {
     "semicolons": "Určuje, zda příkazy končí středníkem.",
     "inequality_op": "Sjednotí operátor nerovnosti na <> (ANSI) nebo != (styl C).",
     "plpgsql_assignment": "Sjednotí operátor přiřazení v tělech PL/pgSQL: příkazy (x := 1 / x = 1) i výchozí hodnoty v DECLARE. Pojmenované argumenty (f(a := 1)), porovnání, UPDATE … SET a dotazy kurzorů se nemění.",
+    "plpgsql_into": "Přesune cíl INTO příkazu SELECT v PL/pgSQL, zapsaný hned za SELECT, za seznam výrazů: SELECT INTO x * FROM t → SELECT * INTO x FROM t (i INTO STRICT a, b). Příkaz s komentářem v této části se nemění.",
     "join_form": "Určuje, zda se klíčová slova JOIN píší v krátkém, nebo dlouhém tvaru.",
     "operator_spacing": "Určuje mezery kolem symbolických porovnávacích a zřetězovacích operátorů: =, !=, <>, <, >, <=, >=, ||, a také := a =>. Aritmetické operátory řídí zvlášť arithmetic_spacing.",
     "blank_lines": "Omezuje počet po sobě jdoucích prázdných řádků kdekoli v souboru (i uvnitř příkazů); prázdné řádky jen ubírá, nikdy nepřidává. Přesný počet mezi příkazy nastavíte volbou blank_lines_between_statements.",
@@ -164,6 +175,7 @@ window.CB_I18N.cs = {
     "comma_spacing": "Určuje mezery kolem čárek v seznamech SELECT, argumentech funkcí, VALUES atd.",
     "order_asc": "Určuje, zda mají sloupce v ORDER BY explicitní klíčové slovo ASC.",
     "cast_style": "Určuje, zda se přetypování zapisuje jako CAST(x AS type), nebo x::type. SQL má dvě rovnocenné syntaxe — funkční tvar (standard ANSI) a operátor :: (rozšíření PostgreSQL).",
+    "cast_spacing": "Odstraní mezery kolem operátoru přetypování :: (x :: int → x::int). Mezera vedle komentáře nebo zalomení řádku zůstane.",
     "not_in": "Sjednotí predikát NOT IN na NOT IN (…) nebo <> ALL (ARRAY[…]).",
     "schema_qualification": "Odstraní prefix schématu public. z názvů objektů, pokud jde o výchozí schéma.",
     "inline_spacing": "Sloučí dvě a více po sobě jdoucích vodorovných mezer mezi tokeny na jednom řádku do jedné mezery. Nemění nové řádky ani odsazení.",
@@ -251,6 +263,14 @@ window.CB_I18N.cs = {
     "statement_break": "always začne každý příkaz na vlastním řádku, když jich několik sdílí řádek (select 1; select 2;). Prázdné řádky se nemění; komentář na řádku se středníkem zůstává u svého příkazu. Příkazy odděluje i blank_lines_between_statements a ten má přednost."
   },
   "hints": {
+    "at the level of DECLARE": "na úrovni DECLARE",
+    "one level under DECLARE": "o úroveň pod DECLARE",
+    "at the level of BEGIN": "na úrovni BEGIN",
+    "one level under BEGIN": "o úroveň pod BEGIN",
+    "at the level of IF": "na úrovni IF",
+    "one level under IF": "o úroveň pod IF",
+    "at the level of LOOP": "na úrovni LOOP",
+    "one level under LOOP": "o úroveň pod LOOP",
     "own line, above the \")\"": "na vlastním řádku, nad „)“",
     "one space before every comment": "jedna mezera před každým komentářem",
     "one space, no padding": "jedna mezera, bez zarovnání",
@@ -293,6 +313,7 @@ window.CB_I18N.cs = {
     "always add ASC": "vždy přidat ASC",
     "remove explicit ASC": "odebrat explicitní ASC",
     "use x::type form": "použít tvar x::type",
+    "no blanks: x::int": "bez mezer: x::int",
     "use NOT IN": "použít NOT IN",
     "use <> ALL": "použít <> ALL",
     "drop public. prefix": "vypustit prefix public.",
