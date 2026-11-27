@@ -219,6 +219,30 @@ func splitStatements(sql string) ([]chunk, error) {
 			}
 			continue
 		}
+		if text == "\\" && !startOfStmt {
+			// psql meta-command after (part of) a statement: `select … \gset`, `\g`, `\gexec`,
+			// `\watch`, … psql sends the query buffer, so the statement ends here (without a
+			// semicolon); the command up to the end of the line is a verbatim chunk.
+			stmtEnd := len(strings.TrimRight(sql[:t.Start], " \t\r\n"))
+			if stmtEnd < pos {
+				stmtEnd = pos
+			}
+			chunks = append(chunks, chunk{start: pos, end: stmtEnd, text: sql[pos:stmtEnd]})
+			end := strings.IndexByte(sql[t.Start:], '\n')
+			if end < 0 {
+				end = len(sql)
+			} else {
+				end += int(t.Start) + 1
+			}
+			chunks = append(chunks, chunk{start: stmtEnd, end: end, text: sql[stmtEnd:end], meta: true})
+			pos = end
+			for i+1 < len(toks) && int(toks[i+1].Start) < end {
+				i++
+			}
+			depth, atomic, caseDepth = 0, 0, 0
+			startOfStmt = true
+			continue
+		}
 		if !isComment {
 			startOfStmt = false
 		}

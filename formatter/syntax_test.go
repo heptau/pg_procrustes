@@ -109,6 +109,27 @@ func TestSyntaxErrorsPsqlMetaCommandsAreVerbatimNotErrors(t *testing.T) {
 	}
 }
 
+// A meta-command after SQL (`… \gset`, `\gexec` on the next line) sends the query buffer:
+// the statement ends there, without a semicolon.
+func TestSyntaxErrorsPsqlMetaCommandEndsStatement(t *testing.T) {
+	src := "select exists (\n  select from t where a = 1\n) as drift \\gset\n\n\\if :drift\nselect a\nfrom t\n\\gexec\nselect 2;\n\\endif\n"
+	want := "SELECT EXISTS (\n  SELECT FROM t WHERE a = 1\n) AS drift \\gset\n\n\\if :drift\nSELECT a\nFROM t\n\\gexec\nSELECT 2;\n\\endif\n"
+	for _, m := range []config.SyntaxErrorMode{config.SyntaxErrorFail, config.SyntaxErrorSkip} {
+		cfg := syntaxCfg(t, m)
+		out, diags, err := formatter.FormatWithDiagnostics(src, cfg)
+		if err != nil || len(diags) != 0 {
+			t.Fatalf("%s: meta-commands must not be errors: %v %v", m, diags, err)
+		}
+		if out != want {
+			t.Fatalf("%s: got %q want %q", m, out, want)
+		}
+		again, _, _ := formatter.FormatWithDiagnostics(out, cfg)
+		if again != out {
+			t.Fatalf("%s: not idempotent: %q", m, again)
+		}
+	}
+}
+
 func TestSyntaxErrorsUnterminatedStringIsFatalEvenInSkipMode(t *testing.T) {
 	for _, m := range []config.SyntaxErrorMode{config.SyntaxErrorFail, config.SyntaxErrorSkip} {
 		_, err := formatter.Format("select 1;\nselect 'oops;\nselect 3;", syntaxCfg(t, m))

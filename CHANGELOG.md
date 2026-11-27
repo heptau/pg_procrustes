@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A psql meta-command after SQL (`select … as drift \gset`, or `\g`, `\gexec`, `\gx`, `\watch` on the line after a query) was a syntax error, so the whole file was not formatted; it ends the statement (as in psql, without a semicolon) and is copied verbatim. Test `TestSyntaxErrorsPsqlMetaCommandEndsStatement`
+
 ## [0.6.1] — 2026-11-13
 
 ### Changed
