@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-11-27
+
 ### Added
 
 - `cast_spacing: preserve | remove`: `remove` takes the blanks around the cast operator off (`_year :: varchar` → `_year::varchar`); a blank beside a comment or a line break stays. Test `TestCastSpacingRemove`
