@@ -15,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - A psql meta-command after SQL (`select … as drift \gset`, or `\g`, `\gexec`, `\gx`, `\watch` on the line after a query) was a syntax error, so the whole file was not formatted; it ends the statement (as in psql, without a semicolon) and is copied verbatim. Test `TestSyntaxErrorsPsqlMetaCommandEndsStatement`
 - `layout.indent.normalize: change` left the tabs at the start of the lines of a function body (`$$ … $$`) that begin with a tab, so with `indent.type: spaces` the body kept its tabs (or a mix of a tab and blanks); they are converted like every other line (string constants inside stay as written). Test `TestIndentNormalizeChangesTabsInFunctionBody`
+- In a PL/pgSQL body, the query of `FOR r IN select … LOOP`, `RETURN QUERY select …` and `OPEN c FOR select …` that starts on the line of its statement was broken with its other clauses (`from`, `where`, …) at the level of `FOR` / `RETURN`; they hang one level under that line. Test `TestQueryAfterForInHangsUnderItsLine`
 
 ### Changed
 

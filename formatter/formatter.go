@@ -3868,12 +3868,20 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 			baseIndent = base
 		}
 
+		// A query that follows the words of its statement on the line (FOR r IN select …, RETURN QUERY
+		// select …, OPEN c FOR select …) hangs one level under that line: its clauses must not stand
+		// at the level of the FOR / RETURN they belong to.
+		contIndent := baseIndent
+		if lc.Clauses.Align != config.AlignRight && hangsAfterWords(prefix[strings.LastIndexByte(prefix, '\n')+1:]) {
+			contIndent = baseIndent + indentUnitFromCfg(cfg)
+		}
+
 		// Strip the body's base indent from continuation lines so that
 		// reindentLines adds it back exactly once (without this, Phase 2
 		// sees FROM users already at 4sp, preserves it, then reindentLines
 		// prepends another 4sp giving double indentation).
 		rawText := sqlText
-		sqlText = stripLeadingIndent(sqlText, baseIndent)
+		sqlText = stripLeadingIndent(sqlText, contIndent, baseIndent)
 
 		// Phase 1: apply full formatter rules (alias detection, casing) now that we have
 		// a valid SQL statement that pg_query.Parse can handle.
@@ -3917,9 +3925,9 @@ func applyLayoutPerStatement(body string, cfg *config.Config, vars map[string]bo
 		}
 		if !layoutChanged {
 			// Only formatter rules changed (e.g. AS added), no clause restructuring.
-			return reindentLines(sqlText, baseIndent), true, 0
+			return reindentLines(sqlText, contIndent), true, 0
 		}
-		return reindentLines(formatted, baseIndent), true, drop
+		return reindentLines(formatted, contIndent), true, drop
 	}
 
 	for ti, tok := range scanResult.Tokens {
@@ -4087,6 +4095,21 @@ func runsIntoBlockEnd(sqlText string) bool {
 
 // endsWithOpenerWord reports whether a line of a PL/pgSQL body ends with THEN, ELSE or LOOP followed by
 // nothing else (a statement that follows it is on the line of its opener: `if a then select …;`).
+// hangsAfterWords reports whether line — the text in front of a query on its line — ends in the words
+// a query follows within its statement: FOR r IN, RETURN QUERY, OPEN c FOR.
+func hangsAfterWords(line string) bool {
+	t := strings.ToLower(trimSQLSpace(line))
+	if t == "" {
+		return false
+	}
+	for _, w := range []string{"in", "query", "for"} {
+		if strings.HasSuffix(t, " "+w) || strings.HasSuffix(t, "\t"+w) {
+			return true
+		}
+	}
+	return false
+}
+
 func endsWithOpenerWord(line string) bool {
 	t := strings.ToLower(trimSQLSpace(line))
 	for _, w := range []string{"then", "else", "loop"} {
@@ -4211,15 +4234,22 @@ func lastLineIndent(s string) string {
 // stripLeadingIndent removes indent from the start of every non-first line of sql.
 // This undoes the body's base indentation before layout/normalize so that
 // reindentLines can re-add it exactly once.
-func stripLeadingIndent(sql, indent string) string {
-	if indent == "" {
+func stripLeadingIndent(sql string, indents ...string) string {
+	if len(indents) == 0 || indents[0] == "" && len(indents) == 1 {
 		return sql
 	}
 	lines := strings.SplitAfter(sql, "\n")
 	inside := linesInsideTokens(sql, len(lines)) // (the lines of a string constant are data)
 	for i := 1; i < len(lines); i++ {
-		if !inside[i] {
-			lines[i] = strings.TrimPrefix(lines[i], indent)
+		if inside[i] {
+			continue
+		}
+		// the first of the indents the line starts with (longest first: contIndent, then baseIndent)
+		for _, indent := range indents {
+			if indent != "" && strings.HasPrefix(lines[i], indent) {
+				lines[i] = lines[i][len(indent):]
+				break
+			}
 		}
 	}
 	return strings.Join(lines, "")

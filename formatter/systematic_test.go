@@ -513,3 +513,23 @@ func TestRiverCteAfterCommentParenIndentCloseAfter(t *testing.T) {
 	})
 	formatTwice(t, c, "WITH\n    a AS\n    (\n        SELECT 1 AS x\n    ),\n    -- find tickets\n    b AS\n    (\n        SELECT id_ticket\n        FROM tickets\n        WHERE id_ticket = 1\n        GROUP BY id_ticket\n    ),\n    -- more\n    c AS\n    (\n        SELECT 2 FROM b\n    )\n    SELECT a.x\n    FROM a\n    JOIN b ON TRUE;\n")
 }
+
+// The query of FOR r IN select … LOOP and RETURN QUERY select … starts on the line of its
+// statement: its other clauses hang one level under that line, not at the level of FOR / RETURN.
+func TestQueryAfterForInHangsUnderItsLine(t *testing.T) {
+	c := wsCfg(t, func(c *config.Config) {
+		c.Layout.Indent.Size = 2
+		c.Layout.Clauses.Break = config.BreakAlways
+	})
+	in := "create function f() returns setof t language plpgsql as $$\nbegin\n  for r in select a from t where x = 1\n  loop\n    perform 1;\n  end loop;\n  return query select a from t where x = 1;\n  for r in\n    select a from t\n  loop\n    perform 1;\n  end loop;\nend\n$$;\n"
+	got := formatTwice(t, c, in)
+	for _, want := range []string{
+		"  for r in select a\n    from t\n    where x = 1\n  loop\n",
+		"  return query select a\n    from t\n    where x = 1;\n",
+		"  for r in\n    select a\n    from t\n  loop\n",
+	} {
+		if !strings.Contains(strings.ToLower(got), want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}
