@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- `templates/ai.yaml` sets `layout.indent.normalize: change`, so the two-space indent it promises also replaces the tabs (and other indents) of the source
+- `templates/ai.yaml` sets `layout.indent.normalize: change` and `indent` for the PL/pgSQL `declare` / `begin_body` sections and `if` / `loop` bodies (`layout.dollar_quote.plpgsql`), so the two-space indent it promises also replaces the tabs and the indent depth of the source, in function bodies too
 
 ## [0.6.1] — 2026-11-13
 

@@ -77,3 +77,14 @@ layout:
     create_table:
       break: auto
       align: none
+  dollar_quote:
+    plpgsql:
+      declare:
+        indent: indent
+      begin_body:
+        indent: indent
+      control_flow:
+        if:
+          body_indent: indent
+        loop:
+          body_indent: indent
