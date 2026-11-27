@@ -421,7 +421,7 @@ plpgsql_keywords:
                   # receive no transformation from the keywords/reserved_keywords rules:
                   # RAISE, PERFORM, ELSIF, ELSEIF, FOREACH, REVERSE, SLICE, EXIT, LOOP,
                   # WHILE, OPEN, ASSERT, EXCEPTION (as RAISE severity / handler keyword),
-                  # DEBUG, INFO, NOTICE, WARNING.
+                  # DEBUG, INFO, NOTICE, WARNING, QUERY (after RETURN), GET [STACKED] DIAGNOSTICS.
                   # When omitted these keywords are written exactly as they appear in source.
 ```
 

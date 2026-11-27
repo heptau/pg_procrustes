@@ -182,6 +182,7 @@ window.CB_PRESETS = {
       "paren_spacing": "remove",
       "plpgsql_assignment": "colon_equals",
       "plpgsql_into": "after_list",
+      "plpgsql_keywords.case": "upper",
       "quoted_identifiers": "remove_safe",
       "reserved_keywords.case": "upper",
       "schemas.case": "lower",

@@ -119,3 +119,39 @@ func TestAITemplateSelectIntoAndCast(t *testing.T) {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+// plpgsql_keywords covers GET [STACKED | CURRENT] DIAGNOSTICS; get / diagnostics as names stay names.
+func TestGetDiagnosticsIsPLpgSQLKeyword(t *testing.T) {
+	c, err := config.Load("/nonexistent/.pg_procrustes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.PLpgSQLKeywords.Case = config.CaseUpper
+	in := "do $$\nbegin\n  get diagnostics n = row_count;\n  get stacked diagnostics n = message_text;\n  get current /* c */ diagnostics n = row_count;\n  select get, diagnostics from t;\n  n := get + diagnostics;\nend $$;\n"
+	want := "do $$\nbegin\n  GET DIAGNOSTICS n = row_count;\n  GET STACKED DIAGNOSTICS n = message_text;\n  GET CURRENT /* c */ DIAGNOSTICS n = row_count;\n  select get, diagnostics from t;\n  n := get + diagnostics;\nend $$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// The postgresql template writes the PL/pgSQL keywords upper case like the SQL ones (no `END loop`).
+func TestPostgresqlTemplateUppercasesPLpgSQLKeywords(t *testing.T) {
+	c, err := config.Load("../templates/postgresql.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := "do $$\nbegin\n  for r in select a from t loop\n    perform 1;\n  end loop;\n  raise notice 'x';\nend $$;\n"
+	got, err := formatter.Format(in, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []string{"LOOP", "END LOOP;", "PERFORM 1", "RAISE NOTICE"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("missing %q in:\n%s", w, got)
+		}
+	}
+}

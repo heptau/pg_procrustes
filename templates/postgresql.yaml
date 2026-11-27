@@ -38,6 +38,8 @@ functions:
 aliases:
   case: lower
   as: add
+plpgsql_keywords:
+  case: upper
 plpgsql_assignment: colon_equals
 inequality_op: ansi
 cast_style: operator

@@ -2177,6 +2177,10 @@ func formatParsedVars(sql string, cfg *config.Config, parsed *pg_query.ParseResu
 			(lower != "query" || (strings.EqualFold(prevTokenText, "return") && i+1 < len(tokens) && tokens[i+1].text != ";")) {
 			class = classPlpgSQLKeyword
 		}
+		// GET [STACKED] DIAGNOSTICS: keywords only in that sequence (get, stacked, diagnostics are names elsewhere)
+		if cfg.PLpgSQLKeywords.Case != "" && prevTokenText != "." && isGetDiagnosticsWord(tokens, i) {
+			class = classPlpgSQLKeyword
+		}
 
 		// replaceWith: if this token has a replacement, write it and skip normal output.
 		if s, ok := replaceWith[i]; ok {

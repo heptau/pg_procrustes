@@ -16,11 +16,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A psql meta-command after SQL (`select … as drift \gset`, or `\g`, `\gexec`, `\gx`, `\watch` on the line after a query) was a syntax error, so the whole file was not formatted; it ends the statement (as in psql, without a semicolon) and is copied verbatim. Test `TestSyntaxErrorsPsqlMetaCommandEndsStatement`
 - `layout.indent.normalize: change` left the tabs at the start of the lines of a function body (`$$ … $$`) that begin with a tab, so with `indent.type: spaces` the body kept its tabs (or a mix of a tab and blanks); they are converted like every other line (string constants inside stay as written). Test `TestIndentNormalizeChangesTabsInFunctionBody`
 - In a PL/pgSQL body, the query of `FOR r IN select … LOOP`, `RETURN QUERY select …` and `OPEN c FOR select …` that starts on the line of its statement was broken with its other clauses (`from`, `where`, …) at the level of `FOR` / `RETURN`; they hang one level under that line. Test `TestQueryAfterForInHangsUnderItsLine`
+- `plpgsql_keywords.case` did not cover `GET [STACKED | CURRENT] DIAGNOSTICS`, which stayed as written; the words are PL/pgSQL keywords in that statement (and names anywhere else). Test `TestGetDiagnosticsIsPLpgSQLKeyword`
 
 ### Changed
 
 - `templates/ai.yaml` sets `layout.indent.normalize: change` and `indent` for the PL/pgSQL `declare` / `begin_body` sections and `if` / `loop` bodies (`layout.dollar_quote.plpgsql`), so the two-space indent it promises also replaces the tabs and the indent depth of the source, in function bodies too; a broken `WHERE` / `HAVING` keeps its first condition on the keyword line (`layout.content.where_conds` / `having_conds.first_item: inline`: `where a=1` / `  and b=2`)
 - `templates/ai.yaml`, `modern.yaml` and `postgresql.yaml` set `cast_spacing: remove` and `plpgsql_into: after_list`
+- `templates/postgresql.yaml` sets `plpgsql_keywords.case: upper`: the PL/pgSQL keywords (`LOOP`, `PERFORM`, `RAISE`, `WHILE`, `RETURN QUERY`, …) were left as written next to upper-case SQL keywords (`END loop;`)
 
 ## [0.6.1] — 2026-11-13
 
