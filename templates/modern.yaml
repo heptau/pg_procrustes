@@ -75,6 +75,7 @@ layout:
     blank_line: both
   content:
     break: auto              # short WHERE / GROUP BY / ORDER BY stay on the keyword's line
+    align: indent
     select_list:
       break: always          # one column per line: a change touches one line
     set_list:

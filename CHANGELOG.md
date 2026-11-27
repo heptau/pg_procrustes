@@ -23,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `templates/ai.yaml` sets `layout.indent.normalize: change` and `indent` for the PL/pgSQL `declare` / `begin_body` sections and `if` / `loop` bodies (`layout.dollar_quote.plpgsql`), so the two-space indent it promises also replaces the tabs and the indent depth of the source, in function bodies too; a broken `WHERE` / `HAVING` keeps its first condition on the keyword line (`layout.content.where_conds` / `having_conds.first_item: inline`: `where a=1` / `  and b=2`)
 - `templates/ai.yaml`, `modern.yaml` and `postgresql.yaml` set `cast_spacing: remove` and `plpgsql_into: after_list`
 - `templates/postgresql.yaml` sets `plpgsql_keywords.case: upper`: the PL/pgSQL keywords (`LOOP`, `PERFORM`, `RAISE`, `WHILE`, `RETURN QUERY`, …) were left as written next to upper-case SQL keywords (`END loop;`)
+- `templates/ai.yaml`, `modern.yaml` and `postgresql.yaml` set `layout.content.align: indent`: the items of a broken list (SELECT columns, …) are indented under their keyword even when the source has the continuation lines at the level of the keyword (`preserve` kept them there). Test `TestTemplatesIndentListUnderKeyword`
 
 ## [0.6.1] — 2026-11-13
 

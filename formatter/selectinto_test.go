@@ -155,3 +155,26 @@ func TestPostgresqlTemplateUppercasesPLpgSQLKeywords(t *testing.T) {
 		}
 	}
 }
+
+// The templates indent the items of a broken list under their keyword even when the source has the
+// continuation lines at the level of the keyword (layout.content.align: indent).
+func TestTemplatesIndentListUnderKeyword(t *testing.T) {
+	in := "select budget_section_id, budget_item_id, budget_purpose_id, budget_instrument_id, budget_resource_id,\nnew.datum, usuma, 'ID', new.department_id, new.cislo, vd_typ, vd_kod, vd_cislo, popis, true\nfrom accounting.id_p;\n"
+	for name, want := range map[string]string{
+		"ai":         "select\n  budget_section_id,\n  budget_item_id,",
+		"modern":     "select\n  budget_section_id\n, budget_item_id",
+		"postgresql": "SELECT budget_section_id,\n    budget_item_id,",
+	} {
+		c, err := config.Load("../templates/" + name + ".yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := formatter.Format(in, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(got, want) {
+			t.Errorf("%s: missing %q in:\n%s", name, want, got)
+		}
+	}
+}

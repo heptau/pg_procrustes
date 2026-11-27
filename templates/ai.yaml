@@ -73,6 +73,7 @@ layout:
     break: always
   content:
     break: auto
+    align: indent
     align_aliases: none
     align_set: none
     where_conds:
